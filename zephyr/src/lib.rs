@@ -73,3 +73,8 @@ pub mod raw {
 pub mod _export {
     pub use core::format_args;
 }
+
+// Mark this as `pub` so the docs can be read.
+// If allocation has been requested, provide the allocator.
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod alloc_impl;
