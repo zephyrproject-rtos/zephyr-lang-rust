@@ -138,6 +138,7 @@ ZEPHYR_DTS = \"${ZEPHYR_DTS}\"
 INCLUDE_DIRS = \"${include_dirs}\"
 INCLUDE_DEFINES = \"${include_defines}\"
 WRAPPER_FILE = \"${WRAPPER_FILE}\"
+BINARY_DIR_INCLUDE_GENERATED = \"${BINARY_DIR_INCLUDE_GENERATED}\"
 
 [patch.crates-io]
 ${config_paths}
@@ -156,6 +157,7 @@ ${config_paths}
       INCLUDE_DIRS="${include_dirs}"
       INCLUDE_DEFINES="${include_defines}"
       WRAPPER_FILE="${WRAPPER_FILE}"
+      BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
       cargo build
       ${rust_build_type_arg}
 
