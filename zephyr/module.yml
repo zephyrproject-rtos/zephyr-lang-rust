@@ -3,3 +3,5 @@ name: lang-rust
 build:
   cmake: .
   kconfig: Kconfig
+samples:
+  - samples/hello_world
