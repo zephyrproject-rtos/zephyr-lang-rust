@@ -1,0 +1,5 @@
+name: lang-rust
+
+build:
+  cmake: .
+  kconfig: Kconfig
