@@ -5,3 +5,5 @@ build:
   kconfig: Kconfig
 samples:
   - samples/hello_world
+tests:
+  - tests
