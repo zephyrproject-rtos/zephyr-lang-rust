@@ -1,0 +1,55 @@
+# Copyright (c) 2024 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build
+
+# Build the rust samples and tests using the current Zephyr.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: zephyr-rust-lang
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: zephyr-rust-lang
+          manifest-file-name: ci-manifest.yml
+          toolchains: arm-zephyr-eabi:riscv64-zephyr-elf
+
+      - name: Install Rust Targets
+        shell: bash
+        run: |
+          rustup target add riscv32i-unknown-none-elf
+          rustup target add riscv64imac-unknown-none-elf
+          rustup target add thumbv6m-none-eabi
+          rustup target add thumbv7em-none-eabi
+          rustup target add thumbv7m-none-eabi
+          rustup target add thumbv8m.main-none-eabi
+
+      - name: Build firmware
+        working-directory: zephyr-rust-lang
+        shell: bash
+        run: |
+          cargo --version
+
+          west twister -T samples -v --inline-logs --integration
