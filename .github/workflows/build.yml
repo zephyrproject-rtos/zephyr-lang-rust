@@ -56,4 +56,4 @@ jobs:
         run: |
           cargo --version
 
-          west twister -T samples -v --inline-logs --integration
+          west twister -T samples -T tests -v --inline-logs --integration
