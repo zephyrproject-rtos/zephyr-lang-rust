@@ -1,0 +1,65 @@
+name: Generate and Preview Rust Docs
+
+on:
+  pull_request:
+    branches:
+      - main  # Only generate docs for PRs targeting main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: zephyr-rust-lang
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: zephyr-rust-lang
+          manifest-file-name: ci-manifest.yml
+          toolchains: arm-zephyr-eabi:riscv64-zephyr-elf
+
+      - name: Install Rust Targets
+        shell: bash
+        run: |
+          rustup target add thumbv7em-none-eabi
+          rustup target add thumbv7m-none-eabi
+
+      - name: Setup cargo build
+        working-directory: zephyr-rust-lang
+        run: |
+          west build -b nrf52840dk/nrf52840 --cmake-only docgen
+          find . -type d -ls
+
+          #       - name: Build Rust documentation
+          # run: cargo doc --no-deps
+
+        #    - name: Deploy docs to GitHub Pages for pull requests
+        #      if: github.event_name == 'pull_request'
+        #      uses: peaceiris/actions-gh-pages@v3
+        #      with:
+        #        github_token: ${{ secrets.GITHUB_TOKEN }}
+        #        publish_dir: ./target/doc
+        #        publish_branch: gh-pages
+        #        publish_dir: ./target/doc
+        #        destination_dir: pr-${{ github.event.number }}
+        #
+        #    - name: Deploy docs to GitHub Pages for push to main
+        #      if: github.event_name == 'push'
+        #      uses: peaceiris/actions-gh-pages@v3
+        #      with:
+        #        github_token: ${{ secrets.GITHUB_TOKEN }}
+        #        publish_dir: ./target/doc
+        #        publish_branch: gh-pages
