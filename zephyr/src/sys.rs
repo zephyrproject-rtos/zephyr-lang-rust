@@ -89,11 +89,36 @@ pub mod gpio {
         pub(crate) device: *const raw::device,
     }
 
+    impl Gpio {
+        /// Verify that the device is ready for use.  At a minimum, this means the device has been
+        /// successfully initialized.
+        pub fn is_ready(&self) -> bool {
+            unsafe {
+                raw::device_is_ready(self.device)
+            }
+        }
+    }
+
     /// A GpioPin represents a single pin on a gpio device.  This is a lightweight wrapper around
     /// the Zephyr `gpio_dt_spec` structure.
     #[allow(dead_code)]
     pub struct GpioPin {
         pub(crate) pin: raw::gpio_dt_spec,
+    }
+
+    impl GpioPin {
+        /// Verify that the device is ready for use.  At a minimum, this means the device has been
+        /// successfully initialized.
+        pub fn is_ready(&self) -> bool {
+            self.get_gpio().is_ready()
+        }
+
+        /// Get the underlying Gpio device.
+        pub fn get_gpio(&self) -> Gpio {
+            Gpio {
+                device: self.pin.port,
+            }
+        }
     }
 }
 
