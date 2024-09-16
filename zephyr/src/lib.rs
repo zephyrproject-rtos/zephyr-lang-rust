@@ -66,6 +66,11 @@ fn panic(info :&PanicInfo) -> ! {
     }
 }
 
+#[cfg(CONFIG_PRINTK)]
+pub fn set_logger() {
+    printk::set_printk_logger();
+}
+
 /// Re-export of zephyr-sys as `zephyr::raw`.
 pub mod raw {
     pub use zephyr_sys::*;
@@ -86,3 +91,14 @@ pub mod _export {
 // If allocation has been requested, provide the allocator.
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod alloc_impl;
+
+// If we have allocation, we can also support logging.
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod log {
+    #[cfg(CONFIG_LOG)]
+    compile_error!("Rust with CONFIG_LOG is not yet supported");
+
+    mod log_printk;
+
+    pub use log_printk::*;
+}
