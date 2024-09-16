@@ -12,6 +12,8 @@ use core::fmt::{
     write,
 };
 
+use log::{LevelFilter, Log, Metadata, Record};
+
 /// Print to Zephyr's console, without a newline.
 ///
 /// This macro uses the same syntax as std's
@@ -44,6 +46,46 @@ macro_rules! printkln {
     ($($arg:tt)*) => {{
         $crate::printk::printkln(format_args!($($arg)*));
     }};
+}
+
+/// A simple log handler built around printk.
+struct PrintkLogger;
+
+impl Log for PrintkLogger {
+    // Initially, everything is just available.
+    fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
+        true
+    }
+
+    // Just print out the information.
+    fn log(&self, record: &Record<'_>) {
+        printkln!("{}:{}: {}",
+            record.level(),
+            record.target(),
+            record.args());
+    }
+
+    // Nothing to do for flush.
+    fn flush(&self) {
+    }
+}
+
+static PRINTK_LOGGER: PrintkLogger = PrintkLogger;
+
+// The cfg matches what is in the log crate, which doesn't use portable atomic, and assumes the
+// racy init when not the case.
+#[cfg(target_has_atomic = "ptr")]
+pub fn set_printk_logger() {
+    log::set_logger(&PRINTK_LOGGER).unwrap();
+    log::set_max_level(LevelFilter::Info);
+}
+
+#[cfg(not(target_has_atomic = "ptr"))]
+pub fn set_printk_logger() {
+    unsafe {
+        log::set_logger_racy(&PRINTK_LOGGER).unwrap();
+        log::set_max_level_racy(LevelFilter::Info);
+    }
 }
 
 // This could readily be optimized for the configuration where we don't have userspace, as well as
