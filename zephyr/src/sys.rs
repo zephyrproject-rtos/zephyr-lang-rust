@@ -72,3 +72,51 @@ pub mod critical {
         }
     }
 }
+
+pub mod gpio {
+    //! Most devices in Zephyr operate on a `struct device`.  This provides untyped access to
+    //! devices.  We want to have stronger typing in the Zephyr interfaces, so most of these types
+    //! will be wrapped in another structure.  This wraps a Gpio device, and provides methods to
+    //! most of the operations on gpios.
+
+    use crate::raw;
+
+    /// A single instance of a zephyr device to manage a gpio controller.  A gpio controller
+    /// represents a set of gpio pins, that are generally operated on by the same hardware block.
+    pub struct Gpio {
+        /// The underlying device itself.
+        #[allow(dead_code)]
+        pub(crate) device: *const raw::device,
+    }
+
+    /// A GpioPin represents a single pin on a gpio device.  This is a lightweight wrapper around
+    /// the Zephyr `gpio_dt_spec` structure.
+    #[allow(dead_code)]
+    pub struct GpioPin {
+        pub(crate) pin: raw::gpio_dt_spec,
+    }
+}
+
+pub mod flash {
+    //! Device wrappers for flash controllers, and flash partitions.
+
+    use crate::raw;
+
+    #[allow(dead_code)]
+    pub struct FlashController {
+        pub(crate) device: *const raw::device,
+    }
+
+    /// A wrapper for flash partitions.  There is no Zephyr struct that corresponds with this
+    /// information, which is typically used in a more direct underlying manner.
+    #[allow(dead_code)]
+    pub struct FlashPartition {
+        /// The underlying controller.
+        #[allow(dead_code)]
+        pub(crate) controller: FlashController,
+        #[allow(dead_code)]
+        pub(crate) offset: u32,
+        #[allow(dead_code)]
+        pub(crate) size: u32,
+    }
+}
