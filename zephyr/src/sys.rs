@@ -119,6 +119,24 @@ pub mod gpio {
                 device: self.pin.port,
             }
         }
+
+        /// Configure a single pin.
+        pub fn configure(&mut self, extra_flags: raw::gpio_flags_t) {
+            // TODO: Error?
+            unsafe {
+                raw::gpio_pin_configure(self.pin.port,
+                    self.pin.pin,
+                    self.pin.dt_flags as raw::gpio_flags_t | extra_flags);
+            }
+        }
+
+        /// Toggle pin level.
+        pub fn toggle_pin(&mut self) {
+            // TODO: Error?
+            unsafe {
+                raw::gpio_pin_toggle_dt(&self.pin);
+            }
+        }
     }
 }
 
