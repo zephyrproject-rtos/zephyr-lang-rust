@@ -15,6 +15,10 @@ zephyr-sys = { version = "0.1.0", path = "../zephyr-sys" }
 [dependencies.fugit]
 version = "0.3.7"
 
+[dependencies.critical-section]
+version = "1.1.2"
+features = ["restore-state-u32"]
+
 [dependencies.portable-atomic]
 version = "1.7.0"
 # We assume that the instances where portable atomic must provide its own implementation (target
