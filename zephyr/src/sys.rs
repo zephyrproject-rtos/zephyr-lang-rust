@@ -28,3 +28,35 @@ pub const K_FOREVER: k_timeout_t = k_timeout_t { ticks: -1 };
 /// Low-level Zephyr Constant.  Calls using this value will not wait if the operation cannot be
 /// performed immediately.
 pub const K_NO_WAIT: k_timeout_t = k_timeout_t { ticks: 0 };
+
+pub mod critical {
+    //! Zephyr implementation of critical sections.
+    //!
+    //! Critical sections from Rust are handled with a single Zephyr spinlock.  This doesn't allow
+    //! any nesting, but neither does the `critical-section` crate.
+
+    use core::{ffi::c_int, ptr::addr_of_mut};
+
+    use critical_section::RawRestoreState;
+    use zephyr_sys::{k_spinlock, k_spin_lock, k_spin_unlock, k_spinlock_key_t};
+
+    struct ZephyrCriticalSection;
+    critical_section::set_impl!(ZephyrCriticalSection);
+
+    // The critical section shares a single spinlock.
+    static mut LOCK: k_spinlock = unsafe { core::mem::zeroed() };
+
+    unsafe impl critical_section::Impl for ZephyrCriticalSection {
+        unsafe fn acquire() -> RawRestoreState {
+            let res = k_spin_lock(addr_of_mut!(LOCK));
+            res.key as RawRestoreState
+        }
+
+        unsafe fn release(token: RawRestoreState) {
+            k_spin_unlock(addr_of_mut!(LOCK),
+                          k_spinlock_key_t {
+                              key: token as c_int,
+                          });
+        }
+    }
+}
