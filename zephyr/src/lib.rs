@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 
 pub mod error;
+pub mod object;
 pub mod sync;
 pub mod sys;
 pub mod time;
