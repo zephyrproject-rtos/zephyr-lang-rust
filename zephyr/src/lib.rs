@@ -10,6 +10,7 @@
 #![allow(unexpected_cfgs)]
 #![deny(missing_docs)]
 
+pub mod align;
 pub mod error;
 pub mod object;
 pub mod sync;
