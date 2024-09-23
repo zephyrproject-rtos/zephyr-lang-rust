@@ -31,4 +31,15 @@ extern int errno;
 #endif
 
 #include <zephyr/kernel.h>
+#include <zephyr/kernel/thread_stack.h>
 #include <zephyr/drivers/gpio.h>
+
+/*
+ * bindgen will output #defined constant that resolve to simple numbers.  There are some symbols
+ * that we want exported that, at least in some situations, are more complex, usually with a type
+ * case.
+ *
+ * We'll use the prefix "ZR_" to avoid conflicts with other symbols.
+ */
+const uintptr_t ZR_STACK_ALIGN = Z_KERNEL_STACK_OBJ_ALIGN;
+const uintptr_t ZR_STACK_RESERVED = K_KERNEL_STACK_RESERVED;
