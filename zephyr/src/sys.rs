@@ -30,6 +30,16 @@ pub const K_FOREVER: k_timeout_t = k_timeout_t { ticks: -1 };
 /// performed immediately.
 pub const K_NO_WAIT: k_timeout_t = k_timeout_t { ticks: 0 };
 
+/// Return the current uptime of the system in ms.
+///
+/// Direct Zephyr call.  Precision is limited by the system tick timer.
+#[inline]
+pub fn uptime_get() -> i64 {
+    unsafe {
+        crate::raw::k_uptime_get()
+    }
+}
+
 pub mod critical {
     //! Zephyr implementation of critical sections.
     //!
