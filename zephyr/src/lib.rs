@@ -10,8 +10,11 @@
 #![allow(unexpected_cfgs)]
 #![deny(missing_docs)]
 
+pub mod error;
 pub mod sys;
 pub mod time;
+
+pub use error::{Error, Result};
 
 // Bring in the generated kconfig module
 pub mod kconfig {
