@@ -179,7 +179,15 @@ ${config_paths}
         kobj_types_h_target
   )
 
-  target_link_libraries(app PUBLIC -Wl,--allow-multiple-definition ${RUST_LIBRARY})
+  # Linking with the <rt_library> (`$<TARGET_PROPERTY:linker,rt_library>`).
+  # -lgcc / -lcompiler_rt depending on toolchain, linker, and runtime library configuration.
+  # In general this shouldn't be needed, as the runtime libary is generally linked late, but
+  # librustapp.a includes it's own runtime functions, and on riscv (and potentially others) an
+  # unrecognized / unknown type is used in the relocation section for clzsi2 object.
+  # Thus we must for current time ensure that the runtime library is before librustapp.a.
+  # Example of warning reported by ld when this fix is not in place:
+  # <path>/ld.bfd: rust/target/riscv64imac-unknown-none-elf/debug/librustapp.a(45c91108d938afe8-clzdi2.o): unsupported relocation type 0x3d
+  target_link_libraries(app PUBLIC $<TARGET_PROPERTY:linker,rt_library> -Wl,--allow-multiple-definition ${RUST_LIBRARY})
   add_dependencies(app librustapp)
 
   # Presumably, Rust applications will have no C source files, but cmake will require them.
