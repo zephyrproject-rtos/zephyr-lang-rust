@@ -3,14 +3,14 @@
 
 [package]
 name = "zephyr"
-version = "0.1.0"
+version = "3.7.0"
 edition = "2021"
 description = """
 Functionality for Rust-based applications that run on Zephyr.
 """
 
 [dependencies]
-zephyr-sys = { version = "0.1.0", path = "../zephyr-sys" }
+zephyr-sys = { version = "3.7.0", path = "../zephyr-sys" }
 
 # Although paste is brought in, it is a compile-time macro, and is not linked into the application.
 paste = "1.0"
@@ -42,4 +42,4 @@ features = ["alloc"]
 # Whether these need to be vendored is an open question.  They are not
 # used by the core Zephyr tree, but are needed by zephyr applications.
 [build-dependencies]
-zephyr-build = { version = "0.1.0", path = "../zephyr-build" }
+zephyr-build = { version = "3.7.0", path = "../zephyr-build" }

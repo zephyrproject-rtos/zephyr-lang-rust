@@ -3,7 +3,7 @@
 
 [package]
 name = "zephyr-sys"
-version = "0.1.0"
+version = "3.7.0"
 edition = "2021"
 description = """
 Zephyr low-level API bindings.
@@ -15,4 +15,4 @@ Zephyr low-level API bindings.
 [build-dependencies]
 anyhow = "1.0"
 bindgen = { version = "0.69.4", features = ["experimental"] }
-# zephyr-build = { version = "0.1.0", path = "../zephyr-build" }
+# zephyr-build = { version = "3.7.0", path = "../zephyr-build" }
