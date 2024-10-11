@@ -13,7 +13,20 @@ pub mod sys;
 pub mod time;
 
 // Bring in the generated kconfig module
-include!(concat!(env!("OUT_DIR"), "/kconfig.rs"));
+pub mod kconfig {
+    //! Zephyr Kconfig values.
+    //!
+    //! This module contains an auto-generated set of constants corresponding to the values of
+    //! various Kconfig values during the build.
+    //!
+    //! **Note**: Unless you are viewing docs generated for a specific build, the values below are
+    //! unlikely to directly correspond to those in a given build.
+
+    // Don't enforce doc comments on the bindgen, as it isn't enforced within Zephyr.
+    #![allow(missing_docs)]
+
+    include!(concat!(env!("OUT_DIR"), "/kconfig.rs"));
+}
 
 // Ensure that Rust is enabled.
 #[cfg(not(CONFIG_RUST))]

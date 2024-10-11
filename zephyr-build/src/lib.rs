@@ -54,24 +54,22 @@ pub fn build_kconfig_mod() {
     let gen_path = Path::new(&outdir).join("kconfig.rs");
 
     let mut f = File::create(&gen_path).unwrap();
-    writeln!(&mut f, "pub mod kconfig {{").unwrap();
 
     let file = File::open(&dotconfig).expect("Unable to open dotconfig");
     for line in BufReader::new(file).lines() {
         let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_hex.captures(&line) {
-            writeln!(&mut f, "    #[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "    pub const {}: usize = {};",
+            writeln!(&mut f, "#[allow(dead_code)]").unwrap();
+            writeln!(&mut f, "pub const {}: usize = {};",
                 &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_int.captures(&line) {
-            writeln!(&mut f, "    #[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "    pub const {}: isize = {};",
+            writeln!(&mut f, "#[allow(dead_code)]").unwrap();
+            writeln!(&mut f, "pub const {}: isize = {};",
                 &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_str.captures(&line) {
-            writeln!(&mut f, "    #[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "    pub const {}: &'static str = {};",
+            writeln!(&mut f, "#[allow(dead_code)]").unwrap();
+            writeln!(&mut f, "pub const {}: &'static str = {};",
                 &caps[1], &caps[2]).unwrap();
         }
     }
-    writeln!(&mut f, "}}").unwrap();
 }
