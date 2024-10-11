@@ -112,6 +112,8 @@ impl Semaphore {
 /// [`Semaphore`] that is represents.
 pub type StaticSemaphore = StaticKernelObject<k_sem>;
 
+unsafe impl Sync for StaticSemaphore {}
+
 impl Wrapped for StaticKernelObject<k_sem> {
     type T = Semaphore;
 
