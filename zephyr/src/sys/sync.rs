@@ -65,7 +65,7 @@ impl Semaphore {
     /// Take a semaphore.
     ///
     /// Can be called from ISR if called with [`NoWait`].
-    pub fn take<T>(&mut self, timeout: T) -> Result<()>
+    pub fn take<T>(&self, timeout: T) -> Result<()>
         where T: Into<Timeout>,
     {
         let timeout: Timeout = timeout.into();
@@ -79,7 +79,7 @@ impl Semaphore {
     ///
     /// This routine gives to the semaphore, unless the semaphore is already at its maximum
     /// permitted count.
-    pub fn give(&mut self) {
+    pub fn give(&self) {
         unsafe {
             k_sem_give(self.item)
         }
