@@ -15,6 +15,22 @@ zephyr-sys = { version = "0.1.0", path = "../zephyr-sys" }
 [dependencies.fugit]
 version = "0.3.7"
 
+[dependencies.portable-atomic]
+version = "1.7.0"
+# We assume that the instances where portable atomic must provide its own implementation (target
+# does not have atomic instructions), are only single CPU. This is the case currently with Zephyr,
+# so this should only match the same implementation.
+# features = ["fallback", "unsafe-assume-single-core"]
+features = ["fallback", "critical-section"]
+
+# Provides an implementation of Arc that either directs to 'alloc', or implements using portable
+# atomic.
+[dependencies.portable-atomic-util]
+version = "0.2.2"
+# Technically, this should only be used if the Rust feature for allocation is defined. But, it
+# should be safe to build the crate even if the Rust code doesn't use it because of configs.
+features = ["alloc"]
+
 # These are needed at build time.
 # Whether these need to be vendored is an open question.  They are not
 # used by the core Zephyr tree, but are needed by zephyr applications.
