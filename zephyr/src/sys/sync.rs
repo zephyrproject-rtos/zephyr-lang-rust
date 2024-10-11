@@ -31,6 +31,7 @@
 //! from a pool, although the objects will still be statically allocated.
 
 use core::ffi::c_uint;
+use core::fmt;
 
 use crate::{
     error::{Result, to_result_void},
@@ -127,5 +128,11 @@ impl Wrapped for StaticKernelObject<k_sem> {
         Semaphore {
             item: ptr,
         }
+    }
+}
+
+impl fmt::Debug for Semaphore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "sys::Semaphore")
     }
 }

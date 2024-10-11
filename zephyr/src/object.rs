@@ -44,14 +44,16 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 /// be properly registered in Zephyr as kernel objects.  The object has the underlying Zephyr type
 /// T, and the wrapper type W.
 ///
+/// TODO: Can we avoid the public fields with a const new method?
+///
 /// TODO: Handling const-defined alignment for these.
 pub struct StaticKernelObject<T> {
     #[allow(dead_code)]
     /// The underlying zephyr kernel object.
-    pub(crate) value: UnsafeCell<T>,
+    pub value: UnsafeCell<T>,
     /// Initialization status of this object.  Most objects will start uninitialized and be
     /// initialized manually.
-    pub(crate) init: AtomicUsize,
+    pub init: AtomicUsize,
 }
 
 /// Each can be wrapped appropriately.  The wrapped type is the instance that holds the raw pointer.
@@ -205,20 +207,20 @@ macro_rules! _kobj_rule {
 #[macro_export]
 macro_rules! _kobj_stack {
     ($v:vis, $name: ident, $size:expr) => {
-        ::paste::paste! {
+        $crate::paste! {
             // The actual stack itself goes into the no-init linker section.  We'll use the user_name,
             // with _REAL appended, to indicate the real stack.
             #[link_section = concat!(".noinit.", stringify!($name), ".", file!(), line!())]
-            $v static [< $name _REAL >] $crate::sys::thread::RealThreadStack<{$crate::sys::thread::stack_len($size)}> =
+            $v static [< $name _REAL >]: $crate::sys::thread::RealStaticThreadStack<{$crate::sys::thread::stack_len($size)}> =
                 unsafe { ::core::mem::zeroed() };
 
             // The proxy object used to ensure initialization is placed in initialized memory.
-            $v static $name: $crate::object::StaticKernelObject<$crate::object::StaticThreadStack> = StaticKernelObject {
-                value: ::core::cell::UnsafeCell::new($crate::object::StaticThreadStack {
+            $v static $name: $crate::object::StaticKernelObject<$crate::sys::thread::StaticThreadStack> = $crate::object::StaticKernelObject {
+                value: ::core::cell::UnsafeCell::new($crate::sys::thread::StaticThreadStack {
                     base: [< $name _REAL >].data.get() as *mut $crate::raw::z_thread_stack_element,
                     size: $size,
                 }),
-                init: $crate::atomic::AtomicUsize::new(0),
+                init: $crate::sync::atomic::AtomicUsize::new(0),
             };
         }
     };

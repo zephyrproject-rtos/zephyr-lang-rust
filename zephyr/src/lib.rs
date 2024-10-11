@@ -19,6 +19,9 @@ pub mod time;
 
 pub use error::{Error, Result};
 
+/// Re-exported for local macro use.
+pub use paste::paste;
+
 // Bring in the generated kconfig module
 pub mod kconfig {
     //! Zephyr Kconfig values.
