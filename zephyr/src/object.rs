@@ -51,7 +51,7 @@ pub struct StaticKernelObject<T> {
     pub(crate) value: UnsafeCell<T>,
     /// Initialization status of this object.  Most objects will start uninitialized and be
     /// initialized manually.
-    init: AtomicUsize,
+    pub(crate) init: AtomicUsize,
 }
 
 /// Each can be wrapped appropriately.  The wrapped type is the instance that holds the raw pointer.
@@ -98,7 +98,7 @@ where
     ///
     /// Will return a single wrapped instance of this object.  This will invoke the initialization,
     /// and return `Some<Wrapped>` for the wrapped containment type.
-    pub fn take(&self, args: <Self as Wrapped>::I) -> Option<<Self as Wrapped>::T> {
+    pub fn init_once(&self, args: <Self as Wrapped>::I) -> Option<<Self as Wrapped>::T> {
         if let Err(_) = self.init.compare_exchange(
             KOBJ_UNINITIALIZED,
             KOBJ_INITING,
@@ -159,4 +159,71 @@ macro_rules! _kobj_rule {
         $v static $name: [$crate::sys::sync::StaticSemaphore; $size] =
             unsafe { ::core::mem::zeroed() };
     };
+
+    // static THREAD: staticThread;
+    ($v:vis, $name:ident, StaticThread) => {
+        // Since the static object has an atomic that we assume is initialized, we cannot use the
+        // default linker section Zephyr uses for Thread, as that is uninitialized.  This will put
+        // it in .bss, where it is zero initialized.
+        $v static $name: $crate::sys::thread::StaticThread =
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    // static THREAD: [staticThread; COUNT];
+    ($v:vis, $name:ident, [StaticThread; $size:expr]) => {
+        // Since the static object has an atomic that we assume is initialized, we cannot use the
+        // default linker section Zephyr uses for Thread, as that is uninitialized.  This will put
+        // it in .bss, where it is zero initialized.
+        $v static $name: [$crate::sys::thread::StaticThread; $size] =
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    // Use indirection on stack initializers to handle some different cases in the Rust syntax.
+        ($v:vis, $name:ident, ThreadStack<$size:literal>) => {
+        $crate::_kobj_stack!($v, $name, $size);
+    };
+    ($v:vis, $name:ident, ThreadStack<$size:ident>) => {
+        $crate::_kobj_stack!($v, $name, $size);
+    };
+    ($v:vis, $name:ident, ThreadStack<{$size:expr}>) => {
+        $crate::_kobj_stack!($v, $name, $size);
+    };
+
+    // Array of stack object versions.
+    ($v:vis, $name:ident, [ThreadStack<$size:literal>; $asize:expr]) => {
+        $crate::_kobj_stack!($v, $name, $size, $asize);
+    };
+    ($v:vis, $name:ident, [ThreadStack<$size:ident>; $asize:expr]) => {
+        $crate::_kobj_stack!($v, $name, $size, $asize);
+    };
+    ($v:vis, $name:ident, [ThreadStack<{$size:expr}>; $asize:expr]) => {
+        $crate::_kobj_stack!($v, $name, $size, $asize);
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! _kobj_stack {
+    ($v:vis, $name: ident, $size:expr) => {
+        ::paste::paste! {
+            // The actual stack itself goes into the no-init linker section.  We'll use the user_name,
+            // with _REAL appended, to indicate the real stack.
+            #[link_section = concat!(".noinit.", stringify!($name), ".", file!(), line!())]
+            $v static [< $name _REAL >] $crate::sys::thread::RealThreadStack<{$crate::sys::thread::stack_len($size)}> =
+                unsafe { ::core::mem::zeroed() };
+
+            // The proxy object used to ensure initialization is placed in initialized memory.
+            $v static $name: $crate::object::StaticKernelObject<$crate::object::StaticThreadStack> = StaticKernelObject {
+                value: ::core::cell::UnsafeCell::new($crate::object::StaticThreadStack {
+                    base: [< $name _REAL >].data.get() as *mut $crate::raw::z_thread_stack_element,
+                    size: $size,
+                }),
+                init: $crate::atomic::AtomicUsize::new(0),
+            };
+        }
+    };
+
+    ($v:vis, $name: ident, $size:expr, $asize:expr) => {
+        compile_error!("TODO: Stack initializer array");
+    }
 }
