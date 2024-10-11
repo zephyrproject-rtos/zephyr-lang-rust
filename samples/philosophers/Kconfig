@@ -1,0 +1,18 @@
+# Copyright (c) 2024 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "Rust Dining Philosphers"
+
+source "Kconfig.zephyr"
+
+choice
+	prompt "Select Synchronization implementation"
+	default SYNC_SYS_SEMAPHORE
+
+	config SYNC_SYS_SEMAPHORE
+		bool "Use sys::Semaphore to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use sys::Semaphore, with one per form,
+		  to synchronize.
+
+endchoice
