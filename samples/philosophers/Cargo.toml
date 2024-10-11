@@ -1,0 +1,25 @@
+# Copyright (c) 2024 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+# This must be rustapp for now.
+name = "rustapp"
+version = "3.7.0"
+edition = "2021"
+description = "A sample hello world application in Rust"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = "3.7.0"
+
+# Dependencies that are used by build.rs.
+[build-dependencies]
+zephyr-build = "3.7.0"
+
+[profile.release]
+debug-assertions = true
+overflow-checks = true
+debug = true
