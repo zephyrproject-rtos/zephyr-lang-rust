@@ -48,7 +48,7 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 pub struct StaticKernelObject<T> {
     #[allow(dead_code)]
     /// The underlying zephyr kernel object.
-    value: UnsafeCell<T>,
+    pub(crate) value: UnsafeCell<T>,
     /// Initialization status of this object.  Most objects will start uninitialized and be
     /// initialized manually.
     init: AtomicUsize,
@@ -142,7 +142,17 @@ macro_rules! kobj_define {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! _kobj_rule {
-    () => {
-        compile_errro!("TODO: Add kobj rules");
+    // static NAME: StaticSemaphore;
+    ($v:vis, $name:ident, StaticSemaphore) => {
+        #[link_section = concat!("._k_sem.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::sync::StaticSemaphore =
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    // static NAMES: [StaticSemaphore; COUNT];
+    ($v:vis, $name:ident, [StaticSemaphore; $size:expr]) => {
+        #[link_section = concat!("._k_sem.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::sync::StaticSemaphore; $size] =
+            unsafe { ::core::mem::zeroed() };
     };
 }
