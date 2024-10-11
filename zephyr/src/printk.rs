@@ -12,6 +12,15 @@ use core::fmt::{
     write,
 };
 
+/// Print to Zephyr's console, without a newline.
+///
+/// This macro uses the same syntax as std's [`format!`], but writes to the Zephyr console instead.
+///
+/// if `CONFIG_PRINTK_SYNC` is enabled, this locks during printing.  However, to avoid allocation,
+/// and due to private accessors in the Zephyr printk implementation, the lock is only over groups
+/// of a small buffer size.  This buffer must be kept fairly small, as it resides on the stack.
+///
+/// [`format!`]: alloc::format
 #[macro_export]
 macro_rules! printk {
     ($($arg:tt)*) => {{
@@ -19,6 +28,17 @@ macro_rules! printk {
     }};
 }
 
+/// Print to Zephyr's console, with a newline.
+///
+/// This macro uses the same syntax as std's
+/// [`format!`], but writes to the Zephyr console
+/// instead. See `std::fmt` for more information.
+///
+/// If `CONFIG_PRINTK_SYNC` is enabled, this locks during printing.  However, to avoid allocation,
+/// and due to private accessors in the Zephyr printk implementation, the lock is only over groups
+/// of a small buffer size.  This buffer must be kept fairly small, as it resides on the stack.
+///
+/// [`format!`]: alloc::format
 #[macro_export]
 macro_rules! printkln {
     ($($arg:tt)*) => {{
@@ -93,6 +113,7 @@ impl Write for Context {
     }
 }
 
+#[doc(hidden)]
 pub fn printk(args: Arguments<'_>) {
     let mut context = Context {
         count: 0,
@@ -102,6 +123,7 @@ pub fn printk(args: Arguments<'_>) {
     context.flush();
 }
 
+#[doc(hidden)]
 pub fn printkln(args: Arguments<'_>) {
     let mut context = Context {
         count: 0,
