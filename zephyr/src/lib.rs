@@ -8,6 +8,7 @@
 
 #![no_std]
 #![allow(unexpected_cfgs)]
+#![deny(missing_docs)]
 
 pub mod sys;
 pub mod time;
