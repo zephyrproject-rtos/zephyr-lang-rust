@@ -56,6 +56,7 @@ pub const fn stack_len(size: usize) -> usize {
     size.next_multiple_of(ZR_STACK_ALIGN)
 }
 
+#[doc(hidden)]
 /// A Zephyr stack declaration.
 ///
 /// It isn't meant to be used directly, as it needs additional decoration about linker sections and
