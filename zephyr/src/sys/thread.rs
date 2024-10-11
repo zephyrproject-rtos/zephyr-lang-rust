@@ -135,6 +135,11 @@ pub struct Thread {
     options: u32,
 }
 
+/// A statically defined thread.
+pub type StaticThread = StaticKernelObject<k_thread>;
+
+unsafe impl Sync for StaticThread {}
+
 impl Wrapped for StaticKernelObject<k_thread> {
     type T = Thread;
     type I = ThreadStack;
