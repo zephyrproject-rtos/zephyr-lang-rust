@@ -66,7 +66,11 @@ pub type Instant = fugit::Instant<Tick, 1, SYS_FREQUENCY>;
 // The absolute time offset is only implemented when time is a 64-bit value.  This also means that
 // "Instant" isn't available when time is defined as a 32-bit value.
 
-// Wrapper around the timeout type, so we can implement From/Info.
+/// Wrapper around the timeout type, so we can implement From/Info.
+///
+/// This wrapper allows us to implement `From` and `Info` from the Fugit types into the Zephyr
+/// types.  This allows various methods to accept either value, as well as the `Forever` and
+/// `NoWait` values defined here.
 pub struct Timeout(pub k_timeout_t);
 
 // `From` allows methods to take a time of various types and convert it into a Zephyr timeout.
