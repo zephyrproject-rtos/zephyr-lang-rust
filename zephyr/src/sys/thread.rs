@@ -66,7 +66,7 @@ pub struct RealStaticThreadStack<const SIZE: usize> {
     #[allow(dead_code)]
     align: AlignAs<ZR_STACK_ALIGN>,
     #[allow(dead_code)]
-    data: UnsafeCell<[z_thread_stack_element; SIZE]>,
+    pub data: UnsafeCell<[z_thread_stack_element; SIZE]>,
     #[allow(dead_code)]
     extra: [z_thread_stack_element; ZR_STACK_RESERVED],
 }
@@ -74,15 +74,19 @@ pub struct RealStaticThreadStack<const SIZE: usize> {
 unsafe impl<const SIZE: usize> Sync for RealStaticThreadStack<SIZE> {}
 
 /// The dynamic stack value, which wraps the underlying stack.
+///
+/// TODO: constructor instead of private.
 pub struct ThreadStack {
-    base: *mut z_thread_stack_element,
-    size: usize,
+    /// Private
+    pub base: *mut z_thread_stack_element,
+    /// Private
+    pub size: usize,
 }
 
 #[doc(hidden)]
 pub struct StaticThreadStack {
-    base: *mut z_thread_stack_element,
-    size: usize,
+    pub base: *mut z_thread_stack_element,
+    pub size: usize,
 }
 
 unsafe impl Sync for StaticKernelObject<StaticThreadStack> {}
