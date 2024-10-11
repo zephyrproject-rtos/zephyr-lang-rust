@@ -33,8 +33,10 @@
 //! });
 //! ```
 
+#[cfg(CONFIG_RUST_ALLOC)]
 extern crate alloc;
 
+#[cfg(CONFIG_RUST_ALLOC)]
 use alloc::boxed::Box;
 use core::{cell::UnsafeCell, ffi::{c_int, c_void}};
 
