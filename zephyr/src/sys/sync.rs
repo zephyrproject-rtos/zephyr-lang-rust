@@ -30,6 +30,8 @@
 //! Later, there will be a pool mechanism to allow these kernel objects to be allocated and freed
 //! from a pool, although the objects will still be statically allocated.
 
+use core::ffi::c_uint;
+
 use crate::{
     error::{Result, to_result_void},
     object::{StaticKernelObject, Wrapped},
@@ -40,10 +42,11 @@ use crate::{
         k_sem_give,
         k_sem_reset,
         k_sem_count_get,
-        K_SEM_MAX_LIMIT,
     },
     time::Timeout,
 };
+
+pub use crate::raw::K_SEM_MAX_LIMIT;
 
 /// A zephyr `k_sem` usable from safe Rust code.
 #[derive(Clone)]
@@ -111,11 +114,15 @@ pub type StaticSemaphore = StaticKernelObject<k_sem>;
 impl Wrapped for StaticKernelObject<k_sem> {
     type T = Semaphore;
 
+    /// The initializer for Semaphores is the initial count, and the count limit (which can be
+    /// K_SEM_MAX_LIMIT, re-exported here.
+    type I = (c_uint, c_uint);
+
     // TODO: Thoughts about how to give parameters to the initialzation.
-    fn get_wrapped(&self) -> Semaphore {
+    fn get_wrapped(&self, arg: Self::I) -> Semaphore {
         let ptr = self.value.get();
         unsafe {
-            k_sem_init(ptr, 0, K_SEM_MAX_LIMIT);
+            k_sem_init(ptr, arg.0, arg.1);
         }
         Semaphore {
             item: ptr,

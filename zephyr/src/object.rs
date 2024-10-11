@@ -60,8 +60,12 @@ pub trait Wrapped {
     /// initialization.
     type T;
 
+    /// The wrapped type also requires zero or more initializers.  Which are represented by this
+    /// type.
+    type I;
+
     /// Initialize this kernel object, and return the wrapped pointer.
-    fn get_wrapped(&self) -> Self::T;
+    fn get_wrapped(&self, args: Self::I) -> Self::T;
 }
 
 /// A state indicating an uninitialized kernel object.
@@ -94,7 +98,7 @@ where
     ///
     /// Will return a single wrapped instance of this object.  This will invoke the initialization,
     /// and return `Some<Wrapped>` for the wrapped containment type.
-    pub fn take(&self) -> Option<<Self as Wrapped>::T> {
+    pub fn take(&self, args: <Self as Wrapped>::I) -> Option<<Self as Wrapped>::T> {
         if let Err(_) = self.init.compare_exchange(
             KOBJ_UNINITIALIZED,
             KOBJ_INITING,
@@ -103,7 +107,7 @@ where
         {
             return None;
         }
-        let result = self.get_wrapped();
+        let result = self.get_wrapped(args);
         self.init.store(KOBJ_INITIALIZED, Ordering::Release);
         Some(result)
     }
