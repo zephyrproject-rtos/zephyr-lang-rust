@@ -13,4 +13,4 @@ license = "Apache-2.0 or MIT"
 crate-type = ["staticlib"]
 
 [dependencies]
-zephyr = "0.1.0"
+zephyr = "3.7.0"
