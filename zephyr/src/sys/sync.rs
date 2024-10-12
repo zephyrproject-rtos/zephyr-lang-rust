@@ -65,6 +65,8 @@ impl Semaphore {
     /// Take a semaphore.
     ///
     /// Can be called from ISR if called with [`NoWait`].
+    ///
+    /// [`NoWait`]: crate::time::NoWait
     pub fn take<T>(&self, timeout: T) -> Result<()>
         where T: Into<Timeout>,
     {
@@ -89,6 +91,8 @@ impl Semaphore {
     ///
     /// This resets the count to zero.  Any outstanding [`take`] calls will be aborted with
     /// `Error(EAGAIN)`.
+    ///
+    /// [`take`]: Self::take
     pub fn reset(&mut self) {
         unsafe {
             k_sem_reset(self.item)
@@ -108,8 +112,10 @@ impl Semaphore {
 /// A static Zephyr `k_sem`.
 ///
 /// This is intended to be used from within the `kobj_define!` macro.  It declares a static ksem
-/// that will be properly registered with the Zephyr kernel object system.  Call [`take`] to get the
-/// [`Semaphore`] that is represents.
+/// that will be properly registered with the Zephyr kernel object system.  Call [`init_once`] to
+/// get the [`Semaphore`] that is represents.
+///
+/// [`init_once`]: StaticKernelObject::init_once
 pub type StaticSemaphore = StaticKernelObject<k_sem>;
 
 unsafe impl Sync for StaticSemaphore {}
