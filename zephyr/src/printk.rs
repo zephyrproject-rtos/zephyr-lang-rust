@@ -5,6 +5,9 @@
 //!
 //! This uses the `k_str_out` syscall, which is part of printk to output to the console.
 
+// Needed by the docs, even though we don't allocate.
+extern crate alloc;
+
 use core::fmt::{
     Arguments,
     Result,
