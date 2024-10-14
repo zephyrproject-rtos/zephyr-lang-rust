@@ -5,9 +5,6 @@
 //!
 //! This uses the `k_str_out` syscall, which is part of printk to output to the console.
 
-// Needed by the docs, even though we don't allocate.
-extern crate alloc;
-
 use core::fmt::{
     Arguments,
     Result,
@@ -17,13 +14,13 @@ use core::fmt::{
 
 /// Print to Zephyr's console, without a newline.
 ///
-/// This macro uses the same syntax as std's [`format!`], but writes to the Zephyr console instead.
+/// This macro uses the same syntax as std's
+/// [`format!`](https://doc.rust-lang.org/stable/std/fmt/index.html), but writes to the Zephyr
+/// console instead.
 ///
 /// if `CONFIG_PRINTK_SYNC` is enabled, this locks during printing.  However, to avoid allocation,
 /// and due to private accessors in the Zephyr printk implementation, the lock is only over groups
 /// of a small buffer size.  This buffer must be kept fairly small, as it resides on the stack.
-///
-/// [`format!`]: alloc::format
 #[macro_export]
 macro_rules! printk {
     ($($arg:tt)*) => {{
