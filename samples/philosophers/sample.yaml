@@ -25,3 +25,8 @@ tests:
     min_ram: 32
     extra_configs:
       - CONFIG_SYNC_SYS_MUTEX=y
+  sample.rust.philosopher.condvar:
+    tags: introduction
+    min_ram: 32
+    extra_configs:
+      - CONFIG_SYNC_CONDVAR=y
