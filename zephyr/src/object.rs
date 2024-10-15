@@ -309,6 +309,19 @@ macro_rules! _kobj_rule {
     ($v:vis, $name:ident, [ThreadStack<{$size:expr}>; $asize:expr]) => {
         $crate::_kobj_stack!($v, $name, $size, $asize);
     };
+
+    // Queues.
+    ($v:vis, $name: ident, StaticQueue) => {
+        #[link_section = concat!("._k_queue.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::queue::StaticQueue =
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    ($v:vis, $name: ident, [StaticQueue; $size:expr]) => {
+        #[link_section = concat!("._k_queue.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::queue::StaticQueue; $size] =
+            unsafe { ::core::mem::zeroed() };
+    };
 }
 
 #[doc(hidden)]
