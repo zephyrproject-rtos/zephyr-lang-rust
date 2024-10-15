@@ -23,8 +23,11 @@ use zephyr::{
 
 // These are optional, based on Kconfig, so allow them to be unused.
 #[allow(unused_imports)]
+use crate::sysmutex::SysMutexSync;
+#[allow(unused_imports)]
 use crate::semsync::semaphore_sync;
 
+mod sysmutex;
 mod semsync;
 
 /// How many philosophers.  There will be the same number of forks.
@@ -80,6 +83,18 @@ extern "C" fn rust_main() {
 #[cfg(CONFIG_SYNC_SYS_SEMAPHORE)]
 fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
     semaphore_sync()
+}
+
+#[cfg(CONFIG_SYNC_SYS_MUTEX)]
+fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
+    let syncer = Box::new(SysMutexSync::new())
+        as Box<dyn ForkSync>;
+    let syncer: Arc<dyn ForkSync> = Arc::from(syncer);
+    let mut result = Vec::new();
+    for _ in 0..NUM_PHIL {
+        result.push(syncer.clone());
+    }
+    result
 }
 
 fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>) {
