@@ -31,8 +31,8 @@ macro_rules! printk {
 /// Print to Zephyr's console, with a newline.
 ///
 /// This macro uses the same syntax as std's
-/// [`format!`], but writes to the Zephyr console
-/// instead. See `std::fmt` for more information.
+/// [`format!`](https://doc.rust-lang.org/stable/std/fmt/index.html), but writes to the Zephyr
+/// console instead.
 ///
 /// If `CONFIG_PRINTK_SYNC` is enabled, this locks during printing.  However, to avoid allocation,
 /// and due to private accessors in the Zephyr printk implementation, the lock is only over groups

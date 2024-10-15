@@ -18,7 +18,7 @@
 //! }
 //! ```
 //!
-//! Each of these has a `.take(...)` method that returns the single usable instance.  The
+//! Each of these has a [`init_once`] method that returns the single usable instance.  The
 //! StaticThread takes the stack retrieved by take as its argument.  This will return a
 //! ThreadStarter, where various options can be set on the thread, and then it started with one of
 //! `spawn`, or `simple_spawn` (spawn requires `CONFIG_RUST_ALLOC`).
@@ -26,12 +26,14 @@
 //! Provided that `CONFIG_RUST_ALLOC` has been enabled (recommended): the read can be initialized as
 //! follows:
 //! ```
-//! let mut thread = MY_THREAD.take(MY_THREAD_STACK.take().unwrap()).unwrap();
+//! let mut thread = MY_THREAD.init_once(MY_THREAD_STACK.init_once(()).unwrap()).unwrap();
 //! thread.set_priority(5);
 //! let child = thread.spawn(|| move {
 //!     // thread code...
 //! });
 //! ```
+//!
+//! [`init_once`]: StaticKernelObject::init_once
 
 #[cfg(CONFIG_RUST_ALLOC)]
 extern crate alloc;
