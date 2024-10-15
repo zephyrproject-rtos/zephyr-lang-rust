@@ -236,6 +236,40 @@ macro_rules! _kobj_rule {
             unsafe { ::core::mem::zeroed() };
     };
 
+    // static NAME: StaticMutex
+    ($v:vis, $name:ident, StaticMutex) => {
+        #[link_section = concat!("._k_mutex.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::sync::StaticMutex =
+            $crate::sys::sync::StaticMutex::new();
+    };
+
+    // static NAMES: [StaticMutex; COUNT];
+    ($v:vis, $name:ident, [StaticMutex; $size:expr]) => {
+        #[link_section = concat!("._k_mutex.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::sync::StaticMutex; $size] =
+            // This isn't Copy, intentionally, so initialize the whole thing with zerored memory.
+            // Relying on the atomic to be 0 for the uninitialized state.
+            // [$crate::sys::sync::StaticMutex::new(); $size];
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    // static NAME: StaticCondvar;
+    ($v:vis, $name:ident, StaticCondvar) => {
+        #[link_section = concat!("._k_condvar.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::sync::StaticCondvar =
+            $crate::sys::sync::StaticCondvar::new();
+    };
+
+    // static NAMES: [StaticCondvar; COUNT];
+    ($v:vis, $name:ident, [StaticCondvar; $size:expr]) => {
+        #[link_section = concat!("._k_condvar.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::sync::StaticCondvar; $size] =
+            // This isn't Copy, intentionally, so initialize the whole thing with zerored memory.
+            // Relying on the atomic to be 0 for the uninitialized state.
+            // [$crate::sys::sync::StaticMutex::new(); $size];
+            unsafe { ::core::mem::zeroed() };
+    };
+
     // static THREAD: staticThread;
     ($v:vis, $name:ident, StaticThread) => {
         // Since the static object has an atomic that we assume is initialized, we cannot use the
