@@ -7,7 +7,7 @@ source "Kconfig.zephyr"
 
 choice
 	prompt "Select Synchronization implementation"
-	default SYNC_CONDVAR
+	default SYNC_CHANNEL
 
 	config SYNC_SYS_SEMAPHORE
 		bool "Use sys::Semaphore to synchronize forks"
@@ -26,5 +26,11 @@ choice
 		help
 		  Use to have the dining philosophers sample use a single data structure, protected
 		  by a sync::Mutex and coordinated with a sync::Condvar, to synchronize.
+
+	config SYNC_CHANNEL
+		bool "Use sync::channel to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use a worker thread, communicating via
+		  channels to synchronize.
 
 endchoice
