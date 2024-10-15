@@ -75,6 +75,11 @@ pub mod raw {
 #[doc(hidden)]
 pub mod _export {
     pub use core::format_args;
+
+    use crate::{object::StaticKernelObject, sys::thread::StaticThreadStack};
+
+    /// Type alias for the thread stack kernel object.
+    pub type KStaticThreadStack = StaticKernelObject<StaticThreadStack>;
 }
 
 // Mark this as `pub` so the docs can be read.

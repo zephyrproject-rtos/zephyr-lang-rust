@@ -289,7 +289,7 @@ macro_rules! _kobj_stack {
                 unsafe { ::core::mem::zeroed() };
 
             // The proxy object used to ensure initialization is placed in initialized memory.
-            $v static $name: $crate::object::StaticKernelObject<$crate::sys::thread::StaticThreadStack> = $crate::object::StaticKernelObject {
+            $v static $name: $crate::_export::KStaticThreadStack = $crate::object::StaticKernelObject {
                 value: ::core::cell::UnsafeCell::new($crate::sys::thread::StaticThreadStack {
                     base: [< $name _REAL >].data.get() as *mut $crate::raw::z_thread_stack_element,
                     size: $size,
