@@ -50,7 +50,7 @@ use zephyr_sys::{
 };
 use super::K_NO_WAIT;
 
-use crate::{align::AlignAs, object::{StaticKernelObject, Wrapped}};
+use crate::{align::AlignAs, object::{StaticKernelObject, Wrapped}, sync::atomic::AtomicUsize};
 
 /// Adjust the stack size for alignment.  Note that, unlike the C code, we don't include the
 /// reservation in this, as it has its own fields in the struct.
@@ -119,6 +119,22 @@ impl Wrapped for StaticKernelObject<StaticThreadStack> {
         ThreadStack {
             base: stack.base,
             size: stack.size,
+        }
+    }
+}
+
+impl StaticKernelObject<StaticThreadStack> {
+    /// Construct a StaticThreadStack object.
+    ///
+    /// This is not intended to be directly called, but is used by the [`kobj_define`] macro.
+    #[doc(hidden)]
+    pub const fn new_from<const SZ: usize>(real: &RealStaticThreadStack<SZ>) -> Self {
+        Self {
+            value: UnsafeCell::new(StaticThreadStack {
+                base: real.data.get() as *mut z_thread_stack_element,
+                size: SZ,
+            }),
+            init: AtomicUsize::new(0),
         }
     }
 }
