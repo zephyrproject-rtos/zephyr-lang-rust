@@ -15,6 +15,11 @@ use core::{
 use crate::time::{Forever, NoWait};
 use crate::sys::sync as sys;
 
+// Channels are currently only available with allocation.  Bounded channels later might be
+// available.
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod channel;
+
 pub mod atomic {
     //! Re-export portable atomic.
     //!
