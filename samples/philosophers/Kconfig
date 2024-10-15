@@ -7,7 +7,7 @@ source "Kconfig.zephyr"
 
 choice
 	prompt "Select Synchronization implementation"
-	default SYNC_SYS_MUTEX
+	default SYNC_CONDVAR
 
 	config SYNC_SYS_SEMAPHORE
 		bool "Use sys::Semaphore to synchronize forks"
@@ -20,5 +20,11 @@ choice
 		help
 		  Use to have the dining philosophers sample use sys::Mutex, with one per fork, to
 		  synchronize.
+
+	config SYNC_CONDVAR
+		bool "Use sync::Condvar and sync::Mutex to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use a single data structure, protected
+		  by a sync::Mutex and coordinated with a sync::Condvar, to synchronize.
 
 endchoice
