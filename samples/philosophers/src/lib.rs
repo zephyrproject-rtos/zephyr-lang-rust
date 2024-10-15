@@ -13,7 +13,6 @@ extern crate alloc;
 #[allow(unused_imports)]
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use zephyr::sys::thread::Thread;
 use zephyr::time::{Duration, sleep, Tick};
 use zephyr::{
     printkln,
@@ -63,19 +62,10 @@ extern "C" fn rust_main() {
     let syncers = get_syncer();
 
     printkln!("Pre fork");
-    // At this time, the arrays of threads are not supported, so manually unroll the loop for now.
-    // If NUM_PHIL is changed, this loop and the declarations at the end will have to be updated.
-    let threads: [Thread; NUM_PHIL] = [
-        PHIL_THREAD_1.init_once(PHIL_STACK_1.init_once(()).unwrap()).unwrap(),
-        PHIL_THREAD_2.init_once(PHIL_STACK_2.init_once(()).unwrap()).unwrap(),
-        PHIL_THREAD_3.init_once(PHIL_STACK_3.init_once(()).unwrap()).unwrap(),
-        PHIL_THREAD_4.init_once(PHIL_STACK_4.init_once(()).unwrap()).unwrap(),
-        PHIL_THREAD_5.init_once(PHIL_STACK_5.init_once(()).unwrap()).unwrap(),
-        PHIL_THREAD_6.init_once(PHIL_STACK_6.init_once(()).unwrap()).unwrap(),
-    ];
 
     for (i, syncer) in (0..NUM_PHIL).zip(syncers.into_iter()) {
-        threads[i].spawn(move || {
+        let thread = PHIL_THREADS[i].init_once(PHIL_STACKS[i].init_once(()).unwrap()).unwrap();
+        thread.spawn(move || {
             phil_thread(i, syncer);
         });
     }
@@ -139,17 +129,6 @@ fn get_random_delay(id: usize, period: usize) -> Duration {
 }
 
 kobj_define! {
-    static PHIL_THREAD_1: StaticThread;
-    static PHIL_THREAD_2: StaticThread;
-    static PHIL_THREAD_3: StaticThread;
-    static PHIL_THREAD_4: StaticThread;
-    static PHIL_THREAD_5: StaticThread;
-    static PHIL_THREAD_6: StaticThread;
-
-    static PHIL_STACK_1: ThreadStack<PHIL_STACK_SIZE>;
-    static PHIL_STACK_2: ThreadStack<PHIL_STACK_SIZE>;
-    static PHIL_STACK_3: ThreadStack<PHIL_STACK_SIZE>;
-    static PHIL_STACK_4: ThreadStack<PHIL_STACK_SIZE>;
-    static PHIL_STACK_5: ThreadStack<PHIL_STACK_SIZE>;
-    static PHIL_STACK_6: ThreadStack<PHIL_STACK_SIZE>;
+    static PHIL_THREADS: [StaticThread; NUM_PHIL];
+    static PHIL_STACKS: [ThreadStack<PHIL_STACK_SIZE>; NUM_PHIL];
 }
