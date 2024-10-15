@@ -16,7 +16,6 @@ use zephyr::{
     kobj_define,
     sync::Arc,
 };
-use zephyr::object::KobjInit;
 
 use crate::{NUM_PHIL, ForkSync};
 
@@ -113,12 +112,10 @@ impl ChannelSync {
 /// Generate a syncer out of a ChannelSync.
 #[allow(dead_code)]
 pub fn get_channel_syncer() -> Vec<Arc<dyn ForkSync>> {
-    COMMAND_QUEUE.init();
-    let command_queue = COMMAND_QUEUE.get();
+    let command_queue = COMMAND_QUEUE.init_once(()).unwrap();
     let (cq_send, cq_recv) = channel::unbounded_from(command_queue);
     let reply_queues = REPLY_QUEUES.each_ref().map(|m| {
-        m.init();
-        channel::unbounded_from(m.get())
+        channel::unbounded_from(m.init_once(()).unwrap())
     });
     let syncer = reply_queues.into_iter().map(|rqueue| {
         let item = Box::new(ChannelSync::new(cq_send.clone(), rqueue))
@@ -126,10 +123,10 @@ pub fn get_channel_syncer() -> Vec<Arc<dyn ForkSync>> {
         Arc::from(item)
     });
 
-    let channel_thread = CHANNEL_THREAD.spawn(CHANNEL_STACK.token(), move || {
+    let channel_child = CHANNEL_THREAD.init_once(CHANNEL_STACK.init_once(()).unwrap()).unwrap();
+    channel_child.spawn(move || {
         channel_thread(cq_recv);
     });
-    channel_thread.start();
 
     syncer.collect()
 }

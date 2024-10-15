@@ -30,3 +30,8 @@ tests:
     min_ram: 32
     extra_configs:
       - CONFIG_SYNC_CONDVAR=y
+  sample.rust.philosopher.channel:
+    tags: introduction
+    min_ram: 32
+    extra_configs:
+      - CONFIG_SYNC_CHANNEL=y

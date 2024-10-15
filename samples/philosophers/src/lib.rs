@@ -27,8 +27,11 @@ use crate::condsync::CondSync;
 #[allow(unused_imports)]
 use crate::sysmutex::SysMutexSync;
 #[allow(unused_imports)]
+use crate::channel::get_channel_syncer;
+#[allow(unused_imports)]
 use crate::semsync::semaphore_sync;
 
+mod channel;
 mod condsync;
 mod sysmutex;
 mod semsync;
@@ -111,6 +114,11 @@ fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
         result.push(syncer.clone());
     }
     result
+}
+
+#[cfg(CONFIG_SYNC_CHANNEL)]
+fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
+    get_channel_syncer()
 }
 
 fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>) {
