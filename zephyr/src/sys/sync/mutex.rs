@@ -90,6 +90,9 @@ impl Mutex {
 /// [`init_once`]: StaticMutex::init_once
 pub type StaticMutex = StaticKernelObject<k_mutex>;
 
+unsafe impl Sync for Mutex {}
+unsafe impl Send for Mutex {}
+
 // Sync and Send are meaningful, as the underlying Zephyr API can use these values from any thread.
 // Care must be taken to use these in a safe manner.
 unsafe impl Sync for StaticMutex {}
