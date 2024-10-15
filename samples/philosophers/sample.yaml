@@ -20,3 +20,8 @@ tests:
     min_ram: 32
     extra_configs:
       - CONFIG_SYNC_SYS_SEMAPHORE=y
+  sample.rust.philosopher.sysmutex:
+    tags: introduction
+    min_ram: 32
+    extra_configs:
+      - CONFIG_SYNC_SYS_MUTEX=y
