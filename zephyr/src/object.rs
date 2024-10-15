@@ -302,6 +302,17 @@ macro_rules! _kobj_stack {
     // to write a constructor for the array as a const fn, which would greatly simplify the
     // initialization here.
     ($v:vis, $name: ident, $size:expr, $asize:expr) => {
-        compile_error!("TODO: Stack initializer array");
-    }
+        $crate::paste! {
+            // The actual stack itself goes into the no-init linker section.  We'll use the user_name,
+            // with _REAL appended, to indicate the real stack.
+            #[link_section = concat!(".noinit.", stringify!($name), ".", file!(), line!())]
+            $v static [< $name _REAL >]:
+                [$crate::sys::thread::RealStaticThreadStack<{$crate::sys::thread::stack_len($size)}>; $asize] =
+                unsafe { ::core::mem::zeroed() };
+
+            $v static $name: 
+                [$crate::_export::KStaticThreadStack; $asize] =
+                $crate::_export::KStaticThreadStack::new_from_array(&[< $name _REAL >]);
+        }
+    };
 }

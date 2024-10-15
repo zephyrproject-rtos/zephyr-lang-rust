@@ -38,7 +38,7 @@ extern crate alloc;
 
 #[cfg(CONFIG_RUST_ALLOC)]
 use alloc::boxed::Box;
-use core::{cell::UnsafeCell, ffi::{c_int, c_void}};
+use core::{cell::UnsafeCell, ffi::{c_int, c_void}, mem};
 
 use zephyr_sys::{
     k_thread,
@@ -136,6 +136,32 @@ impl StaticKernelObject<StaticThreadStack> {
             }),
             init: AtomicUsize::new(0),
         }
+    }
+
+    /// Construct an array of StaticThreadStack kernel objects, based on the same sized array of the
+    /// RealStaticThreadStack objects.
+    ///
+    /// This is not intended to be directly called, but is used by the [`kobj_define`] macro.
+    #[doc(hidden)]
+    pub const fn new_from_array<const SZ: usize, const N: usize>(
+        real: &[RealStaticThreadStack<SZ>; N],
+    ) -> [Self; N] {
+        // Rustc currently doesn't support iterators in constant functions, but it does allow simple
+        // looping.  Since the value is not Copy, we need to use the MaybeUninit with a bit of
+        // unsafe.  This initialization is safe, as we loop through all of the entries, giving them
+        // a value.
+        //
+        // In addition, MaybeUninit::uninit_array is not stable, so do this the old unsafe way.
+        // let mut res: [MaybeUninit<Self>; N] = MaybeUninit::uninit_array();
+        // Note that `mem::uninitialized` in addition to being deprecated, isn't const.  But, since
+        // this is a const computation, zero-filling shouldn't hurt anything.
+        let mut res: [Self; N] = unsafe { mem::zeroed() };
+        let mut i = 0;
+        while i < N {
+            res[i] = Self::new_from(&real[i]);
+            i += 1;
+        }
+        res
     }
 }
 
