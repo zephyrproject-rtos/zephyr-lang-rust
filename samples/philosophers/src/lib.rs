@@ -23,10 +23,13 @@ use zephyr::{
 
 // These are optional, based on Kconfig, so allow them to be unused.
 #[allow(unused_imports)]
+use crate::condsync::CondSync;
+#[allow(unused_imports)]
 use crate::sysmutex::SysMutexSync;
 #[allow(unused_imports)]
 use crate::semsync::semaphore_sync;
 
+mod condsync;
 mod sysmutex;
 mod semsync;
 
@@ -88,6 +91,19 @@ fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
 #[cfg(CONFIG_SYNC_SYS_MUTEX)]
 fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
     let syncer = Box::new(SysMutexSync::new())
+        as Box<dyn ForkSync>;
+    let syncer: Arc<dyn ForkSync> = Arc::from(syncer);
+    let mut result = Vec::new();
+    for _ in 0..NUM_PHIL {
+        result.push(syncer.clone());
+    }
+    result
+}
+
+#[cfg(CONFIG_SYNC_CONDVAR)]
+fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
+    // Condvar version
+    let syncer = Box::new(CondSync::new())
         as Box<dyn ForkSync>;
     let syncer: Arc<dyn ForkSync> = Arc::from(syncer);
     let mut result = Vec::new();
