@@ -20,20 +20,10 @@ extern "C" {
     fn printk(fmt: *const i8, ...);
 }
 
+#[doc(hidden)]
 pub fn log_message(message: &str) {
     let raw = CString::new(message).expect("CString::new failed");
     unsafe {
         printk(c"%s\n".as_ptr(), raw.as_ptr());
     }
-}
-
-// We assume the log message is accessible at $crate::log::log_message.
-#[macro_export]
-macro_rules! println {
-    ($($arg:tt)+) => {
-        {
-            let message = $crate::log::format!($($arg)+);
-            $crate::log::log_message(&message);
-        }
-    };
 }
