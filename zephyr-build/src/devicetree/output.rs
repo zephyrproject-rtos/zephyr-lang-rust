@@ -18,15 +18,15 @@ impl DeviceTree {
     pub fn to_tokens(&self) -> TokenStream {
         let augments = get_augments();
 
-        // Root is a little special, as we don't represent the name of the node as it's actual name,
-        // but as just 'devicetree'.
-        self.node_walk(self.root.as_ref(), "devicetree", &augments)
+        // Root is a little special.  Since we don't want a module for this (it will be provided
+        // above where it is included, so it can get documentation and attributes), we use None for
+        // the name.
+        self.node_walk(self.root.as_ref(), None, &augments)
     }
 
-    fn node_walk(&self, node: &Node, name: &str, augments: &[Box<dyn Augment>]) -> TokenStream {
-        let name_id = dt_to_lower_id(name);
+    fn node_walk(&self, node: &Node, name: Option<&str>, augments: &[Box<dyn Augment>]) -> TokenStream {
         let children = node.children.iter().map(|child| {
-            self.node_walk(child.as_ref(), &child.name, augments)
+            self.node_walk(child.as_ref(), Some(&child.name), augments)
         });
         // Simplistic first pass, turn the properties into constents of the formatted text of the
         // property.
@@ -52,12 +52,21 @@ impl DeviceTree {
         // If this is compatible with an augment, use the augment to add any additional properties.
         let augs = augments.iter().map(|aug| aug.augment(node, self));
 
-        quote! {
-            pub mod #name_id {
-                pub const ORD: usize = #ord;
+        if let Some(name) = name {
+            let name_id = dt_to_lower_id(name);
+            quote! {
+                pub mod #name_id {
+                    pub const ORD: usize = #ord;
+                    #(#props)*
+                    #(#children)*
+                    // #parent
+                    #(#augs)*
+                }
+            }
+        } else {
+            quote! {
                 #(#props)*
                 #(#children)*
-                // #parent
                 #(#augs)*
             }
         }
