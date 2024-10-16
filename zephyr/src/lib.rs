@@ -82,6 +82,7 @@ fn panic(info :&PanicInfo) -> ! {
     }
 }
 
+/// Set the logger that the log crate will use to a printk-based logger within Zephyr.
 #[cfg(CONFIG_PRINTK)]
 pub fn set_logger() {
     printk::set_printk_logger();
@@ -111,6 +112,11 @@ pub mod alloc_impl;
 // If we have allocation, we can also support logging.
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod log {
+    //! A simple logging system using printk.
+    //!
+    //! As a stopgap for full logging, this allows Rust's logging to be transmitted via printk
+    //! messages.
+
     #[cfg(CONFIG_LOG)]
     compile_error!("Rust with CONFIG_LOG is not yet supported");
 

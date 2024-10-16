@@ -145,6 +145,12 @@ pub mod flash {
 
     use crate::raw;
 
+    /// A flash controller
+    ///
+    /// This is a wrapper around the `struct device` in Zephyr that represents a flash controller.
+    /// Using the flash controller allows flash operations on the entire device.  See
+    /// [`FlashPartition`] for a wrapper that limits the operation to a partition as defined in the
+    /// DT.
     #[allow(dead_code)]
     pub struct FlashController {
         pub(crate) device: *const raw::device,
