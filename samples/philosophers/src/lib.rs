@@ -18,7 +18,7 @@ use zephyr::{
     printkln,
     kobj_define,
     sys::uptime_get,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 // These are optional, based on Kconfig, so allow them to be unused.
@@ -68,14 +68,17 @@ extern "C" fn rust_main() {
               zephyr::kconfig::CONFIG_BOARD);
     printkln!("Time tick: {}", zephyr::time::SYS_FREQUENCY);
 
+    let stats = Arc::new(Mutex::new_from(Stats::default(), STAT_MUTEX.init_once(()).unwrap()));
+
     let syncers = get_syncer();
 
     printkln!("Pre fork");
 
     for (i, syncer) in (0..NUM_PHIL).zip(syncers.into_iter()) {
+        let child_stat = stats.clone();
         let thread = PHIL_THREADS[i].init_once(PHIL_STACKS[i].init_once(()).unwrap()).unwrap();
         thread.spawn(move || {
-            phil_thread(i, syncer);
+            phil_thread(i, syncer, child_stat);
         });
     }
 
@@ -83,6 +86,7 @@ extern "C" fn rust_main() {
     loop {
         // Periodically, printout the stats.
         zephyr::time::sleep(delay);
+        stats.lock().unwrap().show();
     }
 }
 
@@ -121,7 +125,7 @@ fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
     get_channel_syncer()
 }
 
-fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>) {
+fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>, stats: Arc<Mutex<Stats>>) {
     printkln!("Child {} started: {:?}", n, syncer);
 
     // Determine our two forks.
@@ -134,26 +138,26 @@ fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>) {
 
     loop {
         {
-            printkln!("Child {} hungry", n);
-            printkln!("Child {} take left fork", n);
+            // printkln!("Child {} hungry", n);
+            // printkln!("Child {} take left fork", n);
             syncer.take(forks.0);
-            printkln!("Child {} take right fork", n);
+            // printkln!("Child {} take right fork", n);
             syncer.take(forks.1);
 
             let delay = get_random_delay(n, 25);
-            printkln!("Child {} eating ({} ms)", n, delay);
+            // printkln!("Child {} eating ({} ms)", n, delay);
             sleep(delay);
-            // stats.lock().unwrap().record_eat(n, delay);
+            stats.lock().unwrap().record_eat(n, delay);
 
             // Release the forks.
-            printkln!("Child {} giving up forks", n);
+            // printkln!("Child {} giving up forks", n);
             syncer.release(forks.1);
             syncer.release(forks.0);
 
             let delay = get_random_delay(n, 25);
-            printkln!("Child {} thinking ({} ms)", n, delay);
+            // printkln!("Child {} thinking ({} ms)", n, delay);
             sleep(delay);
-            // stats.lock().unwrap().record_think(n, delay);
+            stats.lock().unwrap().record_think(n, delay);
         }
     }
 }
@@ -167,7 +171,36 @@ fn get_random_delay(id: usize, period: usize) -> Duration {
     Duration::millis_at_least(((delay + 1) * period) as Tick)
 }
 
+/// Instead of just printint out so much information that the data just scolls by, gather
+/// statistics.
+#[derive(Default)]
+struct Stats {
+    /// How many times each philosopher has gone through the loop.
+    count: [u64; NUM_PHIL],
+    /// How much time each philosopher has spent eating.
+    eating: [u64; NUM_PHIL],
+    /// How much time each philosopher has spent thinking.
+    thinking: [u64; NUM_PHIL],
+}
+
+impl Stats {
+    fn record_eat(&mut self, index: usize, time: Duration) {
+        self.eating[index] += time.to_millis();
+    }
+
+    fn record_think(&mut self, index: usize, time: Duration) {
+        self.thinking[index] += time.to_millis();
+        self.count[index] += 1;
+    }
+
+    fn show(&self) {
+        printkln!("{:?}, e:{:?}, t:{:?}", self.count, self.eating, self.thinking);
+    }
+}
+
 kobj_define! {
     static PHIL_THREADS: [StaticThread; NUM_PHIL];
     static PHIL_STACKS: [ThreadStack<PHIL_STACK_SIZE>; NUM_PHIL];
+
+    static STAT_MUTEX: StaticMutex;
 }
