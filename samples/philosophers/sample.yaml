@@ -8,10 +8,7 @@ common:
     regex:
       # Match the statistics, and make sure that each philosopher has at least 10 (two digits)
       # meals.
-      # - "^\\[\\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}\\]"
-      #
-      # Until the stastics have been implemented, just match on one of the children thinking
-      - "^Child 5 thinking \\(\\d+ ticks.*"
+      - "^\\[\\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}\\]"
   tags: rust
   filter: CONFIG_RUST_SUPPORTED
 tests:
