@@ -12,6 +12,17 @@ use core::fmt::{
     write,
 };
 
+use log::{LevelFilter, Log, Metadata, Record};
+
+/// Print to Zephyr's console, without a newline.
+///
+/// This macro uses the same syntax as std's
+/// [`format!`](https://doc.rust-lang.org/stable/std/fmt/index.html), but writes to the Zephyr
+/// console instead.
+///
+/// if `CONFIG_PRINTK_SYNC` is enabled, this locks during printing.  However, to avoid allocation,
+/// and due to private accessors in the Zephyr printk implementation, the lock is only over groups
+/// of a small buffer size.  This buffer must be kept fairly small, as it resides on the stack.
 #[macro_export]
 macro_rules! printk {
     ($($arg:tt)*) => {{
@@ -19,11 +30,64 @@ macro_rules! printk {
     }};
 }
 
+/// Print to Zephyr's console, with a newline.
+///
+/// This macro uses the same syntax as std's
+/// [`format!`](https://doc.rust-lang.org/stable/std/fmt/index.html), but writes to the Zephyr
+/// console instead.
+///
+/// If `CONFIG_PRINTK_SYNC` is enabled, this locks during printing.  However, to avoid allocation,
+/// and due to private accessors in the Zephyr printk implementation, the lock is only over groups
+/// of a small buffer size.  This buffer must be kept fairly small, as it resides on the stack.
+///
+/// [`format!`]: alloc::format
 #[macro_export]
 macro_rules! printkln {
     ($($arg:tt)*) => {{
         $crate::printk::printkln(format_args!($($arg)*));
     }};
+}
+
+/// A simple log handler built around printk.
+struct PrintkLogger;
+
+impl Log for PrintkLogger {
+    // Initially, everything is just available.
+    fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
+        true
+    }
+
+    // Just print out the information.
+    fn log(&self, record: &Record<'_>) {
+        printkln!("{}:{}: {}",
+            record.level(),
+            record.target(),
+            record.args());
+    }
+
+    // Nothing to do for flush.
+    fn flush(&self) {
+    }
+}
+
+static PRINTK_LOGGER: PrintkLogger = PrintkLogger;
+
+// The cfg matches what is in the log crate, which doesn't use portable atomic, and assumes the
+// racy init when not the case.
+#[doc(hidden)]
+#[cfg(target_has_atomic = "ptr")]
+pub fn set_printk_logger() {
+    log::set_logger(&PRINTK_LOGGER).unwrap();
+    log::set_max_level(LevelFilter::Info);
+}
+
+#[doc(hidden)]
+#[cfg(not(target_has_atomic = "ptr"))]
+pub fn set_printk_logger() {
+    unsafe {
+        log::set_logger_racy(&PRINTK_LOGGER).unwrap();
+        log::set_max_level_racy(LevelFilter::Info);
+    }
 }
 
 // This could readily be optimized for the configuration where we don't have userspace, as well as
@@ -93,6 +157,7 @@ impl Write for Context {
     }
 }
 
+#[doc(hidden)]
 pub fn printk(args: Arguments<'_>) {
     let mut context = Context {
         count: 0,
@@ -102,6 +167,7 @@ pub fn printk(args: Arguments<'_>) {
     context.flush();
 }
 
+#[doc(hidden)]
 pub fn printkln(args: Arguments<'_>) {
     let mut context = Context {
         count: 0,

@@ -17,4 +17,6 @@
 // Note, however, that this suppresses any warnings in the bindings about improper C types.
 #![allow(improper_ctypes)]
 
+#![allow(rustdoc::broken_intra_doc_links)]
+
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

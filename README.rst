@@ -70,7 +70,7 @@ your application directory, with options set so that it can find the Zephyr supp
 that the output will be contained within the Zephyr build directory.
 
 The :file:`Cargo.toml` will need to have a ``[lib]`` section that sets ``crate-type =
-["staticlib"]``, and will need to include ``zephyr = "0.1.0"`` as a dependency.  You can use
+["staticlib"]``, and will need to include ``zephyr = "3.7.0"`` as a dependency.  You can use
 crates.io and the Crate ecosystem to include any other dependencies you need.  Just make sure that
 you use crates that support building with no-std.
 
@@ -115,7 +115,7 @@ To your ``Cargo.toml`` file, add the following:
 .. code-block:: toml
 
    [build-dependencies]
-   zephyr-build = "0.1.0"
+   zephyr-build = "3.7.0"
 
 Then, you will need a ``build.rs`` file to call the support function.  The following will work:
 
