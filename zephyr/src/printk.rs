@@ -74,12 +74,14 @@ static PRINTK_LOGGER: PrintkLogger = PrintkLogger;
 
 // The cfg matches what is in the log crate, which doesn't use portable atomic, and assumes the
 // racy init when not the case.
+#[doc(hidden)]
 #[cfg(target_has_atomic = "ptr")]
 pub fn set_printk_logger() {
     log::set_logger(&PRINTK_LOGGER).unwrap();
     log::set_max_level(LevelFilter::Info);
 }
 
+#[doc(hidden)]
 #[cfg(not(target_has_atomic = "ptr"))]
 pub fn set_printk_logger() {
     unsafe {
