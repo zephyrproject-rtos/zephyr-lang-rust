@@ -161,7 +161,7 @@ where
     /// Construct an empty of these objects, with the zephyr data zero-filled.  This is safe in the
     /// sense that Zephyr we track the initialization, they start in the uninitialized state, and
     /// the zero value of the initialize atomic indicates that it is uninitialized.
-    pub const fn new() -> StaticKernelObject<T> {
+    pub const unsafe fn new() -> StaticKernelObject<T> {
         StaticKernelObject {
             value: unsafe { mem::zeroed() },
             init: AtomicUsize::new(KOBJ_UNINITIALIZED),
@@ -240,7 +240,7 @@ macro_rules! _kobj_rule {
     ($v:vis, $name:ident, StaticMutex) => {
         #[link_section = concat!("._k_mutex.static.", stringify!($name), ".", file!(), line!())]
         $v static $name: $crate::sys::sync::StaticMutex =
-            $crate::sys::sync::StaticMutex::new();
+            unsafe { $crate::sys::sync::StaticMutex::new() };
     };
 
     // static NAMES: [StaticMutex; COUNT];
@@ -257,7 +257,7 @@ macro_rules! _kobj_rule {
     ($v:vis, $name:ident, StaticCondvar) => {
         #[link_section = concat!("._k_condvar.static.", stringify!($name), ".", file!(), line!())]
         $v static $name: $crate::sys::sync::StaticCondvar =
-            $crate::sys::sync::StaticCondvar::new();
+            unsafe { $crate::sys::sync::StaticCondvar::new() };
     };
 
     // static NAMES: [StaticCondvar; COUNT];
