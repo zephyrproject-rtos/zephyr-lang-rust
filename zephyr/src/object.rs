@@ -91,28 +91,6 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 // the mutations happen from C code, so this is less important than the data being placed in the
 // proper section.  Many will have the link section overridden by the `kobj_define` macro.
 
-/// A kernel object represented statically in Rust code.
-///
-/// These should not be declared directly by the user, as they generally need linker decorations to
-/// be properly registered in Zephyr as kernel objects.  The object has the underlying Zephyr type
-/// T, and the wrapper type W.
-///
-/// Kernel objects will have their `StaticThing` implemented as `StaticKernelObject<kobj>` where
-/// `kobj` is the type of the underlying Zephyr object.  `Thing` will usually be a struct with a
-/// single field, which is a `*mut kobj`.
-///
-/// TODO: Can we avoid the public fields with a const new method?
-///
-/// TODO: Handling const-defined alignment for these.
-pub struct StaticKernelObject<T> {
-    #[allow(dead_code)]
-    /// The underlying zephyr kernel object.
-    pub value: UnsafeCell<T>,
-    /// Initialization status of this object.  Most objects will start uninitialized and be
-    /// initialized manually.
-    pub init: AtomicUsize,
-}
-
 /// Define the Wrapping of a kernel object.
 ///
 /// This trait defines the association between a static kernel object and the two associated Rust
@@ -153,6 +131,28 @@ pub const KOBJ_INITING: usize = 1;
 /// A state indicating a kernel object that has completed initialization.  This also means that the
 /// take has been called.  And shouldn't be allowed additional times.
 pub const KOBJ_INITIALIZED: usize = 2;
+
+/// A kernel object represented statically in Rust code.
+///
+/// These should not be declared directly by the user, as they generally need linker decorations to
+/// be properly registered in Zephyr as kernel objects.  The object has the underlying Zephyr type
+/// T, and the wrapper type W.
+///
+/// Kernel objects will have their `StaticThing` implemented as `StaticKernelObject<kobj>` where
+/// `kobj` is the type of the underlying Zephyr object.  `Thing` will usually be a struct with a
+/// single field, which is a `*mut kobj`.
+///
+/// TODO: Can we avoid the public fields with a const new method?
+///
+/// TODO: Handling const-defined alignment for these.
+pub struct StaticKernelObject<T> {
+    #[allow(dead_code)]
+    /// The underlying zephyr kernel object.
+    pub value: UnsafeCell<T>,
+    /// Initialization status of this object.  Most objects will start uninitialized and be
+    /// initialized manually.
+    pub init: AtomicUsize,
+}
 
 impl<T> StaticKernelObject<T>
 where
