@@ -188,9 +188,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        unsafe {
-            self.lock.inner.unlock().unwrap();
-        }
+        self.lock.inner.unlock().unwrap();
     }
 }
 
