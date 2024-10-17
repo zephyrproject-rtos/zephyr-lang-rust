@@ -40,9 +40,7 @@ impl ForkSync for SysMutexSync {
     }
 
     fn release(&self, index: usize) {
-        unsafe {
-            self.locks[index].unlock().unwrap();
-        }
+        self.locks[index].unlock().unwrap();
     }
 }
 

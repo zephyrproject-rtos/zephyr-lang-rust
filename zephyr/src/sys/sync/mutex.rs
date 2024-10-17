@@ -75,7 +75,7 @@ impl Mutex {
     ///
     /// The mutex must already be locked by the calling thread.  Mutexes may not be unlocked in
     /// ISRs.
-    pub unsafe fn unlock(&self) -> Result<()> {
+    pub fn unlock(&self) -> Result<()> {
         to_result_void(unsafe { k_mutex_unlock(self.item) })
     }
 }
