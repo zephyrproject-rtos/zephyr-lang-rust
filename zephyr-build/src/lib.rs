@@ -20,9 +20,12 @@ use std::process::{Command, Stdio};
 use proc_macro2::TokenStream;
 use regex::Regex;
 
-use devicetree::DeviceTree;
+use devicetree::{Augment, DeviceTree};
 
 mod devicetree;
+
+/// For debugging.
+pub use devicetree::config::sample;
 
 /// Export boolean Kconfig entries.  This must happen in any crate that wishes to access the
 /// configuration settings.
@@ -87,6 +90,28 @@ pub fn build_dts() {
     let gen_include = env::var("BINARY_DIR_INCLUDE_GENERATED")
         .expect("BINARY_DIR_INCLUDE_GENERATED");
 
+    let augments = env::var("DT_AUGMENTS").expect("DT_AUGMENTS must be set");
+    let augments: Vec<String> = augments.split_whitespace().map(String::from).collect();
+
+    // Make sure that cargo knows to run if this changes, or any file mentioned changes.
+    println!("cargo:rerun-if-env-changed=DT_AUGMENTS");
+    for name in &augments {
+        println!("cargo:rerun-if-changed={}", name);
+    }
+
+    let mut augs = Vec::new();
+    for aug in &augments {
+        // println!("Load augment: {:?}", aug);
+        let mut aug = devicetree::config::load(aug).expect("Loading augment file");
+        augs.append(&mut aug);
+    }
+    // For now, just print it out.
+    // println!("augments: {:#?}", augs);
+    let augs: Vec<_> = augs
+        .into_iter()
+        .map(|aug| Box::new(aug) as Box<dyn Augment>)
+        .collect();
+
     let generated = format!("{}/devicetree_generated.h", gen_include);
     let dt = DeviceTree::new(&zephyr_dts, generated);
     let _ = dt;
@@ -94,7 +119,7 @@ pub fn build_dts() {
     let out_path = Path::new(&outdir).join("devicetree.rs");
     let mut out = File::create(&out_path).expect("Unable to create devicetree.rs");
 
-    let tokens = dt.to_tokens();
+    let tokens = dt.to_tokens(&augs);
     if has_rustfmt() {
         write_formatted(out, tokens);
     } else {
