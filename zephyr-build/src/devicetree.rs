@@ -296,6 +296,13 @@ impl Word {
             _ => None,
         }
     }
+
+    pub fn get_phandle(&self) -> Option<&Phandle> {
+        match self {
+            Word::Phandle(ph) => Some(ph),
+            _ => None,
+        }
+    }
 }
 
 // To avoid recursion, the debug printer for Phandle just prints the name.
