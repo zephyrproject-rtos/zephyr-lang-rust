@@ -8,6 +8,9 @@
 // Support for particular devices should also be added to the device tree here, so that the nodes
 // make sense for that device, and that there are general accessors that return wrapped node types.
 
+use std::io::Write;
+
+use anyhow::Result;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
@@ -21,6 +24,20 @@ impl DeviceTree {
         // above where it is included, so it can get documentation and attributes), we use None for
         // the name.
         self.node_walk(self.root.as_ref(), None, &augments)
+    }
+
+    /// Write to the given file a list of the path names of all of the nodes present in this
+    /// devicetree.
+    pub fn output_node_paths<W: Write>(&self, write: &mut W) -> Result<()> {
+        self.root.as_ref().output_path_walk(write, None)?;
+
+        // Also, output all of the labels.  Technically, this depends on the labels augment being
+        // present.
+        writeln!(write, "labels")?;
+        for label in self.labels.keys() {
+            writeln!(write, "labels::{}", fix_id(label))?;
+        }
+        Ok(())
     }
 
     fn node_walk(&self, node: &Node, name: Option<&str>, augments: &[Box<dyn Augment>]) -> TokenStream {
@@ -118,6 +135,29 @@ impl Node {
             crate :: devicetree #(:: #route)*
         }
     }
+
+    /// Walk this tree of nodes, writing out the path names of the nodes that are present.  The name
+    /// of None, indicates the root node.
+    fn output_path_walk<W: Write>(&self, write: &mut W, name: Option<&str>) -> Result<()> {
+        for child in &self.children {
+            let fixed_name = fix_id(&child.name);
+            let child_name = if let Some(name) = name {
+                format!("{}::{}", name, fixed_name)
+            } else {
+                fixed_name
+            };
+
+            writeln!(write, "{}", child_name)?;
+
+            for prop in &child.properties {
+                prop.output_path(write, &child_name)?;
+            }
+
+            child.output_path_walk(write, Some(&child_name))?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Property {
@@ -128,6 +168,17 @@ impl Property {
         } else {
             None
         }
+    }
+
+    // If this property is a single top-level phandle, output that a that path is valid.  It isn't a
+    // real node, but acts like one.
+    fn output_path<W: Write>(&self, write: &mut W, name: &str) -> Result<()> {
+        if let Some(value) = self.get_single_value() {
+            if let Value::Phandle(_) = value {
+                writeln!(write, "{}::{}", name, self.name)?;
+            }
+        }
+        Ok(())
     }
 }
 
