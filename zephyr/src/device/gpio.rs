@@ -7,6 +7,8 @@
 //! pervasively throughout Zephyr device drivers.  As such, most of the calls in this module are
 //! unsafe.
 
+use core::ffi::c_int;
+
 use crate::raw;
 use super::Unique;
 
@@ -114,6 +116,20 @@ impl GpioPin {
         // TODO: Error?
         unsafe {
             raw::gpio_pin_toggle_dt(&self.pin);
+        }
+    }
+
+    /// Set the logical level of the pin.
+    pub unsafe fn set(&mut self, _token: &mut GpioToken, value: bool) {
+        raw::gpio_pin_set_dt(&self.pin, value as c_int);
+    }
+
+    /// Read the logical level of the pin.
+    pub unsafe fn get(&mut self, _token: &mut GpioToken) -> bool {
+        match raw::gpio_pin_get_dt(&self.pin) {
+            0 => false,
+            1 => true,
+            _ => panic!("TODO: Handle gpio get error"),
         }
     }
 }
