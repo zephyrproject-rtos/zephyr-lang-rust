@@ -177,10 +177,12 @@ impl RawInfo {
                     pub unsafe fn get_instance_raw() -> *const crate::raw::device {
                         &crate::raw::#rawdev
                     }
-                    pub fn get_instance() -> #device_id {
+
+                    static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = get_instance_raw();
-                            #device_id::new(device)
+                            #device_id::new(&UNIQUE, device)
                         }
                     }
                 }
@@ -202,10 +204,11 @@ impl RawInfo {
                 let target_route = target.route_to_rust();
 
                 quote! {
-                    pub fn get_instance() -> #device_id {
+                    static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #target_route :: get_instance_raw();
-                            #device_id::new(device, #(#args),*)
+                            #device_id::new(&UNIQUE, device, #(#args),*)
                         }
                     }
                 }
@@ -220,10 +223,11 @@ impl RawInfo {
                 }
 
                 quote! {
-                    pub fn get_instance() -> #device_id {
+                    static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #path :: get_instance_raw();
-                            #device_id::new(device, #(#get_args),*)
+                            #device_id::new(&UNIQUE, device, #(#get_args),*)
                         }
                     }
                 }
