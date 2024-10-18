@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 
 pub mod align;
+pub mod device;
 pub mod error;
 pub mod logging;
 pub mod object;
