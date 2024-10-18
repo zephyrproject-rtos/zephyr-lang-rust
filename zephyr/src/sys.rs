@@ -41,6 +41,13 @@ pub fn uptime_get() -> i64 {
     }
 }
 
+/// Busy wait.
+///
+/// Busy wait for a give number of microseconds.  This directly calls `zephyr_sys::k_busy_wait`.
+///
+/// Zephyr has numerous caveats on configurations where this function doesn't work.
+pub use zephyr_sys::k_busy_wait as busy_wait;
+
 pub mod critical {
     //! Zephyr implementation of critical sections.
     //!
