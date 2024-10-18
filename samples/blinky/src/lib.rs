@@ -3,6 +3,12 @@
 
 #![no_std]
 
+// Sigh. The check config system requires that the compiler be told what possible config values
+// there might be.  This is completely impossible with both Kconfig and the DT configs, since the
+// whole point is that we likely need to check for configs that aren't otherwise present in the
+// build.  So, this is just always necessary.
+#![allow(unexpected_cfgs)]
+
 use log::warn;
 
 use core::ffi::c_void;
@@ -41,6 +47,7 @@ unsafe extern "C" fn blink(_p1: *mut c_void, _p2: *mut c_void, _p3: *mut c_void)
     do_blink();
 }
 
+#[cfg(dt = "aliases::led0")]
 fn do_blink() {
     warn!("Inside of blinky");
 
@@ -59,5 +66,12 @@ fn do_blink() {
     loop {
         unsafe { led0.toggle_pin(&mut gpio_token); }
         sleep(duration);
+    }
+}
+
+#[cfg(not(dt = "aliases::led0"))]
+fn do_blink() {
+    warn!("No leds configured");
+    loop {
     }
 }
