@@ -67,7 +67,7 @@ fn main() -> Result<()> {
         // one from the minimal libc.
         .clang_arg("-DRUST_BINDGEN")
         .clang_arg(format!("-I{}/lib/libc/minimal/include", zephyr_base))
-        .derive_copy(false)
+        .derive_copy(true)
         .allowlist_function("k_.*")
         .allowlist_function("gpio_.*")
         .allowlist_function("flash_.*")
@@ -82,6 +82,7 @@ fn main() -> Result<()> {
         // Each DT node has a device entry that is a static.
         .allowlist_item("__device_dts_ord.*")
         .allowlist_function("device_.*")
+        .allowlist_function("led_strip.*")
         .allowlist_function("sys_.*")
         .allowlist_function("uart_.*")
         .allowlist_item("E.*")
