@@ -90,6 +90,13 @@ pub mod gpio {
     }
 
     impl Gpio {
+        /// Constructor, used by the devicetree generated code.
+        ///
+        /// TODO: Guarantee single instancing.
+        pub unsafe fn new(device: *const raw::device) -> Gpio {
+            Gpio { device }
+        }
+
         /// Verify that the device is ready for use.  At a minimum, this means the device has been
         /// successfully initialized.
         pub fn is_ready(&self) -> bool {
@@ -107,6 +114,19 @@ pub mod gpio {
     }
 
     impl GpioPin {
+        /// Constructor, used by the devicetree generated code.
+        ///
+        /// TODO: Guarantee single instancing.
+        pub unsafe fn new(device: *const raw::device, pin: u32, dt_flags: u32) -> GpioPin {
+            GpioPin {
+                pin: raw::gpio_dt_spec {
+                    port: device,
+                    pin: pin as raw::gpio_pin_t,
+                    dt_flags: dt_flags as raw::gpio_dt_flags_t,
+                }
+            }
+        }
+
         /// Verify that the device is ready for use.  At a minimum, this means the device has been
         /// successfully initialized.
         pub fn is_ready(&self) -> bool {
@@ -156,6 +176,15 @@ pub mod flash {
         pub(crate) device: *const raw::device,
     }
 
+    impl FlashController {
+        /// Constructor, intended to be called by devicetree generated code.
+        ///
+        /// TODO: Instance safety
+        pub unsafe fn new(device: *const raw::device) -> FlashController {
+            FlashController { device }
+        }
+    }
+
     /// A wrapper for flash partitions.  There is no Zephyr struct that corresponds with this
     /// information, which is typically used in a more direct underlying manner.
     #[allow(dead_code)]
@@ -167,5 +196,15 @@ pub mod flash {
         pub(crate) offset: u32,
         #[allow(dead_code)]
         pub(crate) size: u32,
+    }
+
+    impl FlashPartition {
+        /// Constructor, intended to be called by devicetree generated code.
+        pub unsafe fn new(device: *const raw::device, offset: u32, size: u32) -> FlashPartition {
+            // The `get_instance` on the flash controller would try to guarantee a unique instance,
+            // but in this case, we need one for each device, so just construct it here.
+            let controller = FlashController::new(device);
+            FlashPartition { controller, offset, size }
+        }
     }
 }
