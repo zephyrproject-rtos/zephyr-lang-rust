@@ -4,6 +4,9 @@
 
 set(RUST_MODULE_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE INTERNAL "")
 
+# Initially, we just have a single DT augment file.
+set(DT_AUGMENTS "${CMAKE_CURRENT_LIST_DIR}/dt-rust.yaml" CACHE INTERNAL "")
+
 # Zephyr targets are defined through Kconfig.  We need to map these to
 # an appropriate llvm target triple.  This sets `RUST_TARGET` in the
 # parent scope, or an error if the target is not yet supported by
@@ -139,6 +142,7 @@ INCLUDE_DIRS = \"${include_dirs}\"
 INCLUDE_DEFINES = \"${include_defines}\"
 WRAPPER_FILE = \"${WRAPPER_FILE}\"
 BINARY_DIR_INCLUDE_GENERATED = \"${BINARY_DIR_INCLUDE_GENERATED}\"
+DT_AUGMENTS = \"${DT_AUGMENTS}\"
 
 [patch.crates-io]
 ${config_paths}
@@ -162,6 +166,7 @@ ${config_paths}
       INCLUDE_DIRS="${include_dirs}"
       INCLUDE_DEFINES="${include_defines}"
       WRAPPER_FILE="${WRAPPER_FILE}"
+      DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
       cargo build
       ${rust_build_type_arg}

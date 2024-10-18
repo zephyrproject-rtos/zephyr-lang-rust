@@ -19,3 +19,6 @@ pest = "2.6"
 pest_derive = "2.6"
 quote = "1.0"
 proc-macro2 = "1.0.86"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml_ng = "0.10"
+anyhow = "1.0.89"
