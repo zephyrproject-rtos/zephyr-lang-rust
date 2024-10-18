@@ -3,6 +3,12 @@
 
 #![no_std]
 
+// Sigh. The check config system requires that the compiler be told what possible config values
+// there might be.  This is completely impossible with both Kconfig and the DT configs, since the
+// whole point is that we likely need to check for configs that aren't otherwise present in the
+// build.  So, this is just always necessary.
+#![allow(unexpected_cfgs)]
+
 use log::warn;
 
 use core::ffi::c_void;
@@ -37,6 +43,12 @@ extern "C" fn rust_main() {
 
 // fn blink() {
 unsafe extern "C" fn blink(_p1: *mut c_void, _p2: *mut c_void, _p3: *mut c_void) {
+    // Just call a "safe" rust function.
+    do_blink();
+}
+
+#[cfg(dt = "aliases::led0")]
+fn do_blink() {
     warn!("Inside of blinky");
 
     let mut led0 = zephyr::devicetree::aliases::led0::get_instance().unwrap();
@@ -53,5 +65,12 @@ unsafe extern "C" fn blink(_p1: *mut c_void, _p2: *mut c_void, _p3: *mut c_void)
     loop {
         led0.toggle_pin();
         sleep(duration);
+    }
+}
+
+#[cfg(not(dt = "aliases::led0"))]
+fn do_blink() {
+    warn!("No leds configured");
+    loop {
     }
 }
