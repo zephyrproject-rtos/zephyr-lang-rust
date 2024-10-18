@@ -37,9 +37,15 @@ extern "C" fn rust_main() {
 
 // fn blink() {
 unsafe extern "C" fn blink(_p1: *mut c_void, _p2: *mut c_void, _p3: *mut c_void) {
+    // Just call a "safe" rust function.
+    do_blink();
+}
+
+fn do_blink() {
     warn!("Inside of blinky");
 
     let mut led0 = zephyr::devicetree::aliases::led0::get_instance().unwrap();
+    let mut gpio_token = unsafe { zephyr::device::gpio::GpioToken::get_instance().unwrap() };
 
     if !led0.is_ready() {
         warn!("LED is not ready");
@@ -48,10 +54,10 @@ unsafe extern "C" fn blink(_p1: *mut c_void, _p2: *mut c_void, _p3: *mut c_void)
         // return;
     }
 
-    led0.configure(GPIO_OUTPUT_ACTIVE);
+    unsafe { led0.configure(&mut gpio_token, GPIO_OUTPUT_ACTIVE); }
     let duration = Duration::millis_at_least(500);
     loop {
-        led0.toggle_pin();
+        unsafe { led0.toggle_pin(&mut gpio_token); }
         sleep(duration);
     }
 }
