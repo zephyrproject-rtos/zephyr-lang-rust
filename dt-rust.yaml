@@ -120,6 +120,25 @@
       device: "crate::device::led_strip::LedStrip"
       kconfig: CONFIG_LED_STRIP
 
+# This doesn't really belong here, and can be moved once we support modules having their own augment
+# files.
+- name: bbq-kbd-matrix
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "bbq-kbd-matrix"
+      level: 0
+  actions:
+  - type: gpio_pins
+    value:
+      property: "row-gpios"
+      getter: "get_rows"
+  - type: gpio_pins
+    value:
+      property: "col-gpios"
+      getter: "get_cols"
+
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
   rules:
