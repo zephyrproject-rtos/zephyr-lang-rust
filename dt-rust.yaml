@@ -78,6 +78,26 @@
           - type: reg
       device: "crate::device::flash::FlashPartition"
 
+# Uart devices.  This just has to be a list of devices that implement this interface.
+- name: uart
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "arm,pl011"
+      # The nordic driver needs to be separate because they have a separate Kconfig for each uart
+      # block.
+      # - "nordic,nrf-uarte"
+      - "zephyr,cdc-acm-uart"
+      level: 0
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+      device: "crate::device::uart::Uart"
+      kconfig: CONFIG_SERIAL
+
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
   rules:

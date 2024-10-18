@@ -28,6 +28,12 @@ pub trait Augment {
     /// The default implementation checks if this node matches and calls a generator if it does, or
     /// does nothing if not.
     fn augment(&self, node: &Node, tree: &DeviceTree) -> TokenStream {
+        // If there is a status field present, and it is not set to "okay", don't augment this node.
+        if let Some(status) = node.get_single_string("status") {
+            if status != "okay" {
+                return TokenStream::new();
+            }
+        }
         if self.is_compatible(node) {
             self.generate(node, tree)
         } else {
@@ -135,6 +141,9 @@ pub enum Action {
         /// The name of the full path (within the zephyr-sys crate) for the wrapper node for this
         /// device.
         device: String,
+        /// A Kconfig option to allow the instances to only be present when said driver is compiled
+        /// in.
+        kconfig: Option<String>,
     },
     /// Generate all of the labels as its own node.
     Labels,
@@ -143,8 +152,8 @@ pub enum Action {
 impl Action {
     fn generate(&self, _name: &Ident, node: &Node, tree: &DeviceTree) -> TokenStream {
         match self {
-            Action::Instance { raw, device } => {
-                raw.generate(node, device)
+            Action::Instance { raw, device, kconfig } => {
+                raw.generate(node, device, kconfig.as_deref())
             }
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
@@ -188,19 +197,31 @@ pub enum RawInfo {
 }
 
 impl RawInfo {
-    fn generate(&self, node: &Node, device: &str) -> TokenStream {
+    fn generate(&self, node: &Node, device: &str, kconfig: Option<&str>) -> TokenStream {
         let device_id = str_to_path(device);
+        let kconfig = if let Some(name) = kconfig {
+            let name = format_ident!("{}", name);
+            quote! {
+                #[cfg(#name)]
+            }
+        } else {
+            quote! {}
+        };
+
         match self {
             RawInfo::Myself => {
                 let ord = node.ord;
                 let rawdev = format_ident!("__device_dts_ord_{}", ord);
                 quote! {
                     /// Get the raw `const struct device *` of the device tree generated node.
+                    #kconfig
                     pub unsafe fn get_instance_raw() -> *const crate::raw::device {
                         &crate::raw::#rawdev
                     }
 
+                    #kconfig
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #kconfig
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = get_instance_raw();
@@ -226,7 +247,9 @@ impl RawInfo {
                 let target_route = target.route_to_rust();
 
                 quote! {
+                    #kconfig
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #kconfig
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #target_route :: get_instance_raw();
@@ -245,7 +268,9 @@ impl RawInfo {
                 }
 
                 quote! {
+                    #kconfig
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #kconfig
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #path :: get_instance_raw();
