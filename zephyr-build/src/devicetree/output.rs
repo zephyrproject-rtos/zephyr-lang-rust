@@ -11,12 +11,11 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
-use super::{augment::{get_augments, Augment}, DeviceTree, Node, Property, Value, Word};
+use super::{augment::Augment, DeviceTree, Node, Property, Value, Word};
 
 impl DeviceTree {
     /// Generate a TokenStream for the Rust representation of this device tree.
-    pub fn to_tokens(&self) -> TokenStream {
-        let augments = get_augments();
+    pub fn to_tokens(&self, augments: &[Box<dyn Augment>]) -> TokenStream {
 
         // Root is a little special.  Since we don't want a module for this (it will be provided
         // above where it is included, so it can get documentation and attributes), we use None for

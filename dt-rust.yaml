@@ -1,0 +1,86 @@
+# Description of how to augment the devicetree for Rust.
+#
+# Each entry describes an augmentation that will be added to matching nodes in the device tree.
+# The full syntax is described (indirectly) in `zephyr-build/src/devicetree/config.rs`.
+
+# Gpio controllers match for every node that has a `gpio-controller` property.  This is one of the
+# few instances were we can actually just match on a property.
+- name: gpio-controller
+  rules:
+  - type: has_prop
+    value: gpio-controller
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+      device: crate::sys::gpio::Gpio
+
+# The gpio-leds node will have #children nodes describing each led.  We'll match on the parent
+# having this compatible property.  The nodes themselves are built out of the properties associated
+# with each gpio.
+- name: gpio-leds
+  rules:
+  - type: compatible
+    value:
+      names:
+      - gpio-leds
+      level: 1
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: phandle
+        value: gpios
+      device: crate::sys::gpio::GpioPin
+
+# Flash controllers don't have any particular property to identify them, so we need a list of
+# compatible values that should match.
+- name: flash-controller
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "nordic,nrf52-flash-controller"
+      - "raspberrypi,pico-flash-controller"
+      level: 0
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+      device: crate::sys::flash::FlashController
+
+# Flash partitions exist as children of a node compatible with "soc-nv-flash" that itself is a child
+# of the controller itself.
+# TODO: Get the write and erase property from the DT if present.
+- name: flash-partition
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "fixed-partitions"
+      level: 1
+  - type: compatible
+    value:
+      names:
+      - "soc-nv-flash"
+      level: 2
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: parent
+        value:
+          level: 3
+          args:
+          - type: reg
+      device: "crate::sys::flash::FlashPartition"
+
+# Generate a pseudo node that matches all of the labels across the tree with their nodes.
+- name: labels
+  rules:
+    - type: root
+  actions:
+  - type: labels
+
