@@ -24,9 +24,12 @@ use ordmap::OrdMap;
 use std::{cell::RefCell, collections::BTreeMap, path::Path, rc::Rc};
 
 mod augment;
+pub mod config;
 mod ordmap;
 mod output;
 mod parse;
+
+pub use augment::Augment;
 
 pub struct DeviceTree {
     /// The root of the tree.
