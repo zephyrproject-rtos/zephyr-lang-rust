@@ -14,7 +14,7 @@
     value:
       raw:
         type: myself
-      device: crate::sys::gpio::Gpio
+      device: crate::device::gpio::Gpio
 
 # The gpio-leds node will have #children nodes describing each led.  We'll match on the parent
 # having this compatible property.  The nodes themselves are built out of the properties associated
@@ -32,7 +32,7 @@
       raw:
         type: phandle
         value: gpios
-      device: crate::sys::gpio::GpioPin
+      device: crate::device::gpio::GpioPin
 
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
@@ -49,7 +49,7 @@
     value:
       raw:
         type: myself
-      device: crate::sys::flash::FlashController
+      device: crate::device::flash::FlashController
 
 # Flash partitions exist as children of a node compatible with "soc-nv-flash" that itself is a child
 # of the controller itself.
@@ -75,7 +75,7 @@
           level: 3
           args:
           - type: reg
-      device: "crate::sys::flash::FlashPartition"
+      device: "crate::device::flash::FlashPartition"
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
