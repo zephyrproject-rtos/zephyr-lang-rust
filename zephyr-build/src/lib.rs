@@ -24,9 +24,6 @@ use devicetree::{Augment, DeviceTree};
 
 mod devicetree;
 
-/// For debugging.
-pub use devicetree::config::sample;
-
 /// Export boolean Kconfig entries.  This must happen in any crate that wishes to access the
 /// configuration settings.
 pub fn export_bool_kconfig() {
@@ -102,7 +99,7 @@ pub fn build_dts() {
     let mut augs = Vec::new();
     for aug in &augments {
         // println!("Load augment: {:?}", aug);
-        let mut aug = devicetree::config::load(aug).expect("Loading augment file");
+        let mut aug = devicetree::load_augments(aug).expect("Loading augment file");
         augs.append(&mut aug);
     }
     // For now, just print it out.
