@@ -98,6 +98,28 @@
       device: "crate::device::uart::Uart"
       kconfig: CONFIG_SERIAL
 
+- name: led-strip
+  rules:
+  - type: or
+    value:
+    - type: compatible
+      value:
+        names:
+        - "worldsemi,wd2812-spi"
+        level: 0
+    - type: compatible
+      value:
+        names:
+        - "worldsemi,ws2812-rpi_pico-pio"
+        level: 1
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+      device: "crate::device::led_strip::LedStrip"
+      kconfig: CONFIG_LED_STRIP
+
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
   rules:
