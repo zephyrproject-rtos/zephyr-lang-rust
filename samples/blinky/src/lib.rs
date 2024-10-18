@@ -39,7 +39,7 @@ extern "C" fn rust_main() {
 unsafe extern "C" fn blink(_p1: *mut c_void, _p2: *mut c_void, _p3: *mut c_void) {
     warn!("Inside of blinky");
 
-    let mut led0 = zephyr::devicetree::aliases::led0::get_instance();
+    let mut led0 = zephyr::devicetree::aliases::led0::get_instance().unwrap();
 
     if !led0.is_ready() {
         warn!("LED is not ready");
