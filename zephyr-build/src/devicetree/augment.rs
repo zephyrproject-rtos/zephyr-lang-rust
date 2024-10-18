@@ -17,7 +17,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use serde::{Deserialize, Serialize};
 
-use crate::devicetree::{output::dt_to_lower_id, Word};
+use crate::devicetree::{output::dt_to_lower_id, Value, Word};
 
 use super::{DeviceTree, Node};
 
@@ -145,6 +145,13 @@ pub enum Action {
         /// in.
         kconfig: Option<String>,
     },
+    /// Generate a getter for a gpio assignment property.
+    GpioPins {
+        /// The name of the property holding the pins.
+        property: String,
+        /// The name of the getter function.
+        getter: String,
+    },
     /// Generate all of the labels as its own node.
     Labels,
 }
@@ -154,6 +161,38 @@ impl Action {
         match self {
             Action::Instance { raw, device, kconfig } => {
                 raw.generate(node, device, kconfig.as_deref())
+            }
+            Action::GpioPins { property, getter } => {
+                let upper_getter = getter.to_uppercase();
+                let getter = format_ident!("{}", getter);
+                // TODO: This isn't actually right, these unique values should be based on the pin
+                // definition so that we'll get a compile error if two parts of the DT reference the
+                // same pin.
+
+                let pins = node.get_property(property).unwrap();
+                let npins = pins.len();
+
+                let uniques: Vec<_> = (0..npins).map(|n| {
+                    format_ident!("{}_UNIQUE_{}", upper_getter, n)
+                }).collect();
+
+                let pins = pins
+                    .iter()
+                    .zip(uniques.iter())
+                    .map(|(pin, unique)| decode_gpios_gpio(unique, pin));
+
+                let unique_defs = uniques.iter().map(|u| {
+                    quote! {
+                        static #u: crate::device::Unique = crate::device::Unique::new();
+                    }
+                });
+
+                quote! {
+                    #(#unique_defs)*
+                    pub fn #getter() -> [Option<crate::device::gpio::GpioPin>; #npins] {
+                        [#(#pins),*]
+                    }
+                }
             }
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
@@ -176,6 +215,30 @@ impl Action {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Decode a single gpio entry.
+fn decode_gpios_gpio(unique: &Ident, entry: &Value) -> TokenStream {
+    let entry = if let Value::Words(w) = entry {
+        w
+    } else {
+        panic!("gpios list is not list of <&gpionnn aa bbb>");
+    };
+    if entry.len() != 3 {
+        panic!("gpios currently must be three items");
+    }
+    let gpio_route = entry[0].get_phandle().unwrap().node_ref().route_to_rust();
+    let args: Vec<u32> = entry[1..].iter().map(|n| n.get_number().unwrap()).collect();
+
+    quote! {
+        // TODO: Don't hard code this but put in yaml file.
+        unsafe {
+            crate::device::gpio::GpioPin::new(
+                &#unique,
+                #gpio_route :: get_instance_raw(),
+                #(#args),*)
         }
     }
 }
