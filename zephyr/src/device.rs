@@ -41,9 +41,35 @@ pub mod gpio {
     //! devices.  We want to have stronger typing in the Zephyr interfaces, so most of these types
     //! will be wrapped in another structure.  This wraps a Gpio device, and provides methods to
     //! most of the operations on gpios.
+    //!
+    //! Safey: In general, even just using gpio pins is unsafe in Zephyr.  The gpio drivers are used
+    //! pervasively throughout Zephyr device drivers.  As such, most of the calls in this module are
+    //! unsafe.
 
     use crate::raw;
     use super::Unique;
+
+    /// Global instance to help make gpio in Rust slightly safer.
+    ///
+    /// To help with safety, the rust types use a global instance of a gpio-token.  Methods will
+    /// take a mutable reference to this, which will require either a single thread in the
+    /// application code, or something like a mutex or critical section to manage.  The operation
+    /// methods are still unsafe, because we have no control over what happens with the gpio
+    /// operations outside of Rust code, but this will help make the Rust usage at least better.
+    pub struct GpioToken(());
+
+    static GPIO_TOKEN: Unique = Unique::new();
+
+    impl GpioToken {
+        /// Retrieves the gpio token.  This is unsafe because lots of code in zephyr operates on the
+        /// gpio drivers.
+        pub unsafe fn get_instance() -> Option<GpioToken> {
+            if !GPIO_TOKEN.once() {
+                return None;
+            }
+            Some(GpioToken(()))
+        }
+    }
 
     /// A single instance of a zephyr device to manage a gpio controller.  A gpio controller
     /// represents a set of gpio pins, that are generally operated on by the same hardware block.
@@ -73,8 +99,11 @@ pub mod gpio {
         }
     }
 
-    /// A GpioPin represents a single pin on a gpio device.  This is a lightweight wrapper around
-    /// the Zephyr `gpio_dt_spec` structure.
+    /// A GpioPin represents a single pin on a gpio device.
+    ///
+    /// This is a lightweight wrapper around the Zephyr `gpio_dt_spec` structure.  Note that
+    /// multiple pins may share a gpio controller, and as such, all methods on this are both unsafe,
+    /// and require a mutable reference to the [`GpioToken`].
     #[allow(dead_code)]
     pub struct GpioPin {
         pub(crate) pin: raw::gpio_dt_spec,
@@ -111,7 +140,7 @@ pub mod gpio {
         }
 
         /// Configure a single pin.
-        pub fn configure(&mut self, extra_flags: raw::gpio_flags_t) {
+        pub unsafe fn configure(&mut self, _token: &mut GpioToken, extra_flags: raw::gpio_flags_t) {
             // TODO: Error?
             unsafe {
                 raw::gpio_pin_configure(self.pin.port,
@@ -121,7 +150,7 @@ pub mod gpio {
         }
 
         /// Toggle pin level.
-        pub fn toggle_pin(&mut self) {
+        pub unsafe fn toggle_pin(&mut self, _token: &mut GpioToken) {
             // TODO: Error?
             unsafe {
                 raw::gpio_pin_toggle_dt(&self.pin);
