@@ -40,6 +40,7 @@ extern int errno;
 #include <zephyr/kernel/thread_stack.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/flash.h>
+#include <zephyr/drivers/uart.h>
 
 /*
  * bindgen will only output #defined constants that resolve to simple numbers.  These are some

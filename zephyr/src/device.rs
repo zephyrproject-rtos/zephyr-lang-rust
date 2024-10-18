@@ -9,6 +9,7 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 
 pub mod gpio;
 pub mod flash;
+pub mod uart;
 
 // Allow dead code, because it isn't required for a given build to have any devices.
 /// Device uniqueness.
