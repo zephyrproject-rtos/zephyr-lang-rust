@@ -14,6 +14,8 @@
     value:
       raw:
         type: myself
+        value:
+          args: []
       device: crate::device::gpio::Gpio
 
 # The gpio-leds node will have #children nodes describing each led.  We'll match on the parent
@@ -50,6 +52,8 @@
     value:
       raw:
         type: myself
+        value:
+          args: []
       device: crate::device::flash::FlashController
 
 # Flash partitions exist as children of a node compatible with "soc-nv-flash" that itself is a child
@@ -95,6 +99,8 @@
     value:
       raw:
         type: myself
+        value:
+          args: []
       device: "crate::device::uart::Uart"
       kconfig: CONFIG_SERIAL
 
@@ -117,8 +123,27 @@
     value:
       raw:
         type: myself
+        value:
+          args: []
       device: "crate::device::led_strip::LedStrip"
       kconfig: CONFIG_LED_STRIP
+
+- name: pwm-leds
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "pwm-leds"
+      level: 0
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+        value:
+          args:
+          - type: child_count
+      device: "crate::device::led::Leds"
 
 # This doesn't really belong here, and can be moved once we support modules having their own augment
 # files.

@@ -247,7 +247,9 @@ fn decode_gpios_gpio(unique: &Ident, entry: &Value) -> TokenStream {
 #[serde(tag = "type", rename_all = "snake_case", content = "value")]
 pub enum RawInfo {
     /// Get the raw device directly from this node.
-    Myself,
+    Myself {
+        args: Vec<ArgInfo>,
+    },
     /// Get the reference from a parent of this node, at a given level.
     Parent {
         /// How many levels to look up.  0 would refer to this node (but would also be an error).
@@ -272,7 +274,9 @@ impl RawInfo {
         };
 
         match self {
-            RawInfo::Myself => {
+            RawInfo::Myself { args } => {
+                let get_args = args.iter().map(|arg| arg.args(node));
+
                 let ord = node.ord;
                 let rawdev = format_ident!("__device_dts_ord_{}", ord);
                 quote! {
@@ -288,7 +292,7 @@ impl RawInfo {
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = get_instance_raw();
-                            #device_id::new(&UNIQUE, device)
+                            #device_id::new(&UNIQUE, device, #(#get_args),*)
                         }
                     }
                 }
@@ -354,6 +358,8 @@ impl RawInfo {
 pub enum ArgInfo {
     /// The arguments come from a 'reg' property.
     Reg,
+    /// A count of the number of child nodes.
+    ChildCount,
 }
 
 impl ArgInfo {
@@ -364,6 +370,12 @@ impl ArgInfo {
                 let reg = node.get_numbers("reg").unwrap();
                 quote! {
                     #(#reg),*
+                }
+            }
+            ArgInfo::ChildCount => {
+                let count = node.children.len();
+                quote! {
+                    #count
                 }
             }
         }
