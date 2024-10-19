@@ -82,7 +82,7 @@ fn main() -> Result<()> {
         // Each DT node has a device entry that is a static.
         .allowlist_item("__device_dts_ord.*")
         .allowlist_function("device_.*")
-        .allowlist_function("led_strip.*")
+        .allowlist_function("led_.*")
         .allowlist_function("sys_.*")
         .allowlist_function("uart_.*")
         .allowlist_item("E.*")

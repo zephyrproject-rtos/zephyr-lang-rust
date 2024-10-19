@@ -10,6 +10,7 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 pub mod gpio;
 pub mod flash;
 pub mod uart;
+pub mod led;
 pub mod led_strip;
 
 // Allow dead code, because it isn't required for a given build to have any devices.
