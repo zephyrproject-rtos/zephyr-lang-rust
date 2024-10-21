@@ -11,6 +11,7 @@ Functionality for Rust-based applications that run on Zephyr.
 
 [dependencies]
 zephyr-sys = { version = "3.7.0", path = "../zephyr-sys" }
+log = "0.4.22"
 
 # Although paste is brought in, it is a compile-time macro, and is not linked into the application.
 paste = "1.0"
