@@ -11,9 +11,7 @@ use alloc::vec::Vec;
 use alloc::boxed::Box;
 
 use zephyr::{
-    kobj_define,
-    sync::Arc,
-    time::Forever,
+    kobj_define, sync::Arc, sys::sync::Semaphore, time::Forever
 };
 
 use crate::{ForkSync, NUM_PHIL};
@@ -22,7 +20,7 @@ use crate::{ForkSync, NUM_PHIL};
 pub struct SemSync {
     /// The forks for this philosopher.  This is a big excessive, as we really don't need all of
     /// them, but the ForSync code uses the index here.
-    forks: [zephyr::sys::sync::Semaphore; NUM_PHIL],
+    forks: [Arc<Semaphore>; NUM_PHIL],
 }
 
 impl ForkSync for SemSync {
@@ -39,7 +37,7 @@ impl ForkSync for SemSync {
 pub fn semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
     let forks = SEMS.each_ref().map(|m| {
         // Each fork starts as taken.
-        m.init_once((1, 1)).unwrap()
+        Arc::new(m.init_once((1, 1)).unwrap())
     });
 
     let syncers = (0..NUM_PHIL).map(|_| {

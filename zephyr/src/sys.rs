@@ -11,6 +11,7 @@
 
 use zephyr_sys::k_timeout_t;
 
+pub mod queue;
 pub mod sync;
 pub mod thread;
 

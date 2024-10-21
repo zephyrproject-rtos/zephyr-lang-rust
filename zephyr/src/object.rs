@@ -91,28 +91,6 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 // the mutations happen from C code, so this is less important than the data being placed in the
 // proper section.  Many will have the link section overridden by the `kobj_define` macro.
 
-/// A kernel object represented statically in Rust code.
-///
-/// These should not be declared directly by the user, as they generally need linker decorations to
-/// be properly registered in Zephyr as kernel objects.  The object has the underlying Zephyr type
-/// T, and the wrapper type W.
-///
-/// Kernel objects will have their `StaticThing` implemented as `StaticKernelObject<kobj>` where
-/// `kobj` is the type of the underlying Zephyr object.  `Thing` will usually be a struct with a
-/// single field, which is a `*mut kobj`.
-///
-/// TODO: Can we avoid the public fields with a const new method?
-///
-/// TODO: Handling const-defined alignment for these.
-pub struct StaticKernelObject<T> {
-    #[allow(dead_code)]
-    /// The underlying zephyr kernel object.
-    pub value: UnsafeCell<T>,
-    /// Initialization status of this object.  Most objects will start uninitialized and be
-    /// initialized manually.
-    pub init: AtomicUsize,
-}
-
 /// Define the Wrapping of a kernel object.
 ///
 /// This trait defines the association between a static kernel object and the two associated Rust
@@ -154,6 +132,28 @@ pub const KOBJ_INITING: usize = 1;
 /// take has been called.  And shouldn't be allowed additional times.
 pub const KOBJ_INITIALIZED: usize = 2;
 
+/// A kernel object represented statically in Rust code.
+///
+/// These should not be declared directly by the user, as they generally need linker decorations to
+/// be properly registered in Zephyr as kernel objects.  The object has the underlying Zephyr type
+/// T, and the wrapper type W.
+///
+/// Kernel objects will have their `StaticThing` implemented as `StaticKernelObject<kobj>` where
+/// `kobj` is the type of the underlying Zephyr object.  `Thing` will usually be a struct with a
+/// single field, which is a `*mut kobj`.
+///
+/// TODO: Can we avoid the public fields with a const new method?
+///
+/// TODO: Handling const-defined alignment for these.
+pub struct StaticKernelObject<T> {
+    #[allow(dead_code)]
+    /// The underlying zephyr kernel object.
+    pub value: UnsafeCell<T>,
+    /// Initialization status of this object.  Most objects will start uninitialized and be
+    /// initialized manually.
+    pub init: AtomicUsize,
+}
+
 impl<T> StaticKernelObject<T>
 where
     StaticKernelObject<T>: Wrapped,
@@ -161,7 +161,7 @@ where
     /// Construct an empty of these objects, with the zephyr data zero-filled.  This is safe in the
     /// sense that Zephyr we track the initialization, they start in the uninitialized state, and
     /// the zero value of the initialize atomic indicates that it is uninitialized.
-    pub const fn new() -> StaticKernelObject<T> {
+    pub const unsafe fn new() -> StaticKernelObject<T> {
         StaticKernelObject {
             value: unsafe { mem::zeroed() },
             init: AtomicUsize::new(KOBJ_UNINITIALIZED),
@@ -236,6 +236,40 @@ macro_rules! _kobj_rule {
             unsafe { ::core::mem::zeroed() };
     };
 
+    // static NAME: StaticMutex
+    ($v:vis, $name:ident, StaticMutex) => {
+        #[link_section = concat!("._k_mutex.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::sync::StaticMutex =
+            unsafe { $crate::sys::sync::StaticMutex::new() };
+    };
+
+    // static NAMES: [StaticMutex; COUNT];
+    ($v:vis, $name:ident, [StaticMutex; $size:expr]) => {
+        #[link_section = concat!("._k_mutex.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::sync::StaticMutex; $size] =
+            // This isn't Copy, intentionally, so initialize the whole thing with zerored memory.
+            // Relying on the atomic to be 0 for the uninitialized state.
+            // [$crate::sys::sync::StaticMutex::new(); $size];
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    // static NAME: StaticCondvar;
+    ($v:vis, $name:ident, StaticCondvar) => {
+        #[link_section = concat!("._k_condvar.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::sync::StaticCondvar =
+            unsafe { $crate::sys::sync::StaticCondvar::new() };
+    };
+
+    // static NAMES: [StaticCondvar; COUNT];
+    ($v:vis, $name:ident, [StaticCondvar; $size:expr]) => {
+        #[link_section = concat!("._k_condvar.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::sync::StaticCondvar; $size] =
+            // This isn't Copy, intentionally, so initialize the whole thing with zerored memory.
+            // Relying on the atomic to be 0 for the uninitialized state.
+            // [$crate::sys::sync::StaticMutex::new(); $size];
+            unsafe { ::core::mem::zeroed() };
+    };
+
     // static THREAD: staticThread;
     ($v:vis, $name:ident, StaticThread) => {
         // Since the static object has an atomic that we assume is initialized, we cannot use the
@@ -274,6 +308,19 @@ macro_rules! _kobj_rule {
     };
     ($v:vis, $name:ident, [ThreadStack<{$size:expr}>; $asize:expr]) => {
         $crate::_kobj_stack!($v, $name, $size, $asize);
+    };
+
+    // Queues.
+    ($v:vis, $name: ident, StaticQueue) => {
+        #[link_section = concat!("._k_queue.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::queue::StaticQueue =
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    ($v:vis, $name: ident, [StaticQueue; $size:expr]) => {
+        #[link_section = concat!("._k_queue.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::queue::StaticQueue; $size] =
+            unsafe { ::core::mem::zeroed() };
     };
 }
 
