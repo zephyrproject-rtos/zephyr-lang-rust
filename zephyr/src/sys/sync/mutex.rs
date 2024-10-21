@@ -52,7 +52,6 @@ use crate::sys::K_FOREVER;
 /// type.
 ///
 /// [`sync::Mutex`]: http://example.com/TODO
-#[derive(Clone)]
 pub struct Mutex {
     /// The raw Zephyr mutex.
     item: *mut k_mutex,
