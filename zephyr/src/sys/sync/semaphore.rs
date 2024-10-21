@@ -31,7 +31,6 @@ use crate::{
 pub use crate::raw::K_SEM_MAX_LIMIT;
 
 /// A zephyr `k_sem` usable from safe Rust code.
-#[derive(Clone)]
 pub struct Semaphore {
     /// The raw Zephyr `k_sem`.
     item: *mut k_sem,
