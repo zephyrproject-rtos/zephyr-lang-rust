@@ -40,12 +40,14 @@ extern crate alloc;
 
 #[cfg(CONFIG_RUST_ALLOC)]
 use alloc::boxed::Box;
-use core::{cell::UnsafeCell, ffi::{c_int, c_void}, mem};
+use core::{cell::UnsafeCell, ffi::{c_int, c_void, CStr}, mem};
 
 use zephyr_sys::{
+    k_tid_t,
     k_thread,
     k_thread_entry_t,
     k_thread_create,
+    k_thread_name_set,
     z_thread_stack_element,
     ZR_STACK_ALIGN,
     ZR_STACK_RESERVED,
@@ -179,6 +181,8 @@ pub struct Thread {
     priority: c_int,
     /// Options given to thread creation.
     options: u32,
+    /// The name to be given to the thread, if desired.
+    name: Option<&'static CStr>,
 }
 
 /// A statically defined thread.
@@ -195,6 +199,7 @@ impl Wrapped for StaticKernelObject<k_thread> {
             stack,
             priority: 0,
             options: 0,
+            name: None,
         }
     }
 }
@@ -210,15 +215,23 @@ impl Thread {
         self.options = options;
     }
 
+    /// Set a name for this thread.
+    ///
+    /// Attempts to set the name of this thread, if Zephyr if configured to do so.  Has no effect
+    /// otherwise.
+    pub fn set_name(&mut self, name: &'static CStr) {
+        self.name = Some(name);
+    }
+
     /// Simple thread spawn.  This is unsafe because of the raw values being used.  This can be
     /// useful in systems without an allocator defined.
-    pub unsafe fn simple_spawn(self,
+    pub unsafe fn simple_spawn(mut self,
                                child: k_thread_entry_t,
                                p1: *mut c_void,
                                p2: *mut c_void,
                                p3: *mut c_void)
     {
-        k_thread_create(
+        let tid = k_thread_create(
             self.raw,
             self.stack.base,
             self.stack.size,
@@ -229,13 +242,15 @@ impl Thread {
             self.priority,
             self.options,
             K_NO_WAIT);
+
+        self.set_thread_name(tid);
     }
 
     #[cfg(CONFIG_RUST_ALLOC)]
     /// Spawn a thread, with a closure.
     ///
     /// This requires allocation to be able to safely pass the closure to the other thread.
-    pub fn spawn<F: FnOnce() + Send + 'static>(&self, child: F) {
+    pub fn spawn<F: FnOnce() + Send + 'static>(mut self, child: F) {
         use core::ptr::null_mut;
 
         let child: closure::Closure = Box::new(child);
@@ -243,7 +258,7 @@ impl Thread {
             closure: child,
         }));
         unsafe {
-            k_thread_create(
+            let tid = k_thread_create(
                 self.raw,
                 self.stack.base,
                 self.stack.size,
@@ -254,6 +269,16 @@ impl Thread {
                 self.priority,
                 self.options,
                 K_NO_WAIT);
+
+            self.set_thread_name(tid);
+        }
+    }
+
+    fn set_thread_name(&mut self, tid: k_tid_t) {
+        if let Some(name) = self.name {
+            unsafe {
+                k_thread_name_set(tid, name.as_ptr());
+            }
         }
     }
 }
