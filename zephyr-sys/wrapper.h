@@ -44,6 +44,10 @@ extern int errno;
 #include <zephyr/drivers/led_strip.h>
 #include <zephyr/drivers/led.h>
 
+#ifdef CONFIG_THREAD_ANALYZER
+#include <zephyr/debug/thread_analyzer.h>
+#endif
+
 /*
  * bindgen will only output #defined constants that resolve to simple numbers.  These are some
  * symbols that we want exported that, at least in some situations, are more complex, usually with a
