@@ -423,7 +423,7 @@ impl StaticThread {
     #[cfg(CONFIG_RUST_ALLOC)]
     /// Spawn a thread, running a closure.  The closure will be boxed to give to the new thread.
     /// The new thread runs immediately.
-    pub fn spawn<F: FnOnce() + Send + 'static>(&self, stack: StackToken, child: F) -> Thread {
+    pub fn spawn<F: FnOnce() + Send + 'static>(self, stack: StackToken, child: F) -> Thread {
         let child: closure::Closure = Box::new(child);
         let child = Box::into_raw(Box::new(closure::ThreadData {
             closure: ManuallyDrop::new(child),
