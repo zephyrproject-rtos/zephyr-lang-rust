@@ -10,7 +10,6 @@ use crate::{
     ForkSync,
     NUM_PHIL,
 };
-use zephyr::kobj_define;
 use zephyr::sys::sync::Mutex;
 use zephyr::time::Forever;
 
@@ -27,8 +26,8 @@ pub struct SysMutexSync {
 impl SysMutexSync {
     #[allow(dead_code)]
     pub fn new() -> SysMutexSync  {
-        let locks = MUTEXES.each_ref().map(|m| {
-            m.init_once(()).unwrap()
+        let locks = [(); NUM_PHIL].each_ref().map(|()| {
+            Mutex::new().unwrap()
         });
         SysMutexSync { locks }
     }
@@ -42,8 +41,4 @@ impl ForkSync for SysMutexSync {
     fn release(&self, index: usize) {
         self.locks[index].unlock().unwrap();
     }
-}
-
-kobj_define! {
-    static MUTEXES: [StaticMutex; NUM_PHIL];
 }
