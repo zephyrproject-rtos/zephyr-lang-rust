@@ -79,7 +79,16 @@
 //! [`kobj_define!`]: crate::kobj_define
 //! [`init_once`]: StaticKernelObject::init_once
 
+#[cfg(CONFIG_RUST_ALLOC)]
+extern crate alloc;
+
 use core::{cell::UnsafeCell, mem};
+
+#[cfg(CONFIG_RUST_ALLOC)]
+use core::pin::Pin;
+
+#[cfg(CONFIG_RUST_ALLOC)]
+use alloc::boxed::Box;
 
 use crate::sync::atomic::{AtomicUsize, Ordering};
 
@@ -186,6 +195,41 @@ where
         let result = self.get_wrapped(args);
         self.init.store(KOBJ_INITIALIZED, Ordering::Release);
         Some(result)
+    }
+}
+
+/// Objects that can be fixed or allocated.
+///
+/// When using Rust threads from userspace, the `kobj_define` declarations and the complexity behind
+/// it is required.  If all Rust use of kernel objects is from system threads, and dynamic memory is
+/// available, kernel objects can be freeallocated, as long as the allocations themselves are
+/// pinned.  This `Fixed` encapsulates both of these.
+pub enum Fixed<T> {
+    /// Objects that have been statically declared and just pointed to.
+    Static(*mut T),
+    /// Objects that are owned by the wrapper, and contained here.
+    #[cfg(CONFIG_RUST_ALLOC)]
+    Owned(Pin<Box<UnsafeCell<T>>>),
+}
+
+impl<T> Fixed<T> {
+    /// Get the raw pointer out of the fixed object.
+    ///
+    /// Returns the `*mut T` pointer held by this object.  It is either just the static pointer, or
+    /// the pointer outside of the unsafe cell holding the dynamic kernel object.
+    pub fn get(&self) -> *mut T {
+        match self {
+            Fixed::Static(ptr) => *ptr,
+            #[cfg(CONFIG_RUST_ALLOC)]
+            Fixed::Owned(item) => item.get(),
+        }
+    }
+
+    /// Construct a new fixed from an allocation.  Note that the object will not be fixed in memory,
+    /// until _after_ this returns, and it should not be initialized until then.
+    #[cfg(CONFIG_RUST_ALLOC)]
+    pub fn new(item: T) -> Fixed<T> {
+        Fixed::Owned(Box::pin(UnsafeCell::new(item)))
     }
 }
 
