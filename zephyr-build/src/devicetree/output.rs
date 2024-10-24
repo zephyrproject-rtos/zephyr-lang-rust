@@ -150,7 +150,7 @@ impl Node {
             writeln!(write, "{}", child_name)?;
 
             for prop in &child.properties {
-                prop.output_path(write, &child_name)?;
+                prop.output_path(write, &fix_id(&child_name))?;
             }
 
             child.output_path_walk(write, Some(&child_name))?;
@@ -175,7 +175,7 @@ impl Property {
     fn output_path<W: Write>(&self, write: &mut W, name: &str) -> Result<()> {
         if let Some(value) = self.get_single_value() {
             if let Value::Phandle(_) = value {
-                writeln!(write, "{}::{}", name, self.name)?;
+                writeln!(write, "{}::{}", name, fix_id(&self.name))?;
             }
         }
         Ok(())

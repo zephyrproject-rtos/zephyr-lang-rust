@@ -71,7 +71,10 @@ pub struct Message<T> {
 }
 
 impl<T> Message<T> {
-    fn new(data: T) -> Message<T> {
+    /// Construct a new message from the data.
+    ///
+    /// This is safe in itself, but sending them is unsafe.
+    pub fn new(data: T) -> Message<T> {
         Message {
             _private: 0,
             data,
@@ -93,6 +96,16 @@ impl<T> Sender<T> {
     /// will have an accompanied free on the recipient side.
     pub fn send(&self, msg: T) -> Result<(), SendError<T>> {
         let msg = Box::new(Message::new(msg));
+        let msg = Box::into_raw(msg);
+        unsafe {
+            self.queue.send(msg as *mut c_void);
+        }
+        Ok(())
+    }
+
+    /// Sends a message that has already been boxed.  The box will be dropped upon receipt.  This is
+    /// safe to call from interrupt context, and presumably the box will be allocate from a thread.
+    pub unsafe fn send_boxed(&self, msg: Box<Message<T>>) -> Result<(), SendError<T>> {
         let msg = Box::into_raw(msg);
         unsafe {
             self.queue.send(msg as *mut c_void);
