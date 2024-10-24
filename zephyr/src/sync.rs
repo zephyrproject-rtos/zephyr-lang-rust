@@ -119,6 +119,12 @@ impl<T> Mutex<T> {
     pub const fn new_from(t: T, raw_mutex: sys::Mutex) -> Mutex<T> {
         Mutex { inner: raw_mutex, data: UnsafeCell::new(t) }
     }
+
+    /// Construct a new Mutex, dynamically allocating the underlying sys Mutex.
+    #[cfg(CONFIG_RUST_ALLOC)]
+    pub fn new(t: T) -> Mutex<T> {
+        Mutex::new_from(t, sys::Mutex::new().unwrap())
+    }
 }
 
 impl<T: ?Sized> Mutex<T> {
@@ -214,6 +220,12 @@ impl Condvar {
     /// allocated statically, and the sys Condvar will be taken by this structure.
     pub const fn new_from(raw_condvar: sys::Condvar) -> Condvar {
         Condvar { inner: raw_condvar }
+    }
+
+    /// Construct a new Condvar, dynamically allocating the underlying Zephyr `k_condvar`.
+    #[cfg(CONFIG_RUST_ALLOC)]
+    pub fn new() -> Condvar {
+        Condvar::new_from(sys::Condvar::new().unwrap())
     }
 
     /// Blocks the current thread until this conditional variable receives a notification.
