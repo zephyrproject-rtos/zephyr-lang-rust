@@ -112,10 +112,9 @@ impl ChannelSync {
 /// Generate a syncer out of a ChannelSync.
 #[allow(dead_code)]
 pub fn get_channel_syncer() -> Vec<Arc<dyn ForkSync>> {
-    let command_queue = COMMAND_QUEUE.init_once(()).unwrap();
-    let (cq_send, cq_recv) = channel::unbounded_from(command_queue);
-    let reply_queues = REPLY_QUEUES.each_ref().map(|m| {
-        channel::unbounded_from(m.init_once(()).unwrap())
+    let (cq_send, cq_recv) = channel::unbounded();
+    let reply_queues = [(); NUM_PHIL].each_ref().map(|()| {
+        channel::unbounded()
     });
     let syncer = reply_queues.into_iter().map(|rqueue| {
         let item = Box::new(ChannelSync::new(cq_send.clone(), rqueue))
@@ -165,9 +164,4 @@ impl ForkSync for ChannelSync {
 kobj_define! {
     static CHANNEL_STACK: ThreadStack<2054>;
     static CHANNEL_THREAD: StaticThread;
-
-    // For communicating using Queue, there is one to the main thread (the manager), and one back
-    // to each philosopher.
-    static COMMAND_QUEUE: StaticQueue;
-    static REPLY_QUEUES: [StaticQueue; NUM_PHIL];
 }
