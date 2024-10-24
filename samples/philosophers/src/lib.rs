@@ -30,9 +30,12 @@ use crate::sysmutex::SysMutexSync;
 use crate::channel::get_channel_syncer;
 #[allow(unused_imports)]
 use crate::semsync::semaphore_sync;
+#[allow(unused_imports)]
+use crate::dynsemsync::dyn_semaphore_sync;
 
 mod channel;
 mod condsync;
+mod dynsemsync;
 mod sysmutex;
 mod semsync;
 
@@ -93,6 +96,11 @@ extern "C" fn rust_main() {
 #[cfg(CONFIG_SYNC_SYS_SEMAPHORE)]
 fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
     semaphore_sync()
+}
+
+#[cfg(CONFIG_SYNC_SYS_DYNAMIC_SEMAPHORE)]
+fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
+    dyn_semaphore_sync()
 }
 
 #[cfg(CONFIG_SYNC_SYS_MUTEX)]
