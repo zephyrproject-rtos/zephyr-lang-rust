@@ -10,7 +10,6 @@ use crate::{
     ForkSync,
     NUM_PHIL,
 };
-use zephyr::kobj_define;
 use zephyr::sync::Mutex;
 use zephyr::sync::Condvar;
 // use zephyr::time::Forever;
@@ -26,12 +25,10 @@ pub struct CondSync {
 impl CondSync {
     #[allow(dead_code)]
     pub fn new() -> CondSync  {
-        let sys_mutex = MUTEX.init_once(()).unwrap();
-        let sys_condvar = CONDVAR.init_once(()).unwrap();
-
-        let lock = Mutex::new_from([false; NUM_PHIL], sys_mutex);
-        let cond = Condvar::new_from(sys_condvar);
-        CondSync { lock, cond }
+        CondSync {
+            lock: Mutex::new([false; NUM_PHIL]),
+            cond: Condvar::new(),
+        }
     }
 }
 
@@ -50,9 +47,4 @@ impl ForkSync for CondSync {
         // No predictible waiter, so must wake everyone.
         self.cond.notify_all();
     }
-}
-
-kobj_define! {
-    static MUTEX: StaticMutex;
-    static CONDVAR: StaticCondvar;
 }
