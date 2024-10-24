@@ -11,7 +11,7 @@ use alloc::vec::Vec;
 use alloc::boxed::Box;
 
 use zephyr::{
-    kobj_define, sync::Arc, sys::sync::Semaphore, time::Forever
+    sync::Arc, sys::sync::Semaphore, time::Forever
 };
 
 use crate::{ForkSync, NUM_PHIL};
@@ -34,10 +34,9 @@ impl ForkSync for SemSync {
 }
 
 #[allow(dead_code)]
-pub fn semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
-    let forks = SEMS.each_ref().map(|m| {
-        // Each fork starts as taken.
-        Arc::new(m.init_once((1, 1)).unwrap())
+pub fn dyn_semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
+    let forks = [(); NUM_PHIL].each_ref().map(|()| {
+        Arc::new(Semaphore::new(1, 1).unwrap())
     });
 
     let syncers = (0..NUM_PHIL).map(|_| {
@@ -49,8 +48,4 @@ pub fn semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
     }).collect();
 
     syncers
-}
-
-kobj_define! {
-    static SEMS: [StaticSemaphore; NUM_PHIL];
 }
