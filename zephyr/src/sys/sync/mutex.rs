@@ -9,6 +9,7 @@
 //! [`object`]: crate::object
 
 use core::fmt;
+use core::mem;
 use crate::{
     error::{Result, to_result_void},
     raw::{
@@ -25,6 +26,7 @@ use crate::{
     time::Timeout,
 };
 use crate::object::{
+    Fixed,
     StaticKernelObject,
     Wrapped,
 };
@@ -54,10 +56,22 @@ use crate::sys::K_FOREVER;
 /// [`sync::Mutex`]: http://example.com/TODO
 pub struct Mutex {
     /// The raw Zephyr mutex.
-    item: *mut k_mutex,
+    item: Fixed<k_mutex>,
 }
 
 impl Mutex {
+    /// Create a new Mutex in an unlocked state.
+    ///
+    /// Create a new dynamically allocated Mutex.  The Mutex can only be used from system threads.
+    #[cfg(CONFIG_RUST_ALLOC)]
+    pub fn new() -> Result<Mutex> {
+        let item: Fixed<k_mutex> = Fixed::new(unsafe { mem::zeroed() });
+        unsafe {
+            to_result_void(k_mutex_init(item.get()))?;
+        }
+        Ok(Mutex { item })
+    }
+
     /// Lock a Zephyr Mutex.
     ///
     /// Will wait for the lock, returning status, with `Ok(())` indicating the lock has been
@@ -67,7 +81,7 @@ impl Mutex {
         where T: Into<Timeout>,
     {
         let timeout: Timeout = timeout.into();
-        to_result_void(unsafe { k_mutex_lock(self.item, timeout.0) })
+        to_result_void(unsafe { k_mutex_lock(self.item.get(), timeout.0) })
     }
 
     /// Unlock a Zephyr Mutex.
@@ -75,7 +89,7 @@ impl Mutex {
     /// The mutex must already be locked by the calling thread.  Mutexes may not be unlocked in
     /// ISRs.
     pub fn unlock(&self) -> Result<()> {
-        to_result_void(unsafe { k_mutex_unlock(self.item) })
+        to_result_void(unsafe { k_mutex_unlock(self.item.get()) })
     }
 }
 
@@ -109,24 +123,23 @@ impl Wrapped for StaticKernelObject<k_mutex> {
             k_mutex_init(ptr);
         }
         Mutex { 
-            item: ptr,
+            item: Fixed::Static(ptr),
         }
     }
 }
 
 impl fmt::Debug for Mutex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sys::Mutex {:?}", self.item)
+        write!(f, "sys::Mutex {:?}", self.item.get())
     }
 }
 
 /// A Condition Variable
 ///
 /// Lightweight wrappers for Zephyr's `k_condvar`.
-#[derive(Clone)]
 pub struct Condvar {
     /// The underlying `k_condvar`.
-    item: *mut k_condvar,
+    item: Fixed<k_condvar>,
 }
 
 #[doc(hidden)]
@@ -138,6 +151,18 @@ unsafe impl Sync for Condvar {}
 unsafe impl Send for Condvar {}
 
 impl Condvar {
+    /// Create a new Condvar.
+    ///
+    /// Create a new dynamically allocated Condvar.  The Condvar can only be used from system threads.
+    #[cfg(CONFIG_RUST_ALLOC)]
+    pub fn new() -> Result<Condvar> {
+        let item: Fixed<k_condvar> = Fixed::new(unsafe { mem::zeroed() });
+        unsafe {
+            to_result_void(k_condvar_init(item.get()))?;
+        }
+        Ok(Condvar { item })
+    }
+
     /// Wait for someone else using this mutex/condvar pair to notify.
     ///
     /// Note that this requires the lock to be held by use, but as this is a low-level binding to
@@ -147,25 +172,25 @@ impl Condvar {
     /// [`sync::Condvar`]: http://www.example.com/TODO
     // /// [`sync::Condvar`]: crate::sync::Condvar
     pub fn wait(&self, lock: &Mutex) {
-        unsafe { k_condvar_wait(self.item, lock.item, K_FOREVER); }
+        unsafe { k_condvar_wait(self.item.get(), lock.item.get(), K_FOREVER); }
     }
 
     // TODO: timeout.
 
     /// Wake a single thread waiting on this condition variable.
     pub fn notify_one(&self) {
-        unsafe { k_condvar_signal(self.item); }
+        unsafe { k_condvar_signal(self.item.get()); }
     }
 
     /// Wake all threads waiting on this condition variable.
     pub fn notify_all(&self) {
-        unsafe { k_condvar_broadcast(self.item); }
+        unsafe { k_condvar_broadcast(self.item.get()); }
     }
 }
 
 impl fmt::Debug for Condvar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sys::Condvar {:?}", self.item)
+        write!(f, "sys::Condvar {:?}", self.item.get())
     }
 }
 
@@ -181,7 +206,7 @@ impl Wrapped for StaticCondvar {
             k_condvar_init(ptr);
         }
         Condvar {
-            item: ptr,
+            item: Fixed::Static(ptr),
         }
     }
 }
