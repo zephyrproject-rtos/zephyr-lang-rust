@@ -28,8 +28,11 @@ mod counter;
 // simply Box the message, leak it out of the box, and give it to Zephyr, and then on receipt, wrap
 // it back into a Box, and give it to the recipient.
 
-/// Create a multi-producer multi-consumer channel of unbounded capacity.  The messages are
-/// allocated individually as "Box", and the queue is managed by the underlying Zephyr queue.
+/// Create a multi-producer multi-consumer channel of unbounded capacity, using an existing Queue
+/// object.
+///
+/// The messages are allocated individually as "Box", and the queue is managed by the underlying
+/// Zephyr queue.
 pub fn unbounded_from<T>(queue: Queue) -> (Sender<T>, Receiver<T>) {
     let (s, r) = counter::new(queue);
     let s = Sender {
@@ -41,6 +44,18 @@ pub fn unbounded_from<T>(queue: Queue) -> (Sender<T>, Receiver<T>) {
         _phantom: PhantomData,
     };
     (s, r)
+}
+
+/// Create a multi-producer multi-consumer channel of unbounded capacity.
+///
+/// The messages are allocated individually as "Box".  The underlying Zephyr queue will be
+/// dynamically allocated.
+///
+/// **Note**: Currently Drop is not propertly supported on Zephyr.  If all senders are dropped, any
+/// receivers will likely be blocked forever.  Any data that has been queued and not received will
+/// be leaked when all receivers have been droped.
+pub fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
+    unbounded_from(Queue::new().unwrap())
 }
 
 /// The underlying type for Messages through Zephyr's [`Queue`].
