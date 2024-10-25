@@ -26,7 +26,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          path: zephyr-rust-lang
+          path: apptest
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,7 +36,7 @@ jobs:
       - name: Setup Zephyr project
         uses: zephyrproject-rtos/action-zephyr-setup@v1
         with:
-          app-path: zephyr-rust-lang
+          app-path: apptest
           manifest-file-name: ci-manifest.yml
           toolchains: arm-zephyr-eabi:riscv64-zephyr-elf
 
@@ -51,9 +51,13 @@ jobs:
           rustup target add thumbv8m.main-none-eabi
 
       - name: Build firmware
-        working-directory: zephyr-rust-lang
+        working-directory: apptest
         shell: bash
         run: |
           cargo --version
 
-          west twister -T samples -T tests -v --inline-logs --integration
+          lscpu
+          df -h
+
+          west twister -M all -T samples -T tests -v --inline-logs --integration -j 4 \
+             $(cat etc/platforms.txt)
