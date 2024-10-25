@@ -1,5 +1,3 @@
--p mps2/an385
--p mps2/an521/cpu0
 -p qemu_cortex_m0
 -p qemu_cortex_m3
 -p qemu_riscv32
