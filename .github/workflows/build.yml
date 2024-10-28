@@ -22,6 +22,9 @@ jobs:
       matrix:
         os: [ubuntu-22.04]
     runs-on: ${{ matrix.os }}
+    env:
+      WGET_ARGS: "-q"
+      RENODE_VERSION: "1.15.3"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,6 +52,19 @@ jobs:
           rustup target add thumbv7em-none-eabi
           rustup target add thumbv7m-none-eabi
           rustup target add thumbv8m.main-none-eabi
+
+      # Note that Renode is only provided for x86_64 targets.  This matches the github runners.
+      - name: Install Renode
+        shell: bash
+        run: |
+          set -e
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF
+          echo "deb https://download.mono-project.com/repo/ubuntu stable-focal main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
+          sudo apt-get -y update
+          wget ${WGET_ARGS} https://github.com/renode/renode/releases/download/v${RENODE_VERSION}/renode_${RENODE_VERSION}_amd64.deb
+          sudo apt-get install -y ./renode_${RENODE_VERSION}_amd64.deb
+          rm renode_${RENODE_VERSION}_amd64.deb
+          pip3 install -r /opt/renode/tests/requirements.txt --no-cache-dir
 
       - name: Build firmware
         working-directory: apptest
