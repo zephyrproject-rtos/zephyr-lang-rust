@@ -202,7 +202,7 @@ impl Stats {
     }
 
     fn show(&self) {
-        printkln!("{:?}, e:{:?}, t:{:?}", self.count, self.eating, self.thinking);
+        printkln!("c:{:?}, e:{:?}, t:{:?}", self.count, self.eating, self.thinking);
     }
 }
 
