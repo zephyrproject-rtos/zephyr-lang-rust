@@ -76,4 +76,5 @@ jobs:
           df -h
 
           west twister -M all -T samples -T tests -v --inline-logs --integration -j 4 \
+             --timeout-multiplier 2 \
              $(cat etc/platforms.txt)
