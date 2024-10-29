@@ -45,6 +45,10 @@ extern int errno;
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/led_strip.h>
 #include <zephyr/drivers/led.h>
+#include <zephyr/drivers/usb/usb_dc.h>
+#include <zephyr/usb/class/hid.h>
+#include <zephyr/usb/usb_device.h>
+#include <zephyr/usb/class/usb_hid.h>
 
 #ifdef CONFIG_THREAD_ANALYZER
 #include <zephyr/debug/thread_analyzer.h>
