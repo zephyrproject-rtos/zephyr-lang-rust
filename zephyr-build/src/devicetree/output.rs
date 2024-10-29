@@ -26,16 +26,15 @@ impl DeviceTree {
         self.node_walk(self.root.as_ref(), None, &augments)
     }
 
-    /// Write to the given file a list of the path names of all of the nodes present in this
-    /// devicetree.
+    // Write, to the given writer, CFG lines so that Rust code can conditionalize based on the DT.
     pub fn output_node_paths<W: Write>(&self, write: &mut W) -> Result<()> {
         self.root.as_ref().output_path_walk(write, None)?;
 
         // Also, output all of the labels.  Technically, this depends on the labels augment being
         // present.
-        writeln!(write, "labels")?;
+        writeln!(write, "cargo:rustc-cfg=dt=\"labels\"")?;
         for label in self.labels.keys() {
-            writeln!(write, "labels::{}", fix_id(label))?;
+            writeln!(write, "cargo:rustc-cfg=dt=\"labels::{}\"", fix_id(label))?;
         }
         Ok(())
     }
@@ -147,7 +146,7 @@ impl Node {
                 fixed_name
             };
 
-            writeln!(write, "{}", child_name)?;
+            writeln!(write, "cargo:rustc-cfg=dt=\"{}\"", child_name)?;
 
             for prop in &child.properties {
                 prop.output_path(write, &child_name)?;
@@ -175,7 +174,7 @@ impl Property {
     fn output_path<W: Write>(&self, write: &mut W, name: &str) -> Result<()> {
         if let Some(value) = self.get_single_value() {
             if let Value::Phandle(_) = value {
-                writeln!(write, "{}::{}", name, self.name)?;
+                writeln!(write, "cargo:rustc-cfg=dt=\"{}::{}\"", name, fix_id(&self.name))?;
             }
         }
         Ok(())
