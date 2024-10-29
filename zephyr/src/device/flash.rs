@@ -16,6 +16,7 @@ pub struct FlashController {
 
 impl FlashController {
     /// Constructor, intended to be called by devicetree generated code.
+    #[allow(dead_code)]
     pub(crate) unsafe fn new(unique: &Unique, device: *const raw::device) -> Option<FlashController> {
         if !unique.once() {
             return None;
@@ -40,6 +41,7 @@ pub struct FlashPartition {
 
 impl FlashPartition {
     /// Constructor, intended to be called by devicetree generated code.
+    #[allow(dead_code)]
     pub(crate) unsafe fn new(unique: &Unique, device: *const raw::device, offset: u32, size: u32) -> Option<FlashPartition> {
         if !unique.once() {
             return None;
