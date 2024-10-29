@@ -72,8 +72,7 @@ pub struct GpioPin {
 
 impl GpioPin {
     /// Constructor, used by the devicetree generated code.
-    ///
-    /// TODO: Guarantee single instancing.
+    #[allow(dead_code)]
     pub(crate) unsafe fn new(unique: &Unique, device: *const raw::device, pin: u32, dt_flags: u32) -> Option<GpioPin> {
         if !unique.once() {
             return None;
