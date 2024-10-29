@@ -42,6 +42,7 @@
     value:
       names:
       - "nordic,nrf52-flash-controller"
+      - "nordic,nrf51-flash-controller"
       - "raspberrypi,pico-flash-controller"
       level: 0
   actions:
