@@ -81,12 +81,21 @@ pub fn build_kconfig_mod() {
 }
 
 /// Parse the finalized DTS file, generating the Rust devicetree file.
-pub fn build_dts() {
+fn import_dt() -> DeviceTree {
     let zephyr_dts = env::var("ZEPHYR_DTS").expect("ZEPHYR_DTS must be set");
-    let outdir = env::var("OUT_DIR").expect("OUT_DIR must be set");
     let gen_include = env::var("BINARY_DIR_INCLUDE_GENERATED")
         .expect("BINARY_DIR_INCLUDE_GENERATED");
-    let builddir = env::var("BUILD_DIR").expect("BUILD_DIR");
+
+    let generated = format!("{}/devicetree_generated.h", gen_include);
+    DeviceTree::new(&zephyr_dts, generated)
+}
+
+pub fn build_dts() {
+    let dt = import_dt();
+
+    let outdir = env::var("OUT_DIR").expect("OUT_DIR must be set");
+    let out_path = Path::new(&outdir).join("devicetree.rs");
+    let mut out = File::create(&out_path).expect("Unable to create devicetree.rs");
 
     let augments = env::var("DT_AUGMENTS").expect("DT_AUGMENTS must be set");
     let augments: Vec<String> = augments.split_whitespace().map(String::from).collect();
@@ -110,25 +119,12 @@ pub fn build_dts() {
         .map(|aug| Box::new(aug) as Box<dyn Augment>)
         .collect();
 
-    let generated = format!("{}/devicetree_generated.h", gen_include);
-    let dt = DeviceTree::new(&zephyr_dts, generated);
-
-    let out_path = Path::new(&outdir).join("devicetree.rs");
-    let mut out = File::create(&out_path).expect("Unable to create devicetree.rs");
-
     let tokens = dt.to_tokens(&augs);
     if has_rustfmt() {
         write_formatted(out, tokens);
     } else {
         writeln!(out, "{}", tokens).unwrap();
     };
-
-    // Output all of the node names in the discovered tree.
-    let all_nodes_path = Path::new(&builddir)
-        .join("rust")
-        .join("all-dt-nodes.txt");
-    let mut out = File::create(&all_nodes_path).expect("Unable to create all-dt-nodex.txt");
-    dt.output_node_paths(&mut out).expect("Unable to write to all-dt-nodes.txt");
 }
 
 /// Generate cfg directives for each of the nodes in the generated device tree.
@@ -136,14 +132,8 @@ pub fn build_dts() {
 /// This assumes that build_dts was already run by the `zephyr` crate, which should happen if this
 /// is called from a user application.
 pub fn dt_cfgs() {
-    let builddir = env::var("BUILD_DIR").expect("BUILD_DIR");
-    let path = Path::new(&builddir)
-        .join("rust")
-        .join("all-dt-nodes.txt");
-    for line in BufReader::new(File::open(&path).expect("Unable to open all-dt-nodes")).lines() {
-        let line = line.expect("Error reading line from all-dt-nodes");
-        println!("cargo:rustc-cfg=dt=\"{}\"", line);
-    }
+    let dt = import_dt();
+    dt.output_node_paths(&mut std::io::stdout()).unwrap();
 }
 
 /// Determine if `rustfmt` is in the path, and can be excecuted. Returns false on any kind of error.
