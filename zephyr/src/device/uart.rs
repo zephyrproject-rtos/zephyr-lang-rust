@@ -11,7 +11,7 @@ use crate::error::{Error, Result, to_result_void, to_result};
 use crate::printkln;
 use crate::sys::sync::Semaphore;
 use crate::sync::{Arc, SpinMutex};
-use crate::time::{NoWait, Timeout};
+use crate::time::{Forever, NoWait, Timeout};
 
 use core::ffi::{c_int, c_uchar, c_void};
 use core::ptr;
@@ -164,6 +164,7 @@ const BUFFER_SIZE: usize = 256;
 /// mutex because it can only be waited on when the Mutex is not locked.
 struct IrqOuterData {
     read_sem: Semaphore,
+    write_sem: Semaphore,
     inner: SpinMutex<IrqInnerData>,
 }
 
@@ -171,6 +172,27 @@ struct IrqOuterData {
 struct IrqInnerData {
     /// The Ring buffer holding incoming and read data.
     buffer: ArrayDeque<u8, BUFFER_SIZE>,
+    /// Data to be written, if that is the case.
+    ///
+    /// If this is Some, then the irq should be enabled.
+    write: Option<WriteSlice>,
+}
+
+/// Represents a slice of data that the irq is going to write.
+struct WriteSlice {
+    data: *const u8,
+    len: usize,
+}
+
+impl WriteSlice {
+    /// Add an offset to the beginning of this slice, returning a new slice.  This is equivalent to
+    /// &item[count..] with a slice.
+    pub unsafe fn add(&self, count: usize) -> WriteSlice {
+        WriteSlice {
+            data: unsafe { self.data.add(count) },
+            len: self.len - count,
+        }
+    }
 }
 
 /// This is the irq-driven interface.
@@ -189,8 +211,10 @@ impl UartIrq {
     pub unsafe fn new(uart: Uart) -> Result<UartIrq> {
         let data = Arc::new(IrqOuterData {
             read_sem: Semaphore::new(0, 1)?,
+            write_sem: Semaphore::new(0, 1)?,
             inner: SpinMutex::new(IrqInnerData {
                 buffer: ArrayDeque::new(),
+                write: None,
             }),
         });
 
@@ -205,7 +229,7 @@ impl UartIrq {
         to_result_void(ret)?;
         // Should this be settable?
         unsafe {
-            raw::uart_irq_tx_enable(uart.device);
+            // raw::uart_irq_tx_enable(uart.device);
             raw::uart_irq_rx_enable(uart.device);
         }
         Ok(UartIrq {
@@ -239,6 +263,36 @@ impl UartIrq {
         let _ = self.data.read_sem.take(timeout);
 
         self.data.try_read(buf)
+    }
+
+    /// A blocking write to the UART.
+    ///
+    /// By making this blocking, we don't need to make an extra copy of the data.
+    ///
+    /// TODO: Async write.
+    pub unsafe fn write(&mut self, buf: &[u8]) {
+        if buf.len() == 0 {
+            return;
+        }
+
+        // Make the data to be written available to the irq handler, and get it going.
+        {
+            let mut inner = self.data.inner.lock().unwrap();
+            assert!(inner.write.is_none());
+
+            inner.write = Some(WriteSlice {
+                data: buf.as_ptr(),
+                len: buf.len(),
+            });
+
+            unsafe { raw::uart_irq_tx_enable(self.device) };
+        }
+
+        // Wait for the transmission to complete.  This shouldn't be racy, as the irq shouldn't be
+        // giving the semaphore until there is 'write' data, and it has been consumed.
+        let _ = self.data.write_sem.take(Forever);
+
+        // TODO: Should we check that the write actually finished?
     }
 }
 
@@ -291,5 +345,32 @@ extern "C" fn irq_callback(
     // This is safe (and important) to do while the mutex is held.
     if did_read {
         outer.read_sem.give();
+    }
+
+    // If there is data to write, ensure the fifo is full, and when we run out of data, disable the
+    // interrupt and signal the waiting thread.
+    if let Some(write) = inner.write.take() {
+        let count = unsafe {
+            raw::uart_fifo_fill(dev, write.data, write.len as i32)
+        };
+        if count < 0 {
+            panic!("Incorrect use of device fifo");
+        }
+        let count = count as usize;
+
+        if count == write.len {
+            // The write finished, leave 'write' empty, and let the thread know we're done.
+            outer.write_sem.give();
+
+            // Disable the tx fifo, as we don't need it any more.
+            unsafe { raw::uart_irq_tx_disable(dev) };
+        } else {
+            // We're not finished, so remember how much is left.
+            inner.write = Some(unsafe { write.add(count) });
+        }
+    }
+
+    unsafe {
+        raw::uart_irq_update(dev);
     }
 }
