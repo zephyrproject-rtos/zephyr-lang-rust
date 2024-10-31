@@ -46,6 +46,10 @@ pub mod critical {
     //!
     //! Critical sections from Rust are handled with a single Zephyr spinlock.  This doesn't allow
     //! any nesting, but neither does the `critical-section` crate.
+    //!
+    //! This provides the underlying critical section crate, which is useful for external crates
+    //! that want this interface.  However, it isn't a particularly hygienic interface to use.  For
+    //! something a bit nicer, please see [`sync::SpinMutex`].
 
     use core::{ffi::c_int, ptr::addr_of_mut};
 
