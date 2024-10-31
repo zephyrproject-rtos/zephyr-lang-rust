@@ -37,3 +37,10 @@ pub use mutex::{
     LockResult,
     TryLockResult,
 };
+
+mod spinmutex;
+
+pub use spinmutex::{
+    SpinMutex,
+    SpinMutexGuard,
+};
