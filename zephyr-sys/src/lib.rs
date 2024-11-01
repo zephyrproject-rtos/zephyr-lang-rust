@@ -20,3 +20,30 @@
 #![allow(rustdoc::broken_intra_doc_links)]
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+// We have directed bindgen to not generate copy for any times.  It unfortunately doesn't have an
+// easy mechanism to enable just for a few types.
+
+// Fortunately, it isn't difficult to mostly auto-derive copy/clone.
+macro_rules! derive_clone {
+    ($($t:ty),+ $(,)?) => {
+        $(
+            impl Clone for $t {
+                fn clone(&self) -> $t {
+                    *self
+                }
+            }
+        )+
+    };
+}
+
+macro_rules! derive_copy {
+    ($($t:ty),+ $(,)?) => {
+        $(
+            impl Copy for $t {}
+        )+
+    }
+}
+
+derive_copy!(z_spinlock_key);
+derive_clone!(z_spinlock_key);
