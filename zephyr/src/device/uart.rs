@@ -11,7 +11,7 @@ use crate::error::{Error, Result, to_result_void, to_result};
 use crate::printkln;
 use crate::sys::sync::Semaphore;
 use crate::sync::{Arc, SpinMutex};
-use crate::time::{Forever, NoWait, Timeout};
+use crate::time::{NoWait, Timeout};
 
 use core::ffi::{c_int, c_uchar, c_void};
 use core::ptr;
@@ -278,9 +278,11 @@ impl UartIrq {
     /// By making this blocking, we don't need to make an extra copy of the data.
     ///
     /// TODO: Async write.
-    pub unsafe fn write(&mut self, buf: &[u8]) {
+    pub unsafe fn write<T>(&mut self, buf: &[u8], timeout: T) -> usize
+        where T: Into<Timeout>
+    {
         if buf.len() == 0 {
-            return;
+            return 0;
         }
 
         // Make the data to be written available to the irq handler, and get it going.
@@ -298,9 +300,26 @@ impl UartIrq {
 
         // Wait for the transmission to complete.  This shouldn't be racy, as the irq shouldn't be
         // giving the semaphore until there is 'write' data, and it has been consumed.
-        let _ = self.data.write_sem.take(Forever);
+        let _ = self.data.write_sem.take(timeout);
 
-        // TODO: Should we check that the write actually finished?
+        // Depending on the driver, there might be a race here.  This would result in the above
+        // 'take' returning early, and no actual data being written.
+
+        {
+            let mut inner = self.data.inner.lock().unwrap();
+
+            if let Some(write) = inner.write.take() {
+                // First, make sure that no more interrupts will come in.
+                unsafe { raw::uart_irq_tx_disable(self.device) };
+
+                // The write did not complete, and this represents remaining data to write.
+                buf.len() - write.len
+            } else {
+                // The write completed, the rx irq should be disabled.  Just return the whole
+                // buffer.
+                buf.len()
+            }
+        }
     }
 }
 
