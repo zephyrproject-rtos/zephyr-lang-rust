@@ -110,6 +110,14 @@ impl Uart {
         })
     }
 
+    /// Convenience, return if DTR is asserted.
+    pub unsafe fn is_dtr_set(&self) -> Result<bool> {
+        let ret = unsafe {
+            self.line_ctrl_get(LineControl::DTR)?
+        };
+        Ok(ret == 1)
+    }
+
     /// Convert this UART into an async one.
     pub unsafe fn into_async(self) -> Result<UartAsync> {
         UartAsync::new(self)
