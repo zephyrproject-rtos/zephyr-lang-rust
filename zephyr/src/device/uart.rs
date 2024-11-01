@@ -209,6 +209,8 @@ pub struct UartIrq {
     device: *const raw::device,
     /// Critical section protected data.
     data: Arc<IrqOuterData>,
+    /// Interior wrapped device, to be able to hand out lifetime managed references to it.
+    uart: Uart,
 }
 
 // UartIrq is also Send, !Sync, for the same reasons as for Uart.
@@ -243,14 +245,16 @@ impl UartIrq {
         Ok(UartIrq {
             device: uart.device,
             data,
+            uart,
         })
     }
 
     /// Get the underlying UART to be able to change line control and such.
-    pub unsafe fn inner(&mut self) -> Uart {
-        Uart {
-            device: self.device
-        }
+    ///
+    /// TODO: This really should return something like `&Uart` to bind the lifetime.  Otherwise the
+    /// user can continue to use the uart handle beyond the lifetime of the driver.
+    pub unsafe fn inner(&mut self) -> &Uart {
+        &self.uart
     }
 
     /// Attempt to read data from the UART into the buffer.  If no data is available, it will
