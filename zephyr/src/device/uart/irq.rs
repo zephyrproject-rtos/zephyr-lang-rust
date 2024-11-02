@@ -16,18 +16,13 @@ use crate::raw;
 use crate::error::{Result, to_result_void};
 use crate::sys::sync::Semaphore;
 use crate::sync::{Arc, SpinMutex};
-use crate::time::{NoWait, Timeout};
+use crate::time::Timeout;
 
 use core::ffi::c_void;
 use core::ops::Range;
 use core::{fmt, result};
 
 use super::Uart;
-
-/// Size of the irq buffer used for UartIrq.
-///
-/// TODO: Make this a parameter of the type.
-const BUFFER_SIZE: usize = 256;
 
 /// The "outer" struct holds the semaphore, and the mutex.  The semaphore has to live outside of the
 /// mutex because it can only be waited on when the Mutex is not locked.
@@ -40,13 +35,15 @@ struct IrqOuterData<const WS: usize, const RS: usize> {
 
 /// Data for communication with the UART IRQ.
 struct IrqInnerData<const WS: usize, const RS: usize> {
-    /// The Ring buffer holding incoming and read data.
-    buffer: ArrayDeque<u8, BUFFER_SIZE>,
     /// Write request.  The 'head' is the one being worked on.  Once completed, they will move into
     /// the completion queue.
     write_requests: ArrayDeque<WriteRequest, WS>,
     /// Completed writes.
     write_dones: ArrayDeque<WriteDone, WS>,
+    /// Read requests.  The 'head' is the one data will come into.
+    read_requests: ArrayDeque<ReadRequest, RS>,
+    /// Completed writes.  Generally, these will be full, but a read might move an early one here.
+    read_dones: ArrayDeque<ReadDone, RS>,
 }
 
 /// A single requested write.  This is a managed buffer, and a range of the buffer to actually
@@ -65,21 +62,39 @@ struct WriteDone {
     data: Vec<u8>,
 }
 
-/// Represents a slice of data that the irq is going to write.
-struct WriteSlice {
-    data: *const u8,
+/// A single read request.  This is a buffer to hold data being read, along with the part still
+/// valid to hold data.
+struct ReadRequest {
+    /// The data to read.
+    data: Vec<u8>,
+    /// How much of the data has been read so far.
     len: usize,
 }
 
-impl WriteSlice {
-    /// Add an offset to the beginning of this slice, returning a new slice.  This is equivalent to
-    /// &item[count..] with a slice.
-    pub unsafe fn add(&self, count: usize) -> WriteSlice {
-        WriteSlice {
-            data: unsafe { self.data.add(count) },
-            len: self.len - count,
-        }
+impl ReadRequest {
+    fn into_done(self) -> ReadDone {
+        ReadDone { data: self.data, len: self.len }
     }
+}
+
+/// A completed read.
+struct ReadDone {
+    /// The buffer holding the data.
+    data: Vec<u8>,
+    /// How much of `data` contains read data.  Should always be > 0.
+    len: usize,
+}
+
+impl ReadDone {
+    fn into_result(self) -> ReadResult {
+        ReadResult { data: self.data, len: self.len }
+    }
+}
+
+/// The result of a read.
+pub struct ReadResult {
+    data: Vec<u8>,
+    len: usize,
 }
 
 /// The error type from write requests.  Used to return the buffer.
@@ -92,8 +107,21 @@ impl fmt::Debug for WriteError {
     }
 }
 
+/// The error type from read requests.  Used to return the buffer.
+pub struct ReadError(pub Vec<u8>);
+
+// The default Debug for Write error will print the whole buffer, which isn't particularly useful.
+impl fmt::Debug for ReadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ReadError(...)")
+    }
+}
+
 /// The wait for write completion timed out.
 pub struct WriteWaitTimedOut;
+
+/// The wait for read completion timed out.
+pub struct ReadWaitTimedOut;
 
 /// An interface to the UART, that uses the "legacy" IRQ API.
 ///
@@ -119,9 +147,10 @@ impl<const WS: usize, const RS: usize> UartIrq<WS, RS> {
             read_sem: Semaphore::new(0, RS as u32)?,
             write_sem: Semaphore::new(0, WS as u32)?,
             inner: SpinMutex::new(IrqInnerData {
-                buffer: ArrayDeque::new(),
                 write_requests: ArrayDeque::new(),
                 write_dones: ArrayDeque::new(),
+                read_requests: ArrayDeque::new(),
+                read_dones: ArrayDeque::new(),
             }),
         });
 
@@ -151,26 +180,6 @@ impl<const WS: usize, const RS: usize> UartIrq<WS, RS> {
     /// user can continue to use the uart handle beyond the lifetime of the driver.
     pub unsafe fn inner(&mut self) -> &Uart {
         &self.uart
-    }
-
-    /// Attempt to read data from the UART into the buffer.  If no data is available, it will
-    /// attempt, once, to wait using the given timeout.
-    ///
-    /// Returns the number of bytes that were read, with zero indicating that a timeout occurred.
-    pub unsafe fn try_read<T>(&mut self, buf: &mut [u8], timeout: T) -> usize
-        where T: Into<Timeout>,
-    {
-        // Start with a read, before any blocking.
-        let count = self.data.try_read(buf);
-        if count > 0 {
-            return count;
-        }
-
-        // Otherwise, wait for the semaphore.  Ignore the result, as we will try to read again, in
-        // case there was a race.
-        let _ = self.data.read_sem.take(timeout);
-
-        self.data.try_read(buf)
     }
 
     /// Enqueue a single write request.
@@ -218,6 +227,63 @@ impl<const WS: usize, const RS: usize> UartIrq<WS, RS> {
         let mut inner = self.data.inner.lock().unwrap();
         Ok(inner.write_dones.pop_front().expect("Write done empty, despite semaphore").data)
     }
+
+    /// Enqueue a buffer for reading data.
+    ///
+    /// Enqueues a buffer to hold read data.  Can enqueue up to RS of these.
+    pub fn read_enqueue(&mut self, data: Vec<u8>) -> result::Result<(), ReadError> {
+        let mut inner = self.data.inner.lock().unwrap();
+
+        let req = ReadRequest { data, len: 0 };
+        match inner.read_requests.push_back(req) {
+            Ok(()) => {
+                // Enable the rx fifo so incoming data will be placed.
+                if inner.read_requests.len() == 1 {
+                    unsafe { raw::uart_irq_rx_enable(self.uart.device); }
+                }
+                Ok(())
+            }
+            Err(e) => Err(ReadError(e.element.data))
+        }
+    }
+
+    /// Wait up to 'timeout' for a read to complete, and returns the data.
+    ///
+    /// Note that if there is a buffer that has been partially filled, this will return that buffer,
+    /// so that there isn't a delay with read data.
+    pub fn read_wait<T>(&mut self, timeout: T) -> result::Result<ReadResult, ReadWaitTimedOut>
+        where T: Into<Timeout>,
+    {
+        // If there is no read data available, see if we have a partial block we can consider a
+        // completion.
+        let mut inner = self.data.inner.lock().unwrap();
+        if inner.read_dones.is_empty() {
+            if let Some(req) = inner.read_requests.pop_front() {
+                // TODO: User defined threshold?
+                if req.len > 0 {
+                    // Queue this up as a completion.
+                    inner.read_dones.push_back(req.into_done()).unwrap();
+
+                    // Signal the sem, as we've pushed.
+                    self.data.read_sem.give();
+                } else {
+                    // Stick it back on the queue.
+                    inner.read_requests.push_front(req).unwrap();
+                }
+            }
+        }
+        drop(inner);
+
+        match self.data.read_sem.take(timeout) {
+            Ok(()) => (),
+            // TODO: Handle other errors?
+            Err(_) => return Err(ReadWaitTimedOut),
+        }
+
+        let mut inner = self.data.inner.lock().unwrap();
+        let done = inner.read_dones.pop_front().expect("Semaphore mismatched with read done queue");
+        Ok(done.into_result())
+    }
 }
 
 // TODO: It could actually be possible to implement drop, but we would need to make sure the irq
@@ -229,29 +295,6 @@ impl<const WS: usize, const RS: usize> Drop for UartIrq<WS, RS> {
     }
 }
 
-impl<const WS: usize, const RS: usize> IrqOuterData<WS, RS> {
-    /// Try reading from the inner data, filling the buffer with as much data as makes sense.
-    /// Returns the number of bytes actually read, or Zero if none.
-    fn try_read(&self, buf: &mut [u8]) -> usize {
-        let mut inner = self.inner.lock().unwrap();
-        let mut pos = 0;
-        while pos < buf.len() {
-            if let Some(elt) = inner.buffer.pop_front() {
-                buf[pos] = elt;
-                pos += 1;
-            } else {
-                break;
-            }
-        }
-
-        if pos > 0 {
-            // Any time we do a read, clear the semaphore.
-            let _ = self.read_sem.take(NoWait);
-        }
-        pos
-    }
-}
-
 extern "C" fn irq_callback<const WS: usize, const RS: usize>(
     dev: *const raw::device,
     user_data: *mut c_void,
@@ -260,24 +303,43 @@ extern "C" fn irq_callback<const WS: usize, const RS: usize>(
     let outer = unsafe { &*(user_data as *const IrqOuterData<WS, RS>) };
     let mut inner = outer.inner.lock().unwrap();
 
-    // TODO: Make this more efficient.
-    let mut byte = 0u8;
-    let mut did_read = false;
+    // Handle any read requests.
     loop {
-        match unsafe { raw::uart_fifo_read(dev, &mut byte, 1) } {
-            0 => break,
-            1 => {
-                // TODO: should we warn about overflow here?
-                let _ = inner.buffer.push_back(byte);
-                did_read = true;
-            }
-            e => panic!("Uart fifo read not implemented: {}", e),
-        }
-    }
+        if let Some(mut req) = inner.read_requests.pop_front() {
+            if req.len == req.data.len() {
+                // This buffer is full, make it a completion.
+                inner.read_dones.push_back(req.into_done())
+                    .expect("Completion queue not large enough");
+                outer.read_sem.give();
+            } else {
+                // Read as much as we can.
+                let piece = &mut req.data[req.len..];
+                let count = unsafe {
+                    raw::uart_fifo_read(dev, piece.as_mut_ptr(), piece.len() as i32)
+                };
+                if count < 0 {
+                    panic!("Incorrect use of read");
+                }
+                let count = count as usize;
 
-    // This is safe (and important) to do while the mutex is held.
-    if did_read {
-        outer.read_sem.give();
+                // Adjust the piece.  The next time through the loop will notice if the write is
+                // full.
+                req.len += count;
+                inner.read_requests.push_front(req)
+                    .expect("Unexpected read request overflow");
+
+                if count == 0 {
+                    // There is no more data in the fifo.
+                    break;
+                }
+            }
+        } else {
+            // No place to store results.  Turn off the irq and stop.
+            // The doc's don't describe this as being possible, but hopefully the implementations
+            // are sane.
+            unsafe { raw::uart_irq_rx_disable(dev); }
+            break;
+        }
     }
 
     // Handle any write requests.
@@ -303,6 +365,11 @@ extern "C" fn irq_callback<const WS: usize, const RS: usize>(
                 req.part.start += count;
                 inner.write_requests.push_front(req)
                     .expect("Unexpected write_dones overflow");
+
+                // If the count reaches 0, the fifo is full.
+                if count == 0 {
+                    break;
+                }
             }
         } else {
             // No work.  Turn off the irq, and stop.
