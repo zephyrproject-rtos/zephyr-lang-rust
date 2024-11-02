@@ -205,12 +205,10 @@ impl WriteSlice {
 
 /// This is the irq-driven interface.
 pub struct UartIrq {
-    /// The raw device.
-    device: *const raw::device,
-    /// Critical section protected data.
-    data: Arc<IrqOuterData>,
     /// Interior wrapped device, to be able to hand out lifetime managed references to it.
     uart: Uart,
+    /// Critical section protected data.
+    data: Arc<IrqOuterData>,
 }
 
 // UartIrq is also Send, !Sync, for the same reasons as for Uart.
@@ -243,7 +241,6 @@ impl UartIrq {
             raw::uart_irq_rx_enable(uart.device);
         }
         Ok(UartIrq {
-            device: uart.device,
             data,
             uart,
         })
@@ -299,7 +296,7 @@ impl UartIrq {
                 len: buf.len(),
             });
 
-            unsafe { raw::uart_irq_tx_enable(self.device) };
+            unsafe { raw::uart_irq_tx_enable(self.uart.device) };
         }
 
         // Wait for the transmission to complete.  This shouldn't be racy, as the irq shouldn't be
@@ -314,7 +311,7 @@ impl UartIrq {
 
             if let Some(write) = inner.write.take() {
                 // First, make sure that no more interrupts will come in.
-                unsafe { raw::uart_irq_tx_disable(self.device) };
+                unsafe { raw::uart_irq_tx_disable(self.uart.device) };
 
                 // The write did not complete, and this represents remaining data to write.
                 buf.len() - write.len
