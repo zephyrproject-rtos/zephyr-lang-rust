@@ -220,6 +220,15 @@ impl<const WS: usize, const RS: usize> UartIrq<WS, RS> {
     }
 }
 
+// TODO: It could actually be possible to implement drop, but we would need to make sure the irq
+// handlers are deregistered.  These is also the issue of the buffers being dropped.  For now, just
+// panic, as this isn't normal.
+impl<const WS: usize, const RS: usize> Drop for UartIrq<WS, RS> {
+    fn drop(&mut self) {
+        panic!("UartIrq dropped");
+    }
+}
+
 impl<const WS: usize, const RS: usize> IrqOuterData<WS, RS> {
     /// Try reading from the inner data, filling the buffer with as much data as makes sense.
     /// Returns the number of bytes actually read, or Zero if none.
