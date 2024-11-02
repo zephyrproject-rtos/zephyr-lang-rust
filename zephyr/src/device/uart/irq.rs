@@ -97,6 +97,16 @@ pub struct ReadResult {
     len: usize,
 }
 
+impl ReadResult {
+    pub fn as_slice(&self) -> &[u8] {
+        &self.data[..self.len]
+    }
+
+    pub fn into_inner(self) -> Vec<u8> {
+        self.data
+    }
+}
+
 /// The error type from write requests.  Used to return the buffer.
 pub struct WriteError(pub Vec<u8>);
 
