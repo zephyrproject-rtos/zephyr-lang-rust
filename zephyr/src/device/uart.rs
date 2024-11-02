@@ -121,8 +121,9 @@ impl Uart {
         UartAsync::new(self)
     }
 
-    /// Convert into an IRQ one.
-    pub unsafe fn into_irq(self) -> Result<UartIrq> {
+    /// Convert into an IRQ one.  The parameters `WS` and `RS` set the size of the rings for write
+    /// and read respectively.
+    pub unsafe fn into_irq<const WS: usize, const RS: usize>(self) -> Result<UartIrq<WS, RS>> {
         UartIrq::new(self)
     }
 } 

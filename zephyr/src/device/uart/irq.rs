@@ -56,8 +56,14 @@ impl WriteSlice {
     }
 }
 
-/// This is the irq-driven interface.
-pub struct UartIrq {
+/// An interface to the UART, that uses the "legacy" IRQ API.
+///
+/// The interface is parameterized by two value, `WS` is the number of elements in the write ring,
+/// and `RS` is the number of elements in the read ring.  Each direction will have two rings, one
+/// for pending operations, and the other for completed operations.  Setting these to 2 is
+/// sufficient to avoid stalling writes or dropping reads, but requires the application attend to
+/// the buffers.
+pub struct UartIrq<const WS: usize, const RS: usize> {
     /// Interior wrapped device, to be able to hand out lifetime managed references to it.
     uart: Uart,
     /// Critical section protected data.
@@ -65,11 +71,11 @@ pub struct UartIrq {
 }
 
 // UartIrq is also Send, !Sync, for the same reasons as for Uart.
-unsafe impl Send for UartIrq {}
+unsafe impl<const WS: usize, const RS: usize> Send for UartIrq<WS, RS> {}
 
-impl UartIrq {
+impl<const WS: usize, const RS: usize> UartIrq<WS, RS> {
     /// Convert uart into irq driven one.
-    pub unsafe fn new(uart: Uart) -> Result<UartIrq> {
+    pub unsafe fn new(uart: Uart) -> Result<Self> {
         let data = Arc::new(IrqOuterData {
             read_sem: Semaphore::new(0, 1)?,
             write_sem: Semaphore::new(0, 1)?,
