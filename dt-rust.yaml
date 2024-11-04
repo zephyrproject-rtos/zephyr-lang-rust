@@ -14,6 +14,8 @@
     value:
       raw:
         type: myself
+        value:
+          args: []
       device: crate::device::gpio::Gpio
 
 # The gpio-leds node will have #children nodes describing each led.  We'll match on the parent
@@ -50,6 +52,8 @@
     value:
       raw:
         type: myself
+        value:
+          args: []
       device: crate::device::flash::FlashController
 
 # Flash partitions exist as children of a node compatible with "soc-nv-flash" that itself is a child
@@ -77,6 +81,88 @@
           args:
           - type: reg
       device: "crate::device::flash::FlashPartition"
+
+# Uart devices.  This just has to be a list of devices that implement this interface.
+- name: uart
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "arm,pl011"
+      # The nordic driver needs to be separate because they have a separate Kconfig for each uart
+      # block.
+      # - "nordic,nrf-uarte"
+      - "zephyr,cdc-acm-uart"
+      level: 0
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+        value:
+          args: []
+      device: "crate::device::uart::Uart"
+      kconfig: CONFIG_SERIAL
+
+- name: led-strip
+  rules:
+  - type: or
+    value:
+    - type: compatible
+      value:
+        names:
+        - "worldsemi,wd2812-spi"
+        level: 0
+    - type: compatible
+      value:
+        names:
+        - "worldsemi,ws2812-rpi_pico-pio"
+        level: 1
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+        value:
+          args: []
+      device: "crate::device::led_strip::LedStrip"
+      kconfig: CONFIG_LED_STRIP
+
+- name: pwm-leds
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "pwm-leds"
+      level: 0
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: myself
+        value:
+          args:
+          - type: child_count
+      device: "crate::device::led::Leds"
+
+# This doesn't really belong here, and can be moved once we support modules having their own augment
+# files.
+- name: bbq-kbd-matrix
+  rules:
+  - type: compatible
+    value:
+      names:
+      - "bbq-kbd-matrix"
+      level: 0
+  actions:
+  - type: gpio_pins
+    value:
+      property: "row-gpios"
+      getter: "get_rows"
+  - type: gpio_pins
+    value:
+      property: "col-gpios"
+      getter: "get_cols"
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels

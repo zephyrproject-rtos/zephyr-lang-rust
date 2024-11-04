@@ -39,6 +39,11 @@ version = "0.2.2"
 # should be safe to build the crate even if the Rust code doesn't use it because of configs.
 features = ["alloc"]
 
+# Gives us an ArrayDeque type to implement a basic ring buffer.
+[dependencies.arraydeque]
+version = "0.5.1"
+default-features = false
+
 # These are needed at build time.
 # Whether these need to be vendored is an open question.  They are not
 # used by the core Zephyr tree, but are needed by zephyr applications.

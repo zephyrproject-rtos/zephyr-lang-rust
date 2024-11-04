@@ -80,8 +80,13 @@ function(rust_cargo_application)
 
   # TODO: Make sure RUSTFLAGS is not set.
 
-  # TODO: Let this be configurable, or based on Kconfig debug?
-  set(RUST_BUILD_TYPE debug)
+  if(CONFIG_DEBUG)
+    set(RUST_BUILD_TYPE "debug")
+    set(rust_build_type_arg "")
+  else()
+    set(RUST_BUILD_TYPE "release")
+    set(rust_build_type_arg "--release")
+  endif()
   set(BUILD_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE}")
 
   set(CARGO_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust/target")
@@ -159,8 +164,7 @@ ${config_paths}
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
       cargo build
-      # TODO: release flag if release build
-      # --release
+      ${rust_build_type_arg}
 
       # Override the features according to the shield given. For a general case,
       # this will need to come from a variable or argument.
