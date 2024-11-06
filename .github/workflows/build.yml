@@ -9,9 +9,11 @@ on:
   push:
     branches:
       - main
+      - v*-branch
   pull_request:
     branches:
       - main
+      - v*-branch
   schedule:
     - cron: "0 0 * * *"
 
