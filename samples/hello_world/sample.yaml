@@ -9,6 +9,14 @@ common:
       - "Hello world from Rust on (.*)"
   tags: rust
   filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m0
+    - qemu_cortex_m3
+    - qemu_riscv32
+    - qemu_riscv32/qemu_virt_riscv32/smp
+    - qemu_riscv64
+    - qemu_riscv64/qemu_virt_riscv64/smp
+    - nrf52840dk/nrf52840
 tests:
   sample.rust.helloworld:
     tags: introduction
