@@ -55,7 +55,7 @@ unsafe impl<T: ?Sized + Send> Sync for SpinMutex<T> {}
 
 impl<T> fmt::Debug for SpinMutex<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Mutex {:?}", self.inner)
+        write!(f, "SpinMutex {:?}", self.inner)
     }
 }
 
