@@ -13,7 +13,9 @@ use core::ptr;
 
 use super::Unique;
 
+#[cfg(CONFIG_RUST_ALLOC)]
 mod irq;
+#[cfg(CONFIG_RUST_ALLOC)]
 pub use irq::UartIrq;
 
 /// A wrapper around a UART device on Zephyr.
@@ -123,6 +125,7 @@ impl Uart {
 
     /// Convert into an IRQ one.  The parameters `WS` and `RS` set the size of the rings for write
     /// and read respectively.
+    #[cfg(CONFIG_RUST_ALLOC)]
     pub unsafe fn into_irq<const WS: usize, const RS: usize>(self) -> Result<UartIrq<WS, RS>> {
         UartIrq::new(self)
     }
