@@ -12,12 +12,15 @@
 
 pub mod align;
 pub mod error;
+pub mod logging;
 pub mod object;
 pub mod sync;
 pub mod sys;
 pub mod time;
 
 pub use error::{Error, Result};
+
+pub use logging::set_logger;
 
 /// Re-exported for local macro use.
 pub use paste::paste;
