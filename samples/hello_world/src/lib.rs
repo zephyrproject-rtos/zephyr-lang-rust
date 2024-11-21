@@ -3,14 +3,11 @@
 
 #![no_std]
 
-use zephyr::printkln;
-
-// Reference the Zephyr crate so that the panic handler gets used.  This is only needed if no
-// symbols from the crate are directly used.
-extern crate zephyr;
+use log::info;
 
 #[no_mangle]
 extern "C" fn rust_main() {
-    printkln!("Hello world from Rust on {}",
-              zephyr::kconfig::CONFIG_BOARD);
+    unsafe { zephyr::set_logger().unwrap(); }
+
+    info!("Hello world from Rust on {}", zephyr::kconfig::CONFIG_BOARD);
 }
