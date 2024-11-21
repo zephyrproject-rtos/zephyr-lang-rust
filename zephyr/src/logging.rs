@@ -41,7 +41,8 @@ cfg_if::cfg_if! {
     {
         // Otherwise, if we have logging and allocation, and not minimal, we can use the Zephyr
         // logging backend.  Doing this without allocation is currently a TODO:
-        todo!("Zephyr logging not yet supported");
+        mod impl_zlog;
+        pub use impl_zlog::set_logger;
     } else {
         /// No lagging is possible, provide an empty handler that does nothing.
         ///
