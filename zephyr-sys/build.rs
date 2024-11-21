@@ -71,9 +71,11 @@ fn main() -> Result<()> {
         .allowlist_function("k_.*")
         .allowlist_function("gpio_.*")
         .allowlist_function("sys_.*")
+        .allowlist_function("z_log.*")
         .allowlist_item("E.*")
         .allowlist_item("K_.*")
         .allowlist_item("ZR_.*")
+        .allowlist_item("LOG_LEVEL_.*")
         // Deprecated
         .blocklist_function("sys_clock_timeout_end_calc")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
