@@ -10,15 +10,10 @@
 
 extern void rust_main(void);
 
+#if defined(CONFIG_LOG) && !defined(CONFIG_LOG_MINIMAL)
 // Logging, to see how things things are expanded.
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(rust, 3);
-
-int main(void)
-{
-	rust_main();
-	return 0;
-}
 
 void rust_log_message(uint32_t level, char *msg) {
 	// Ok.  The log macros in Zephyr perform all kinds of macro stitching, etc, on the
@@ -40,6 +35,13 @@ void rust_log_message(uint32_t level, char *msg) {
 		LOG_DBG("%s", msg);
 		break;
 	}
+}
+#endif /* defined(CONFIG_LOG) && !defined(CONFIG_LOG_MINIMAL) */
+
+int main(void)
+{
+	rust_main();
+	return 0;
 }
 
 /* On most arches, panic is entirely macros resulting in some kind of inline assembly.  Create this
