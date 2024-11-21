@@ -14,3 +14,4 @@ crate-type = ["staticlib"]
 
 [dependencies]
 zephyr = "3.7.0"
+log = "0.4.22"
