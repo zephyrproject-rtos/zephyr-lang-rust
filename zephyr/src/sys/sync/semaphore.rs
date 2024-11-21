@@ -13,6 +13,7 @@
 
 use core::ffi::c_uint;
 use core::fmt;
+#[cfg(CONFIG_RUST_ALLOC)]
 use core::mem;
 
 use crate::{

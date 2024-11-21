@@ -9,6 +9,7 @@
 //! [`object`]: crate::object
 
 use core::fmt;
+#[cfg(CONFIG_RUST_ALLOC)]
 use core::mem;
 use crate::{
     error::{Result, to_result_void},
