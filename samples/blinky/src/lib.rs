@@ -18,7 +18,7 @@ use zephyr::time::{ Duration, sleep };
 
 #[no_mangle]
 extern "C" fn rust_main() {
-    zephyr::set_logger();
+    unsafe { zephyr::set_logger().unwrap(); }
 
     warn!("Starting blinky");
     // println!("Blinky!");
@@ -52,6 +52,7 @@ fn do_blink() {
     warn!("Inside of blinky");
 
     let mut led0 = zephyr::devicetree::aliases::led0::get_instance().unwrap();
+    let mut gpio_token = unsafe { zephyr::device::gpio::GpioToken::get_instance().unwrap() };
 
     if !led0.is_ready() {
         warn!("LED is not ready");
@@ -60,10 +61,10 @@ fn do_blink() {
         // return;
     }
 
-    led0.configure(GPIO_OUTPUT_ACTIVE);
+    unsafe { led0.configure(&mut gpio_token, GPIO_OUTPUT_ACTIVE); }
     let duration = Duration::millis_at_least(500);
     loop {
-        led0.toggle_pin();
+        unsafe { led0.toggle_pin(&mut gpio_token); }
         sleep(duration);
     }
 }
