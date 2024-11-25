@@ -11,6 +11,12 @@
  * are output.
  */
 
+/*
+ * This is getting build with KERNEL defined, which causes syscalls to not be implemented.  Work
+ * around this by just undefining this symbol.
+ */
+#undef KERNEL
+
 #ifdef RUST_BINDGEN
 /* errno is coming from somewhere in Zephyr's build.  Add the symbol when running bindgen so that it
  * is defined here.
@@ -34,11 +40,12 @@ extern int errno;
 #include <zephyr/kernel/thread_stack.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/drivers/flash.h>
 
 /*
- * bindgen will output #defined constant that resolve to simple numbers.  There are some symbols
- * that we want exported that, at least in some situations, are more complex, usually with a type
- * case.
+ * bindgen will only output #defined constants that resolve to simple numbers.  These are some
+ * symbols that we want exported that, at least in some situations, are more complex, usually with a
+ * type cast.
  *
  * We'll use the prefix "ZR_" to avoid conflicts with other symbols.
  */
