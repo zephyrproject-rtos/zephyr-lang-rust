@@ -36,12 +36,16 @@ mod counter;
 pub fn unbounded_from<T>(queue: Queue) -> (Sender<T>, Receiver<T>) {
     let (s, r) = counter::new(queue);
     let s = Sender {
-        queue: s,
-        _phantom: PhantomData,
+        flavor: SenderFlavor::Unbounded {
+            queue: s,
+            _phantom: PhantomData,
+        }
     };
     let r = Receiver {
-        queue: r,
-        _phantom: PhantomData,
+        flavor: ReceiverFlavor::Unbounded {
+            queue: r,
+            _phantom: PhantomData,
+        }
     };
     (s, r)
 }
@@ -81,8 +85,7 @@ impl<T> Message<T> {
 
 /// The sending side of a channel.
 pub struct Sender<T> {
-    queue: counter::Sender<Queue>,
-    _phantom: PhantomData<T>,
+    flavor: SenderFlavor<T>,
 }
 
 unsafe impl<T: Send> Send for Sender<T> {}
@@ -92,10 +95,14 @@ impl<T> Sender<T> {
     /// Sends a message over the given channel. This will perform an alloc of the message, which
     /// will have an accompanied free on the recipient side.
     pub fn send(&self, msg: T) -> Result<(), SendError<T>> {
-        let msg = Box::new(Message::new(msg));
-        let msg = Box::into_raw(msg);
-        unsafe {
-            self.queue.send(msg as *mut c_void);
+        match &self.flavor {
+            SenderFlavor::Unbounded { queue, .. } => {
+                let msg = Box::new(Message::new(msg));
+                let msg = Box::into_raw(msg);
+                unsafe {
+                    queue.send(msg as *mut c_void);
+                }
+            }
         }
         Ok(())
     }
@@ -103,34 +110,52 @@ impl<T> Sender<T> {
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
-        unsafe {
-            self.queue.release(|_| {
-                crate::printkln!("Release");
-                true
-            })
+        match &self.flavor {
+            SenderFlavor::Unbounded { queue, .. } => {
+                unsafe {
+                    queue.release(|_| {
+                        crate::printkln!("Release");
+                        true
+                    })
+                }
+            }
         }
     }
 }
 
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
-        Sender {
-            queue: self.queue.acquire(),
-            _phantom: PhantomData,
-        }
+        let flavor = match &self.flavor {
+            SenderFlavor::Unbounded { queue, .. } => {
+                SenderFlavor::Unbounded {
+                    queue: queue.acquire(),
+                    _phantom: PhantomData,
+                }
+            }
+        };
+
+        Sender { flavor }
+    }
+}
+
+/// The "flavor" of a sender.  This maps to the type of channel.
+enum SenderFlavor<T> {
+    /// An unbounded queue.  Messages are allocated with Box, and sent directly.
+    Unbounded {
+        queue: counter::Sender<Queue>,
+        _phantom: PhantomData<T>,
     }
 }
 
 impl<T: fmt::Debug> fmt::Debug for Sender<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Sender {:?}", *self.queue)
+        write!(f, "Sender")
     }
 }
 
 /// The receiving side of a channel.
 pub struct Receiver<T> {
-    queue: counter::Receiver<Queue>,
-    _phantom: PhantomData<T>,
+    flavor: ReceiverFlavor<T>,
 }
 
 unsafe impl<T: Send> Send for Receiver<T> {}
@@ -144,38 +169,61 @@ impl<T> Receiver<T> {
     /// operation can proceed.  If the channel is empty and becomes disconnected, this call will
     /// wake up and return an error.
     pub fn recv(&self) -> Result<T, RecvError> {
-        let msg = unsafe {
-            self.queue.recv()
-        };
-        let msg = msg as *mut Message<T>;
-        let msg = unsafe { Box::from_raw(msg) };
-        Ok(msg.data)
+        match &self.flavor {
+            ReceiverFlavor::Unbounded { queue, .. } => {
+                let msg = unsafe {
+                    queue.recv()
+                };
+                let msg = msg as *mut Message<T>;
+                let msg = unsafe { Box::from_raw(msg) };
+                Ok(msg.data)
+            }
+        }
     }
 }
 
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
-        unsafe {
-            self.queue.release(|_| {
-                crate::printkln!("Release");
-                true
-            })
+        match &self.flavor {
+            ReceiverFlavor::Unbounded { queue, .. } => {
+                unsafe {
+                    queue.release(|_| {
+                        crate::printkln!("Release");
+                        true
+                    })
+                }
+            }
         }
     }
 }
 
 impl<T> Clone for Receiver<T> {
     fn clone(&self) -> Self {
-        Receiver {
-            queue: self.queue.acquire(),
-            _phantom: PhantomData,
-        }
+        let flavor = match &self.flavor {
+            ReceiverFlavor::Unbounded { queue, .. } => {
+                ReceiverFlavor::Unbounded {
+                    queue: queue.acquire(),
+                    _phantom: PhantomData,
+                }
+            }
+        };
+
+        Receiver { flavor }
     }
 }
 
 impl<T> fmt::Debug for Receiver<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Sender {:?}", *self.queue)
+        write!(f, "Sender")
+    }
+}
+
+/// The "flavor" of a receiver.  This maps to the type of the channel.
+enum ReceiverFlavor<T> {
+    /// An unbounded queue.  Messages were allocated with Box, and will be freed upon receipt.
+    Unbounded {
+        queue: counter::Receiver<Queue>,
+        _phantom: PhantomData<T>,
     }
 }
 
