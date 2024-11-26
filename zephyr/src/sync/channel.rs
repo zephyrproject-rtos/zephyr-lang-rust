@@ -15,9 +15,11 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 
+use core::cell::UnsafeCell;
 use core::ffi::c_void;
 use core::fmt;
 use core::marker::PhantomData;
+use core::mem::MaybeUninit;
 
 use crate::sys::queue::Queue;
 
@@ -62,6 +64,29 @@ pub fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
     unbounded_from(Queue::new().unwrap())
 }
 
+/// Create a multi-producer multi-consumer channel with bounded capacity.
+///
+/// The messages are allocated at channel creation time.  If there are no messages at `send` time,
+/// send will block (possibly waiting for a timeout).
+///
+/// At this time, Zephyr does not support crossbeam's 0 capacity queues, which are also called
+/// a rendezvous, where both threads wait until in the same region.  `bounded` will panic if called
+/// with a capacity of zero.
+pub fn bounded<T>(cap: usize) -> (Sender<T>, Receiver<T>) {
+    if cap == 0 {
+        panic!("Zero capacity queues no supported on Zephyr");
+    }
+
+    let (s, r) = counter::new(Bounded::new(cap));
+    let s = Sender {
+        flavor: SenderFlavor::Bounded(s),
+    };
+    let r = Receiver {
+        flavor: ReceiverFlavor::Bounded(r),
+    };
+    (s, r)
+}
+
 /// The underlying type for Messages through Zephyr's [`Queue`].
 ///
 /// This wrapper is used internally to wrap user messages through the queue.  It is not useful in
@@ -103,6 +128,15 @@ impl<T> Sender<T> {
                     queue.send(msg as *mut c_void);
                 }
             }
+            SenderFlavor::Bounded(chan) => {
+                // Retrieve a message buffer from the free list.
+                let buf = unsafe { chan.free.recv() };
+                let buf = buf as *mut Message<T>;
+                unsafe {
+                    buf.write(Message::new(msg));
+                    chan.chan.send(buf as *mut c_void);
+                }
+            }
         }
         Ok(())
     }
@@ -119,6 +153,13 @@ impl<T> Drop for Sender<T> {
                     })
                 }
             }
+            SenderFlavor::Bounded(chan) => {
+                unsafe {
+                    chan.release(|_| {
+                        panic!("Bounded queues cannot be dropped");
+                    })
+                }
+            }
         }
     }
 }
@@ -132,6 +173,9 @@ impl<T> Clone for Sender<T> {
                     _phantom: PhantomData,
                 }
             }
+            SenderFlavor::Bounded(chan) => {
+                SenderFlavor::Bounded(chan.acquire())
+            }
         };
 
         Sender { flavor }
@@ -144,7 +188,8 @@ enum SenderFlavor<T> {
     Unbounded {
         queue: counter::Sender<Queue>,
         _phantom: PhantomData<T>,
-    }
+    },
+    Bounded(counter::Sender<Bounded<T>>),
 }
 
 impl<T: fmt::Debug> fmt::Debug for Sender<T> {
@@ -178,6 +223,17 @@ impl<T> Receiver<T> {
                 let msg = unsafe { Box::from_raw(msg) };
                 Ok(msg.data)
             }
+            ReceiverFlavor::Bounded(chan) => {
+                let rawbuf = unsafe {
+                    chan.chan.recv()
+                };
+                let buf = rawbuf as *mut Message<T>;
+                let msg: Message<T> = unsafe { buf.read() };
+                unsafe {
+                    chan.free.send(buf as *mut c_void);
+                }
+                Ok(msg.data)
+            }
         }
     }
 }
@@ -193,6 +249,13 @@ impl<T> Drop for Receiver<T> {
                     })
                 }
             }
+            ReceiverFlavor::Bounded(chan) => {
+                unsafe {
+                    chan.release(|_| {
+                        panic!("Bounded channels cannot be dropped");
+                    })
+                }
+            }
         }
     }
 }
@@ -205,6 +268,9 @@ impl<T> Clone for Receiver<T> {
                     queue: queue.acquire(),
                     _phantom: PhantomData,
                 }
+            }
+            ReceiverFlavor::Bounded(chan) => {
+                ReceiverFlavor::Bounded(chan.acquire())
             }
         };
 
@@ -224,6 +290,45 @@ enum ReceiverFlavor<T> {
     Unbounded {
         queue: counter::Receiver<Queue>,
         _phantom: PhantomData<T>,
+    },
+    Bounded(counter::Receiver<Bounded<T>>),
+}
+
+type Slot<T> = UnsafeCell<MaybeUninit<Message<T>>>;
+
+/// Bounded channel implementation.
+struct Bounded<T> {
+    /// The messages themselves.  This Box owns the allocation of the messages, although it is
+    /// unsafe to drop this with any messages stored in either of the Zephyr queues.
+    ///
+    /// The UnsafeCell is needed to indicate that this data is handled outside of what Rust is aware
+    /// of.  MaybeUninit allows us to create this without allocation.
+    _slots: Box<[Slot<T>]>,
+    /// The free queue, holds messages that aren't be used.
+    free: Queue,
+    /// The channel queue.  These are messages that have been sent and are waiting to be received.
+    chan: Queue,
+}
+
+impl<T> Bounded<T> {
+    fn new(cap: usize) -> Self {
+        let slots: Box<[Slot<T>]> = (0..cap)
+            .map(|_| {
+                UnsafeCell::new(MaybeUninit::uninit())
+            })
+        .collect();
+
+        let free = Queue::new().unwrap();
+        let chan = Queue::new().unwrap();
+
+        // Add each of the boxes to the free list.
+        for chan in &slots {
+            unsafe {
+                free.send(chan.get() as *mut c_void);
+            }
+        }
+
+        Bounded { _slots: slots, free, chan }
     }
 }
 
