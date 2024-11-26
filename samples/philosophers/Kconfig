@@ -40,3 +40,12 @@ choice
 		  channels to synchronize.
 
 endchoice
+
+if SYNC_CHANNEL
+	config USE_BOUNDED_CHANNELS
+	bool "Should channel sync use dounded channels?"
+	default y
+	help
+	  If set, the channel-based communication will use bounded channels with bounds calculated
+	  to not ever block.
+endif
