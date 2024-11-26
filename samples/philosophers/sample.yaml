@@ -32,8 +32,15 @@ tests:
     min_ram: 32
     extra_configs:
       - CONFIG_SYNC_CONDVAR=y
-  sample.rust.philosopher.channel:
+  sample.rust.philosopher.channel_bounded:
     tags: introduction
     min_ram: 32
     extra_configs:
       - CONFIG_SYNC_CHANNEL=y
+      - CONFIG_USE_BOUNDED_CHANNELS=y
+  sample.rust.philosopher.channel_unbounded:
+    tags: introduction
+    min_ram: 32
+    extra_configs:
+      - CONFIG_SYNC_CHANNEL=y
+      - CONFIG_USE_BOUNDED_CHANNELS=n

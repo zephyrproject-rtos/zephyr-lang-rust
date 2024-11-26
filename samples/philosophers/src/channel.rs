@@ -112,10 +112,22 @@ impl ChannelSync {
 /// Generate a syncer out of a ChannelSync.
 #[allow(dead_code)]
 pub fn get_channel_syncer() -> Vec<Arc<dyn ForkSync>> {
-    let (cq_send, cq_recv) = channel::unbounded();
-    let reply_queues = [(); NUM_PHIL].each_ref().map(|()| {
-        channel::unbounded()
-    });
+    let (cq_send, cq_recv);
+    let reply_queues;
+
+    if cfg!(CONFIG_USE_BOUNDED_CHANNELS) {
+        // Use only one message, so that send will block, to ensure that works.
+        (cq_send, cq_recv) = channel::bounded(1);
+        reply_queues = [(); NUM_PHIL].each_ref().map(|()| {
+            channel::bounded(1)
+        });
+    } else {
+        (cq_send, cq_recv) = channel::unbounded();
+        reply_queues = [(); NUM_PHIL].each_ref().map(|()| {
+            channel::unbounded()
+        });
+    }
+
     let syncer = reply_queues.into_iter().map(|rqueue| {
         let item = Box::new(ChannelSync::new(cq_send.clone(), rqueue))
             as Box<dyn ForkSync>;
