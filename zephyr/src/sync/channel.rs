@@ -22,7 +22,7 @@ use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 
 use crate::sys::queue::Queue;
-use crate::time::Forever;
+use crate::time::{Forever, NoWait, Timeout};
 
 mod counter;
 
@@ -118,9 +118,15 @@ unsafe impl<T: Send> Send for Sender<T> {}
 unsafe impl<T: Send> Sync for Sender<T> {}
 
 impl<T> Sender<T> {
-    /// Sends a message over the given channel. This will perform an alloc of the message, which
-    /// will have an accompanied free on the recipient side.
-    pub fn send(&self, msg: T) -> Result<(), SendError<T>> {
+    /// Waits for a message to be sent into the channel, but only for a limited time.
+    ///
+    /// This call will block until the send operation can proceed or the operation times out.
+    ///
+    /// For unbounded channels, this will perform an allocation (and always send immediately).  For
+    /// bounded channels, no allocation will be performed.
+    pub fn send_timeout<D>(&self, msg: T, timeout: D) -> Result<(), SendError<T>>
+        where D: Into<Timeout>,
+    {
         match &self.flavor {
             SenderFlavor::Unbounded { queue, .. } => {
                 let msg = Box::new(Message::new(msg));
@@ -131,7 +137,10 @@ impl<T> Sender<T> {
             }
             SenderFlavor::Bounded(chan) => {
                 // Retrieve a message buffer from the free list.
-                let buf = unsafe { chan.free.recv(Forever) };
+                let buf = unsafe { chan.free.recv(timeout) };
+                if buf.is_null() {
+                    return Err(SendError(msg));
+                }
                 let buf = buf as *mut Message<T>;
                 unsafe {
                     buf.write(Message::new(msg));
@@ -140,6 +149,23 @@ impl<T> Sender<T> {
             }
         }
         Ok(())
+    }
+
+    /// Sends a message over the given channel.  Waiting if necessary.
+    ///
+    /// For unbounded channels, this will allocate space for a message, and immediately send it.
+    /// For bounded channels, this will block until a message slot is available, and then send the
+    /// message.
+    pub fn send(&self, msg: T) -> Result<(), SendError<T>> {
+        self.send_timeout(msg, Forever)
+    }
+
+    /// Attempts to send a message into the channel without blocking.
+    ///
+    /// This message will either send a message into the channel immediately or return an error if
+    /// the channel is full.  The returned error contains the original message.
+    pub fn try_send(&self, msg: T) -> Result<(), SendError<T>> {
+        self.send_timeout(msg, NoWait)
     }
 }
 
