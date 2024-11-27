@@ -234,17 +234,22 @@ unsafe impl<T: Send> Send for Receiver<T> {}
 unsafe impl<T: Send> Sync for Receiver<T> {}
 
 impl<T> Receiver<T> {
-    /// Blocks the current thread until a message is received or the channel is empty and
-    /// disconnected.
+    /// Waits for a message to be received from the channel, but only for a limited time.
     ///
     /// If the channel is empty and not disconnected, this call will block until the receive
-    /// operation can proceed.  If the channel is empty and becomes disconnected, this call will
+    /// operation can proceed or the operation times out.
     /// wake up and return an error.
-    pub fn recv(&self) -> Result<T, RecvError> {
+    pub fn recv_timeout<D>(&self, timeout: D) -> Result<T, RecvError>
+        where D: Into<Timeout>,
+    {
         match &self.flavor {
             ReceiverFlavor::Unbounded { queue, .. } => {
                 let msg = unsafe {
-                    queue.recv(Forever)
+                    let msg = queue.recv(timeout);
+                    if msg.is_null() {
+                        return Err(RecvError);
+                    }
+                    msg
                 };
                 let msg = msg as *mut Message<T>;
                 let msg = unsafe { Box::from_raw(msg) };
@@ -252,7 +257,11 @@ impl<T> Receiver<T> {
             }
             ReceiverFlavor::Bounded(chan) => {
                 let rawbuf = unsafe {
-                    chan.chan.recv(Forever)
+                    let buf = chan.chan.recv(timeout);
+                    if buf.is_null() {
+                        return Err(RecvError);
+                    }
+                    buf
                 };
                 let buf = rawbuf as *mut Message<T>;
                 let msg: Message<T> = unsafe { buf.read() };
@@ -262,6 +271,26 @@ impl<T> Receiver<T> {
                 Ok(msg.data)
             }
         }
+    }
+
+    /// Blocks the current thread until a message is received or the channel is empty and
+    /// disconnected.
+    ///
+    /// If the channel is empty and not disconnected, this call will block until the receive
+    /// operation can proceed.
+    pub fn recv(&self) -> Result<T, RecvError> {
+        self.recv_timeout(Forever)
+    }
+
+    /// Attempts to receive a message from the channel without blocking.
+    ///
+    /// This method will either receive a message from the channel immediately, or return an error
+    /// if the channel is empty.
+    ///
+    /// This method is safe to use from IRQ context, if and only if the channel was created as a
+    /// bounded channel.
+    pub fn try_recv(&self) -> Result<T, RecvError> {
+        self.recv_timeout(NoWait)
     }
 }
 
