@@ -10,6 +10,18 @@
 //! In other words, `zephyr::sys::Queue` is a Rust friendly implementation of `k_queue` in Zephyr.
 //! This module provides `Sender` and `Receiver`, which can be cloned and behave as if they had an
 //! internal `Arc` inside them, but without the overhead of an actual Arc.
+//!
+//! ## IRQ safety
+//!
+//! These channels are usable from IRQ context on Zephyr in very limited situations.  Notably, all
+//! of the following must be true:
+//! - The channel has been created with `bounded()`, which pre-allocates all of the messages.
+//! - If the type `T` has a Drop implementation, this implementation can be called from IRQ context.
+//! - Only `try_send` or `try_recv` are used on the channel.
+//!
+//! The requirement for Drop is only strictly true if the IRQ handler calls `try_recv` and drops
+//! received message.  If the message is *always* sent over another channel or otherwise not
+//! dropped, it *might* be safe to use these messages.
 
 extern crate alloc;
 
