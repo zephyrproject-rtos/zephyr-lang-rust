@@ -22,6 +22,7 @@ use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 
 use crate::sys::queue::Queue;
+use crate::time::Forever;
 
 mod counter;
 
@@ -130,7 +131,7 @@ impl<T> Sender<T> {
             }
             SenderFlavor::Bounded(chan) => {
                 // Retrieve a message buffer from the free list.
-                let buf = unsafe { chan.free.recv() };
+                let buf = unsafe { chan.free.recv(Forever) };
                 let buf = buf as *mut Message<T>;
                 unsafe {
                     buf.write(Message::new(msg));
@@ -217,7 +218,7 @@ impl<T> Receiver<T> {
         match &self.flavor {
             ReceiverFlavor::Unbounded { queue, .. } => {
                 let msg = unsafe {
-                    queue.recv()
+                    queue.recv(Forever)
                 };
                 let msg = msg as *mut Message<T>;
                 let msg = unsafe { Box::from_raw(msg) };
@@ -225,7 +226,7 @@ impl<T> Receiver<T> {
             }
             ReceiverFlavor::Bounded(chan) => {
                 let rawbuf = unsafe {
-                    chan.chan.recv()
+                    chan.chan.recv(Forever)
                 };
                 let buf = rawbuf as *mut Message<T>;
                 let msg: Message<T> = unsafe { buf.read() };
