@@ -18,8 +18,8 @@ use zephyr_sys::{
 
 #[cfg(CONFIG_RUST_ALLOC)]
 use crate::error::Result;
-use crate::sys::K_FOREVER;
 use crate::object::{Fixed, StaticKernelObject, Wrapped};
+use crate::time::Timeout;
 
 /// A wrapper around a Zephyr `k_queue` object.
 pub struct Queue {
@@ -62,8 +62,14 @@ impl Queue {
     /// Get an element from a queue.
     ///
     /// This routine removes the first data item from the [`Queue`].
-    pub unsafe fn recv(&self) -> *mut c_void {
-        k_queue_get(self.item.get(), K_FOREVER)
+    /// The timeout value can be [`Forever`] to block until there is a message, [`NoWait`] to check
+    /// and immediately return if there is no message, or a [`Duration`] to indicate a specific
+    /// timeout.
+    pub unsafe fn recv<T>(&self, timeout: T) -> *mut c_void
+        where T: Into<Timeout>
+    {
+        let timeout: Timeout = timeout.into();
+        k_queue_get(self.item.get(), timeout.0)
     }
 }
 
