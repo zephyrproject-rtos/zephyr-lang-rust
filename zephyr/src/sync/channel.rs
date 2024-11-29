@@ -404,9 +404,9 @@ impl<T> Bounded<T> {
         let chan = Queue::new().unwrap();
 
         // Add each of the boxes to the free list.
-        for chan in &slots {
+        for slot in &slots {
             unsafe {
-                free.send(chan.get() as *mut c_void);
+                free.send(slot.get() as *mut c_void);
             }
         }
 
