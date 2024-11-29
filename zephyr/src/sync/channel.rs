@@ -47,6 +47,7 @@ use core::ffi::c_void;
 use core::fmt;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
+use core::pin::Pin;
 
 use crate::sys::queue::Queue;
 use crate::time::{Forever, NoWait, Timeout};
@@ -404,6 +405,8 @@ type Slot<T> = UnsafeCell<MaybeUninit<Message<T>>>;
 // SAFETY: A Bounded channel contains an array of messages that are allocated together in a Box.
 // This Box is held for an eventual future implementation that is able to free the messages, once
 // they have all been taken from Zephyr's knowledge.  For now, they could also be leaked.
+// It is a `Pin<Box<...>>` because it is important that the data never be moved, as we maintain
+// pointers to the items in Zephyr queues.
 //
 // There are two `Queue`s used here: `free` is the free list of messages that are not being sent,
 // and `chan` for messages that have been sent but not received.  Initially, all slots are placed on
@@ -422,7 +425,7 @@ struct Bounded<T> {
     ///
     /// The UnsafeCell is needed to indicate that this data is handled outside of what Rust is aware
     /// of.  MaybeUninit allows us to create this without allocation.
-    _slots: Box<[Slot<T>]>,
+    _slots: Pin<Box<[Slot<T>]>>,
     /// The free queue, holds messages that aren't be used.
     free: Queue,
     /// The channel queue.  These are messages that have been sent and are waiting to be received.
@@ -436,12 +439,13 @@ impl<T> Bounded<T> {
                 UnsafeCell::new(MaybeUninit::uninit())
             })
         .collect();
+        let slots = Box::into_pin(slots);
 
         let free = Queue::new().unwrap();
         let chan = Queue::new().unwrap();
 
         // Add each of the boxes to the free list.
-        for slot in &slots {
+        for slot in slots.as_ref().iter() {
             // SAFETY: See safety discussion on `Bounded`.
             unsafe {
                 free.send(slot.get() as *mut c_void);
