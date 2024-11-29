@@ -22,6 +22,21 @@
 //! The requirement for Drop is only strictly true if the IRQ handler calls `try_recv` and drops
 //! received message.  If the message is *always* sent over another channel or otherwise not
 //! dropped, it *might* be safe to use these messages.
+//!
+//! ## Dropping of Sender/Receiver
+//!
+//! Crossbeam channels support detecting when all senders or all receivers have been dropped on a
+//! channel, which will cause the handles on the other end to error, including waking up current
+//! threads waiting on those channels.
+//!
+//! At this time, this isn't implementable in Zephyr, as there is no API to wake up all threads
+//! blocked on a given `k_queue`.  As such, this scenario is not supported.  What actually happens
+//! is that when all senders or receivers on a channel are dropped, operations on the other end of
+//! the channel may just block (or queue forever with unbounded queues).  If all handles (both
+//! sender and receiver) are dropped, the last drop will cause a panic.  It maybe be better to just
+//! leak the entire channel, as any data associated with the channels would be leaked at this point,
+//! including the underlying Zephyr `k_queue`.  Until APIs are added to Zephyr to allow the channel
+//! information to be safely freed, these can't actually be freed.
 
 extern crate alloc;
 
@@ -187,15 +202,14 @@ impl<T> Drop for Sender<T> {
             SenderFlavor::Unbounded { queue, .. } => {
                 unsafe {
                     queue.release(|_| {
-                        crate::printkln!("Release");
-                        true
+                        panic!("Unbounded queues cannot currently be dropped");
                     })
                 }
             }
             SenderFlavor::Bounded(chan) => {
                 unsafe {
                     chan.release(|_| {
-                        panic!("Bounded queues cannot be dropped");
+                        panic!("Bounded queues cannot currently be dropped");
                     })
                 }
             }
