@@ -141,6 +141,8 @@ pub struct Sender<T> {
     flavor: SenderFlavor<T>,
 }
 
+// SAFETY: We implement Send and Sync for the Sender itself, as long as the underlying data can be
+// sent.  The underlying zephyr primitives used for the channel provide the Sync safety.
 unsafe impl<T: Send> Send for Sender<T> {}
 unsafe impl<T: Send> Sync for Sender<T> {}
 
@@ -158,12 +160,18 @@ impl<T> Sender<T> {
             SenderFlavor::Unbounded { queue, .. } => {
                 let msg = Box::new(Message::new(msg));
                 let msg = Box::into_raw(msg);
+                // SAFETY: Zephyr requires, for as long as the message remains in the queue, that
+                // the first `usize` of the message be available for its use, and that the message
+                // not be moved.  The `into_raw` of the box consumes the box, so this is entirely a
+                // raw pointer with no references from the Rust code.  The item is not used until it
+                // has been removed from the queue.
                 unsafe {
                     queue.send(msg as *mut c_void);
                 }
             }
             SenderFlavor::Bounded(chan) => {
                 // Retrieve a message buffer from the free list.
+                // SAFETY: Please see the safety discussion on `Bounded` on what makes this safe.
                 let buf = unsafe { chan.free.recv(timeout) };
                 if buf.is_null() {
                     return Err(SendError(msg));
@@ -200,6 +208,8 @@ impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
         match &self.flavor {
             SenderFlavor::Unbounded { queue, .. } => {
+                // SAFETY: It is not possible to free from Zephyr queues.  This means drop has to
+                // either leak or panic.  We will panic for now.
                 unsafe {
                     queue.release(|_| {
                         panic!("Unbounded queues cannot currently be dropped");
@@ -207,6 +217,8 @@ impl<T> Drop for Sender<T> {
                 }
             }
             SenderFlavor::Bounded(chan) => {
+                // SAFETY: It is not possible to free from Zephyr queues.  This means drop has to
+                // either leak or panic.  We will panic for now.
                 unsafe {
                     chan.release(|_| {
                         panic!("Bounded queues cannot currently be dropped");
@@ -256,6 +268,8 @@ pub struct Receiver<T> {
     flavor: ReceiverFlavor<T>,
 }
 
+// SAFETY: We implement Send and Sync for the Receiver itself, as long as the underlying data can be
+// sent.  The underlying zephyr primitives used for the channel provide the Sync safety.
 unsafe impl<T: Send> Send for Receiver<T> {}
 unsafe impl<T: Send> Sync for Receiver<T> {}
 
@@ -270,6 +284,7 @@ impl<T> Receiver<T> {
     {
         match &self.flavor {
             ReceiverFlavor::Unbounded { queue, .. } => {
+                // SAFETY: Messages were sent by converting a Box through `into_raw()`.
                 let msg = unsafe {
                     let msg = queue.recv(timeout);
                     if msg.is_null() {
@@ -278,10 +293,15 @@ impl<T> Receiver<T> {
                     msg
                 };
                 let msg = msg as *mut Message<T>;
+                // SAFETY: After receiving the message from the queue's `recv` method, Zephyr will
+                // no longer use the `usize` at the beginning, and it is safe for us to convert the
+                // message back into a box, copy the field out of it, an allow the Box itself to be
+                // freed.
                 let msg = unsafe { Box::from_raw(msg) };
                 Ok(msg.data)
             }
             ReceiverFlavor::Bounded(chan) => {
+                // SAFETY: Please see the safety discussion on Bounded.
                 let rawbuf = unsafe {
                     let buf = chan.chan.recv(timeout);
                     if buf.is_null() {
@@ -324,14 +344,17 @@ impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         match &self.flavor {
             ReceiverFlavor::Unbounded { queue, .. } => {
+                // SAFETY: As the Zephyr channel cannot be freed we must either leak or panic.
+                // Chose panic for now.
                 unsafe {
                     queue.release(|_| {
-                        crate::printkln!("Release");
-                        true
+                        panic!("Unnbounded channel cannot be dropped");
                     })
                 }
             }
             ReceiverFlavor::Bounded(chan) => {
+                // SAFETY: As the Zephyr channel cannot be freed we must either leak or panic.
+                // Chose panic for now.
                 unsafe {
                     chan.release(|_| {
                         panic!("Bounded channels cannot be dropped");
@@ -378,6 +401,20 @@ enum ReceiverFlavor<T> {
 
 type Slot<T> = UnsafeCell<MaybeUninit<Message<T>>>;
 
+// SAFETY: A Bounded channel contains an array of messages that are allocated together in a Box.
+// This Box is held for an eventual future implementation that is able to free the messages, once
+// they have all been taken from Zephyr's knowledge.  For now, they could also be leaked.
+//
+// There are two `Queue`s used here: `free` is the free list of messages that are not being sent,
+// and `chan` for messages that have been sent but not received.  Initially, all slots are placed on
+// the `free` queue.  At any time, outside of the calls in this module, each slot must live inside
+// of one of the two queues.  This means that the messages cannot be moved or accessed, except
+// inside of the individual send/receive operations.  Zephyr makes use of the initial `usize` field
+// at the beginning of each Slot.
+//
+// We use MaybeUninit for the messages to avoid needing to initialize the messages.  The individual
+// messages are accessed through pointers when they are retrieved from the Zephyr `Queue`, so these
+// values are never marked as initialized.
 /// Bounded channel implementation.
 struct Bounded<T> {
     /// The messages themselves.  This Box owns the allocation of the messages, although it is
@@ -405,6 +442,7 @@ impl<T> Bounded<T> {
 
         // Add each of the boxes to the free list.
         for slot in &slots {
+            // SAFETY: See safety discussion on `Bounded`.
             unsafe {
                 free.send(slot.get() as *mut c_void);
             }
