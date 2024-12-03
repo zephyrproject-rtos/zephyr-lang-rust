@@ -49,6 +49,15 @@ function(_rust_map_target)
     else()
       message(FATAL_ERROR "Rust: Unsupported riscv ISA")
     endif()
+  elseif(CONFIG_CPU_CORTEX_R52)
+    set(RUST_TARGET "armv8r-none-eabihf" PARENT_SCOPE)
+
+    # build core (and maybe also alloc) from source for tier 3 target
+    if(CONFIG_RUST_ALLOC)
+      set(CARGO_EXTRA_FLAGS -Z build-std=core,alloc PARENT_SCOPE)
+    else()
+      set(CARGO_EXTRA_FLAGS -Z build-std=core PARENT_SCOPE)
+    endif()
   else()
     message(FATAL_ERROR "Rust: Add support for other target")
   endif()
@@ -182,6 +191,7 @@ ${config_paths}
       ${command_paths}
       --target ${RUST_TARGET}
       --target-dir ${CARGO_TARGET_DIR}
+      ${CARGO_EXTRA_FLAGS}
     COMMENT "Building Rust application"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
