@@ -103,7 +103,7 @@ pub fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
 /// with a capacity of zero.
 pub fn bounded<T>(cap: usize) -> (Sender<T>, Receiver<T>) {
     if cap == 0 {
-        panic!("Zero capacity queues no supported on Zephyr");
+        panic!("Zero capacity queues are not supported on Zephyr");
     }
 
     let (s, r) = counter::new(Bounded::new(cap));
