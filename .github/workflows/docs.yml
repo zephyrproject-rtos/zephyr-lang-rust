@@ -1,0 +1,90 @@
+name: Generate and Preview Rust Docs
+
+on:
+  pull_request:
+    branches:
+      - main  # Only generate docs for PRs targeting main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: zephyr-rust-lang
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: zephyr-rust-lang
+          manifest-file-name: ci-manifest.yml
+          toolchains: arm-zephyr-eabi:riscv64-zephyr-elf
+
+      - name: Install Rust Targets
+        shell: bash
+        run: |
+          rustup target add thumbv7em-none-eabi
+          rustup target add thumbv7m-none-eabi
+
+      - name: Setup cargo build
+        working-directory: zephyr-rust-lang
+        run: |
+          # Must do full build
+          west build -b nrf52840dk/nrf52840 docgen
+
+      - name: Build Rust documentation
+        working-directory: zephyr-rust-lang/docgen
+        run: |
+          rm -rf .cargo
+          mkdir .cargo
+          cd .cargo
+          ln -s ../../build/rust/sample-cargo-config.toml config.toml
+          cd ..
+          cargo doc
+          cd ..
+          mkdir docout
+          mv build/rust/target/thumbv7em-none-eabi/doc docout/nostd
+          cp docs/top-index.html docout/index.html
+
+      - name: Build build documentation
+        working-directory: zephyr-rust-lang
+        run: |
+          cd zephyr-build
+          cargo doc
+          mv target/doc ../docout/std
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: zephyr-rust-lang/docout
+
+  deploy:
+    needs: generate-docs
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
