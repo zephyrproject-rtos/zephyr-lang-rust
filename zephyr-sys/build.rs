@@ -11,14 +11,12 @@
 // This builds a program that is run on the compilation host before the code is compiled.  It can
 // output configuration settings that affect the compilation.
 
-use anyhow::Result;
-
-use bindgen::Builder;
-
 use std::env;
 use std::path::{Path, PathBuf};
 
-fn main() -> Result<()> {
+use bindgen::Builder;
+
+fn main() -> anyhow::Result<()> {
     // Determine which version of Clang we linked with.
     let version = bindgen::clang_version();
     println!("Clang version: {:?}", version);
@@ -55,6 +53,9 @@ fn main() -> Result<()> {
 
     // Bindgen everything.
     let bindings = Builder::default()
+        .clang_arg("-DRUST_BINDGEN")
+        .clang_arg(format!("-I{}/lib/libc/minimal/include", zephyr_base))
+        .clang_arg(&target_arg)
         .header(
             Path::new("wrapper.h")
                 .canonicalize()
@@ -62,43 +63,56 @@ fn main() -> Result<()> {
                 .to_str()
                 .unwrap(),
         )
-        .use_core()
-        .clang_arg(&target_arg);
+        .use_core();
+
     let bindings = define_args(bindings, "-I", "INCLUDE_DIRS");
     let bindings = define_args(bindings, "-D", "INCLUDE_DEFINES");
+
     let bindings = bindings
         .wrap_static_fns(true)
-        .wrap_static_fns_path(wrapper_path)
-        // <inttypes.h> seems to come from somewhere mysterious in Zephyr.  For us, just pull in the
-        // one from the minimal libc.
-        .clang_arg("-DRUST_BINDGEN")
-        .clang_arg(format!("-I{}/lib/libc/minimal/include", zephyr_base))
-        .derive_copy(false)
-        .derive_default(true)
-        .allowlist_function("k_.*")
-        .allowlist_function("gpio_.*")
-        .allowlist_function("flash_.*")
-        .allowlist_function("zr_.*")
-        .allowlist_item("GPIO_.*")
-        .allowlist_item("FLASH_.*")
-        .allowlist_item("Z_.*")
-        .allowlist_item("ZR_.*")
-        .allowlist_item("K_.*")
-        // Each DT node has a device entry that is a static.
-        .allowlist_item("__device_dts_ord.*")
-        .allowlist_function("device_.*")
-        .allowlist_function("sys_.*")
-        .allowlist_function("z_log.*")
-        .allowlist_function("bt_.*")
-        .allowlist_function("SEGGER.*")
+        .wrap_static_fns_path(wrapper_path);
+
+    let bindings = bindings.derive_copy(false).derive_default(true);
+
+    let bindings = bindings
+        // Deprecated
+        .blocklist_function("sys_clock_timeout_end_calc")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()));
+
+    let dotconfig = env::var("DOTCONFIG").expect("missing DOTCONFIG path");
+    let options = zephyr_build::extract_kconfig_bool_options(&dotconfig)
+        .expect("failed to extract kconfig boolean options");
+
+    let bindings = bindings
+        // Kernel
         .allowlist_item("E.*")
         .allowlist_item("K_.*")
+        .allowlist_item("Z_.*")
         .allowlist_item("ZR_.*")
         .allowlist_item("LOG_LEVEL_.*")
         .allowlist_item("k_poll_modes")
-        // Deprecated
-        .blocklist_function("sys_clock_timeout_end_calc")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        // Each DT node has a device entry that is a static.
+        .allowlist_item("__device_dts_ord.*")
+        .allowlist_function("k_.*")
+        .allowlist_function("z_log.*")
+        .allowlist_function("sys_.*")
+        .allowlist_function("zr_.*")
+        .allowlist_function("device_.*")
+        .allowlist_function("SEGGER.*")
+        // Bluetooth
+        .allowlist_item_if("CONFIG_BT_.*", || options.contains("CONFIG_BT"))
+        .allowlist_function_if("bt_.*", || options.contains("CONFIG_BT"))
+        // GPIO
+        .allowlist_item_if("CONFIG_GPIO_.*", || options.contains("CONFIG_GPIO"))
+        .allowlist_item_if("GPIO_.*", || options.contains("CONFIG_GPIO"))
+        .allowlist_function_if("gpio_.*", || options.contains("CONFIG_GPIO"))
+        // Flash
+        .allowlist_item_if("FLASH_.*", || options.contains("CONFIG_FLASH"))
+        .allowlist_function_if("flash_.*", || options.contains("CONFIG_FLASH"))
+        // UART
+        .allowlist_item_if("CONFIG_UART_.*", || options.contains("CONFIG_SERIAL"))
+        .allowlist_function_if("uart_.*", || options.contains("CONFIG_SERIAL"))
+        // Generate
         .generate()
         .expect("Unable to generate bindings");
 
@@ -107,6 +121,42 @@ fn main() -> Result<()> {
         .expect("Couldn't write bindings!");
 
     Ok(())
+}
+
+trait BuilderExt {
+    type B;
+
+    fn allowlist_function_if<P>(self, pattern: &str, pred: P) -> Self::B
+    where
+        P: FnOnce() -> bool;
+
+    fn allowlist_item_if<P>(self, pattern: &str, pred: P) -> Self::B
+    where
+        P: FnOnce() -> bool;
+}
+
+impl BuilderExt for Builder {
+    type B = Builder;
+
+    fn allowlist_function_if<P>(self, pattern: &str, pred: P) -> Self::B
+    where
+        P: FnOnce() -> bool,
+    {
+        if pred() {
+            return self.allowlist_function(pattern);
+        }
+        self
+    }
+
+    fn allowlist_item_if<P>(self, pattern: &str, pred: P) -> Self::B
+    where
+        P: FnOnce() -> bool,
+    {
+        if pred() {
+            return self.allowlist_item(pattern);
+        }
+        self
+    }
 }
 
 fn define_args(bindings: Builder, prefix: &str, var_name: &str) -> Builder {
