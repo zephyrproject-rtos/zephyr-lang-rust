@@ -14,6 +14,7 @@ use zephyr_sys::k_timeout_t;
 pub mod queue;
 pub mod sync;
 pub mod thread;
+pub mod timer;
 
 // These two constants are not able to be captured by bindgen.  It is unlikely that these values
 // would change in the Zephyr headers, but there will be an explicit test to make sure they are
