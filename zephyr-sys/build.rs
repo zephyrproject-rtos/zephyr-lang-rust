@@ -50,8 +50,8 @@ fn main() -> Result<()> {
     // println!("includes: {:?}", env::var("INCLUDE_DIRS"));
     // println!("defines: {:?}", env::var("INCLUDE_DEFINES"));
 
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let wrapper_path = PathBuf::from(env::var("WRAPPER_FILE").unwrap());
+    let out_path = PathBuf::from(env::var("OUT_DIR").expect("missing output directory"));
+    let wrapper_path = PathBuf::from(env::var("WRAPPER_FILE").expect("missing wrapper file"));
 
     // Bindgen everything.
     let bindings = Builder::default()
@@ -91,7 +91,7 @@ fn main() -> Result<()> {
 }
 
 fn define_args(bindings: Builder, prefix: &str, var_name: &str) -> Builder {
-    let text = env::var(var_name).unwrap();
+    let text = env::var(var_name).expect("missing environment variable");
     let mut bindings = bindings;
     for entry in text.split(" ") {
         if entry.is_empty() {
