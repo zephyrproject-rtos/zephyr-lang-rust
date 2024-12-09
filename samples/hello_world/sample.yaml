@@ -1,6 +1,6 @@
 sample:
   description: Hello world, but in Rust
-  name: hello rust world
+  name: hello world
 common:
   harness: console
   harness_config:

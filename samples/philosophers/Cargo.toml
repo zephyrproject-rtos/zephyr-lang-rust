@@ -3,7 +3,7 @@
 
 [package]
 # This must be rustapp for now.
-name = "rustapp"
+name = "philosophers"
 version = "3.7.0"
 edition = "2021"
 description = "A sample hello world application in Rust"
