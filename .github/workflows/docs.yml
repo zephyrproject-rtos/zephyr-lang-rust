@@ -49,11 +49,16 @@ jobs:
       - name: Build Rust documentation
         working-directory: zephyr-rust-lang/docgen
         run: |
+          # Note that the above build doesn't set Zephyrbase, so we'll need to do that here.
+          source ../../zephyr/zephyr-env.sh
           rm -rf .cargo
           mkdir .cargo
           cd .cargo
           ln -s ../../build/rust/sample-cargo-config.toml config.toml
+          cat config.toml
           cd ..
+          pwd
+          ls -l
           cargo doc
           cd ..
           mkdir docout
