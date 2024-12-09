@@ -1,0 +1,96 @@
+name: Generate and Preview Rust Docs
+
+on:
+  pull_request:
+    branches:
+      - main  # Only generate docs for PRs targeting main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: zephyr-lang-rust
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: zephyr-lang-rust
+          manifest-file-name: ci-manifest.yml
+          toolchains: arm-zephyr-eabi:riscv64-zephyr-elf
+
+      - name: Install Rust Targets
+        shell: bash
+        run: |
+          rustup target add thumbv7em-none-eabi
+          rustup target add thumbv7m-none-eabi
+
+      - name: Build Rust documentation
+        working-directory: zephyr-lang-rust
+        run: |
+          # Note that the above build doesn't set Zephyrbase, so we'll need to do that here.
+          west build -t rustdoc -b nrf52840dk/nrf52840 docgen
+          mkdir rustdocs
+          mv build/rust/target/thumbv7em-none-eabi/doc rustdocs/nostd
+          cp docs/top-index.html rustdocs/index.html
+
+      - name: Build build documentation
+        working-directory: zephyr-lang-rust
+        run: |
+          cd zephyr-build
+          cargo doc
+          mv target/doc ../rustdocs/std
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdocs
+          path: zephyr-lang-rust/rustdocs
+
+  doc-publish:
+    name: Publish Rust Documentation
+    needs: generate-docs
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.repository == 'zephyrproject-rtos/zephyr-lang-rust'
+
+    steps:
+      # - name: Show github context
+      #   env:
+      #     GITHUB_CONTEXT: ${{ toJson(github) }}
+      #   run: |
+      #     echo "$GITHUB_CONTEXT" | jq .
+
+      - name: Download documentation artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rustdocs
+
+      # - name: Show our tree
+      #   run: |
+      #     find . -ls
+
+      - name: Publish to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ vars.AWS_BUILDS_ZEPHYR_LANG_RUST_PR_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_BUILDS_ZEPHYR_LANG_RUST_PR_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          PR_NUM=${{ github.event.number || 'not-a-pr' }}
+          aws s3 sync  --only-show-errors . s3://builds.zephyrproject.org/zephyr-lang-rust/pr/$PR_NUM/
