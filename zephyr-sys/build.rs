@@ -87,6 +87,7 @@ fn main() -> anyhow::Result<()> {
         // Kernel
         .allowlist_item("E.*")
         .allowlist_item("K_.*")
+        .allowlist_item("LOG_.*")
         .allowlist_item("Z_.*")
         .allowlist_item("ZR_.*")
         .allowlist_function("k_.*")
