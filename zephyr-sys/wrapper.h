@@ -32,9 +32,12 @@ extern int errno;
 
 #include <zephyr/kernel.h>
 #include <zephyr/kernel/thread_stack.h>
+
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/logging/log.h>
+#include <zephyr/drivers/uart.h>
+
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/logging/log.h>
 
 /*
  * bindgen will output #defined constant that resolve to simple numbers.  There are some symbols
