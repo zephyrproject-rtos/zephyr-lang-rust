@@ -17,7 +17,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use serde::{Deserialize, Serialize};
 
-use crate::devicetree::{output::dt_to_lower_id, Word};
+use crate::devicetree::{output::dt_to_lower_id, Value, Word};
 
 use super::{DeviceTree, Node};
 
@@ -28,6 +28,12 @@ pub trait Augment {
     /// The default implementation checks if this node matches and calls a generator if it does, or
     /// does nothing if not.
     fn augment(&self, node: &Node, tree: &DeviceTree) -> TokenStream {
+        // If there is a status field present, and it is not set to "okay", don't augment this node.
+        if let Some(status) = node.get_single_string("status") {
+            if status != "okay" {
+                return TokenStream::new();
+            }
+        }
         if self.is_compatible(node) {
             self.generate(node, tree)
         } else {
@@ -135,6 +141,16 @@ pub enum Action {
         /// The name of the full path (within the zephyr-sys crate) for the wrapper node for this
         /// device.
         device: String,
+        /// A Kconfig option to allow the instances to only be present when said driver is compiled
+        /// in.
+        kconfig: Option<String>,
+    },
+    /// Generate a getter for a gpio assignment property.
+    GpioPins {
+        /// The name of the property holding the pins.
+        property: String,
+        /// The name of the getter function.
+        getter: String,
     },
     /// Generate all of the labels as its own node.
     Labels,
@@ -143,8 +159,40 @@ pub enum Action {
 impl Action {
     fn generate(&self, _name: &Ident, node: &Node, tree: &DeviceTree) -> TokenStream {
         match self {
-            Action::Instance { raw, device } => {
-                raw.generate(node, device)
+            Action::Instance { raw, device, kconfig } => {
+                raw.generate(node, device, kconfig.as_deref())
+            }
+            Action::GpioPins { property, getter } => {
+                let upper_getter = getter.to_uppercase();
+                let getter = format_ident!("{}", getter);
+                // TODO: This isn't actually right, these unique values should be based on the pin
+                // definition so that we'll get a compile error if two parts of the DT reference the
+                // same pin.
+
+                let pins = node.get_property(property).unwrap();
+                let npins = pins.len();
+
+                let uniques: Vec<_> = (0..npins).map(|n| {
+                    format_ident!("{}_UNIQUE_{}", upper_getter, n)
+                }).collect();
+
+                let pins = pins
+                    .iter()
+                    .zip(uniques.iter())
+                    .map(|(pin, unique)| decode_gpios_gpio(unique, pin));
+
+                let unique_defs = uniques.iter().map(|u| {
+                    quote! {
+                        static #u: crate::device::Unique = crate::device::Unique::new();
+                    }
+                });
+
+                quote! {
+                    #(#unique_defs)*
+                    pub fn #getter() -> [Option<crate::device::gpio::GpioPin>; #npins] {
+                        [#(#pins),*]
+                    }
+                }
             }
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
@@ -171,11 +219,37 @@ impl Action {
     }
 }
 
+/// Decode a single gpio entry.
+fn decode_gpios_gpio(unique: &Ident, entry: &Value) -> TokenStream {
+    let entry = if let Value::Words(w) = entry {
+        w
+    } else {
+        panic!("gpios list is not list of <&gpionnn aa bbb>");
+    };
+    if entry.len() != 3 {
+        panic!("gpios currently must be three items");
+    }
+    let gpio_route = entry[0].get_phandle().unwrap().node_ref().route_to_rust();
+    let args: Vec<u32> = entry[1..].iter().map(|n| n.get_number().unwrap()).collect();
+
+    quote! {
+        // TODO: Don't hard code this but put in yaml file.
+        unsafe {
+            crate::device::gpio::GpioPin::new(
+                &#unique,
+                #gpio_route :: get_instance_raw(),
+                #(#args),*)
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", content = "value")]
 pub enum RawInfo {
     /// Get the raw device directly from this node.
-    Myself,
+    Myself {
+        args: Vec<ArgInfo>,
+    },
     /// Get the reference from a parent of this node, at a given level.
     Parent {
         /// How many levels to look up.  0 would refer to this node (but would also be an error).
@@ -188,23 +262,37 @@ pub enum RawInfo {
 }
 
 impl RawInfo {
-    fn generate(&self, node: &Node, device: &str) -> TokenStream {
+    fn generate(&self, node: &Node, device: &str, kconfig: Option<&str>) -> TokenStream {
         let device_id = str_to_path(device);
+        let kconfig = if let Some(name) = kconfig {
+            let name = format_ident!("{}", name);
+            quote! {
+                #[cfg(#name)]
+            }
+        } else {
+            quote! {}
+        };
+
         match self {
-            RawInfo::Myself => {
+            RawInfo::Myself { args } => {
+                let get_args = args.iter().map(|arg| arg.args(node));
+
                 let ord = node.ord;
                 let rawdev = format_ident!("__device_dts_ord_{}", ord);
                 quote! {
                     /// Get the raw `const struct device *` of the device tree generated node.
+                    #kconfig
                     pub unsafe fn get_instance_raw() -> *const crate::raw::device {
                         &crate::raw::#rawdev
                     }
 
+                    #kconfig
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #kconfig
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = get_instance_raw();
-                            #device_id::new(&UNIQUE, device)
+                            #device_id::new(&UNIQUE, device, #(#get_args),*)
                         }
                     }
                 }
@@ -226,7 +314,9 @@ impl RawInfo {
                 let target_route = target.route_to_rust();
 
                 quote! {
+                    #kconfig
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #kconfig
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #target_route :: get_instance_raw();
@@ -245,7 +335,9 @@ impl RawInfo {
                 }
 
                 quote! {
+                    #kconfig
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #kconfig
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #path :: get_instance_raw();
@@ -266,6 +358,8 @@ impl RawInfo {
 pub enum ArgInfo {
     /// The arguments come from a 'reg' property.
     Reg,
+    /// A count of the number of child nodes.
+    ChildCount,
 }
 
 impl ArgInfo {
@@ -276,6 +370,12 @@ impl ArgInfo {
                 let reg = node.get_numbers("reg").unwrap();
                 quote! {
                     #(#reg),*
+                }
+            }
+            ArgInfo::ChildCount => {
+                let count = node.children.len();
+                quote! {
+                    #count
                 }
             }
         }

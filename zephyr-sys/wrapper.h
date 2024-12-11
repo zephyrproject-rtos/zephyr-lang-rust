@@ -42,6 +42,17 @@ extern int errno;
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/drivers/led_strip.h>
+#include <zephyr/drivers/led.h>
+#include <zephyr/drivers/usb/usb_dc.h>
+#include <zephyr/usb/class/hid.h>
+#include <zephyr/usb/usb_device.h>
+#include <zephyr/usb/class/usb_hid.h>
+
+#ifdef CONFIG_THREAD_ANALYZER
+#include <zephyr/debug/thread_analyzer.h>
+#endif
 
 /*
  * bindgen will only output #defined constants that resolve to simple numbers.  These are some

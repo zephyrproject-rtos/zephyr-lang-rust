@@ -149,7 +149,7 @@ impl Node {
             writeln!(write, "cargo:rustc-cfg=dt=\"{}\"", child_name)?;
 
             for prop in &child.properties {
-                prop.output_path(write, &child_name)?;
+                prop.output_path(write, &fix_id(&child_name))?;
             }
 
             child.output_path_walk(write, Some(&child_name))?;
