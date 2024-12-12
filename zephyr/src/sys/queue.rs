@@ -65,6 +65,10 @@ impl Queue {
     /// The timeout value can be [`Forever`] to block until there is a message, [`NoWait`] to check
     /// and immediately return if there is no message, or a [`Duration`] to indicate a specific
     /// timeout.
+    ///
+    /// [`Forever`]: crate::time::Forever
+    /// [`NoWait`]: crate::time::NoWait
+    /// [`Duration`]: crate::time::Duration
     pub unsafe fn recv<T>(&self, timeout: T) -> *mut c_void
         where T: Into<Timeout>
     {

@@ -50,6 +50,8 @@ pub mod critical {
     //! This provides the underlying critical section crate, which is useful for external crates
     //! that want this interface.  However, it isn't a particularly hygienic interface to use.  For
     //! something a bit nicer, please see [`sync::SpinMutex`].
+    //!
+    //! [`sync::SpinMutex`]: crate::sync::SpinMutex
 
     use core::{ffi::c_int, ptr::addr_of_mut};
 
