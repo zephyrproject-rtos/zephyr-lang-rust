@@ -41,6 +41,8 @@ pub enum SpinTryLockError {
 /// This is modeled after [`sync::Mutex`] but instead of using `k_mutex` from Zephyr, it uses
 /// `k_spinlock`.  It's main advantage is that it is usable from IRQ context.  However, it also is
 /// uninterruptible, and prevents even IRQ handlers from running.
+///
+/// [`sync::Mutex`]: crate::sync::Mutex
 pub struct SpinMutex<T: ?Sized> {
     inner: UnsafeCell<raw::k_spinlock>,
     data: UnsafeCell<T>,

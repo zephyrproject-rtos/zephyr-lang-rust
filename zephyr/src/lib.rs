@@ -17,6 +17,8 @@ pub mod object;
 pub mod sync;
 pub mod sys;
 pub mod time;
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod timer;
 
 pub use error::{Error, Result};
 
