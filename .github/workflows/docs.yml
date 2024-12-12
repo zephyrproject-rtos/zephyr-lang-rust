@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   generate-docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -65,7 +65,7 @@ jobs:
   doc-publish:
     name: Publish Rust Documentation
     needs: generate-docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: |
       github.event_name == 'pull_request' &&
       github.repository == 'zephyrproject-rtos/zephyr-lang-rust'
