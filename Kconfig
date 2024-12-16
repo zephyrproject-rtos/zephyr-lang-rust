@@ -31,6 +31,24 @@ config RUST_ALLOC
 	  Zephyr allocator (malloc/free).  This this enabled, Rust
 	  applications can use the `alloc` crate.
 
+choice RUST_CARGO_PROFILE
+	prompt "Cargo profile"
+	default RUST_CARGO_PROFILE_DEV
+	help
+	  Select the profile to use when invoking cargo.
+
+config RUST_CARGO_PROFILE_DEV
+	bool "Development profile"
+	help
+	  Cargo profile suitable for development and debugging builds.
+
+config RUST_CARGO_PROFILE_RELEASE
+	bool "Release profile"
+	help
+	  Cargo profile suitable for release builds.
+
+endchoice # RUST_BUILD_TYPE
+
 endif # RUST
 
 endmenu
