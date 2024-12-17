@@ -1,0 +1,18 @@
+# Copyright (c) 2024 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+# This must be rustapp for now.
+name = "rustapp"
+version = "3.7.0"
+edition = "2021"
+description = "Tests of timeers"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+rand = { version = "0.8", default-features = false }
+rand_pcg = { version = "0.3.1", default-features = false }
+zephyr = "3.7.0"
