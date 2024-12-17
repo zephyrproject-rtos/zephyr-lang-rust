@@ -18,6 +18,7 @@
 #![allow(improper_ctypes)]
 
 #![allow(rustdoc::broken_intra_doc_links)]
+#![allow(rustdoc::bare_urls)]
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
