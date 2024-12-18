@@ -12,6 +12,8 @@ use super::Unique;
 
 /// Global instance to help make gpio in Rust slightly safer.
 ///
+/// # Safety
+///
 /// To help with safety, the rust types use a global instance of a gpio-token.  Methods will
 /// take a mutable reference to this, which will require either a single thread in the
 /// application code, or something like a mutex or critical section to manage.  The operation

@@ -102,10 +102,8 @@ impl DeviceTree {
                                     pub const #tag: u32 = #n;
                                 };
                             }
-                            _ => return general_property(prop),
+                            _ => (),
                         }
-                    } else {
-                        return general_property(prop);
                     }
                 }
                 Value::Phandle(ref ph) => {
@@ -118,7 +116,7 @@ impl DeviceTree {
                         }
                     }
                 }
-                _ => return general_property(prop),
+                _ => (),
             }
         }
         general_property(prop)
