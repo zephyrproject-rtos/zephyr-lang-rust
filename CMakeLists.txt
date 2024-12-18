@@ -208,6 +208,8 @@ ${config_paths}
       INCLUDE_DIRS="${include_dirs}"
       INCLUDE_DEFINES="${include_defines}"
       WRAPPER_FILE="${WRAPPER_FILE}"
+      DT_AUGMENTS="${DT_AUGMENTS}"
+      BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
       cargo doc
       ${rust_build_type_arg}
 
