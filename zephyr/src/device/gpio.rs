@@ -44,6 +44,7 @@ impl Gpio {
     /// Constructor, used by the devicetree generated code.
     ///
     /// TODO: Guarantee single instancing.
+    #[allow(dead_code)]
     pub(crate) unsafe fn new(unique: &Unique, device: *const raw::device) -> Option<Gpio> {
         if !unique.once() {
             return None;
