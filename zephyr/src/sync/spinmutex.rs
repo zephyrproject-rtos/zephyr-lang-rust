@@ -18,7 +18,13 @@
 //! used with a `Semaphore` to allow clients to be waken, but this usage is racey, and if not done
 //! carefully can result uses of the semaphore not waking.
 
-use core::{cell::UnsafeCell, convert::Infallible, fmt, marker::PhantomData, ops::{Deref, DerefMut}};
+use core::{
+    cell::UnsafeCell,
+    convert::Infallible,
+    fmt,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 use crate::raw;
 
@@ -114,21 +120,22 @@ impl<T: ?Sized> SpinMutex<T> {
     pub fn try_lock(&self) -> SpinTryLockResult<SpinMutexGuard<'_, T>> {
         let mut key = raw::k_spinlock_key_t { key: 0 };
         match unsafe { raw::k_spin_trylock(self.inner.get(), &mut key) } {
-            0 => {
-                unsafe {
-                    Ok(SpinMutexGuard::new(self, key))
-                }
-            }
-            _ => {
-                Err(SpinTryLockError::WouldBlock)
-            }
+            0 => unsafe { Ok(SpinMutexGuard::new(self, key)) },
+            _ => Err(SpinTryLockError::WouldBlock),
         }
     }
 }
 
 impl<'mutex, T: ?Sized> SpinMutexGuard<'mutex, T> {
-    unsafe fn new(lock: &'mutex SpinMutex<T>, key: raw::k_spinlock_key_t) -> SpinMutexGuard<'mutex, T> {
-        SpinMutexGuard { lock, key, _nosend: PhantomData }
+    unsafe fn new(
+        lock: &'mutex SpinMutex<T>,
+        key: raw::k_spinlock_key_t,
+    ) -> SpinMutexGuard<'mutex, T> {
+        SpinMutexGuard {
+            lock,
+            key,
+            _nosend: PhantomData,
+        }
     }
 }
 
@@ -136,9 +143,7 @@ impl<T: ?Sized> Deref for SpinMutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        unsafe {
-            &*self.lock.data.get()
-        }
+        unsafe { &*self.lock.data.get() }
     }
 }
 

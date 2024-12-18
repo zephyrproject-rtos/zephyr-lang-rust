@@ -54,6 +54,7 @@ jobs:
           rustup target add thumbv7em-none-eabi
           rustup target add thumbv7m-none-eabi
           rustup target add thumbv8m.main-none-eabi
+          rustup component list --installed
 
       # Note that Renode is only provided for x86_64 targets.  This matches the github runners.
       - name: Install Renode

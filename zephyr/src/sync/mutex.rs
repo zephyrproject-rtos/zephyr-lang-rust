@@ -11,8 +11,8 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use crate::time::{Forever, NoWait};
 use crate::sys::sync as sys;
+use crate::time::{Forever, NoWait};
 
 /// Until poisoning is implemented, mutexes never return an error, and we just get back the guard.
 pub type LockResult<Guard> = Result<Guard, ()>;
@@ -90,7 +90,10 @@ impl<T> Mutex<T> {
     /// sys Mutex will be taken by this structure.  It is safe to share the underlying Mutex between
     /// different items, but without careful use, it is easy to deadlock, so it is not recommended.
     pub const fn new_from(t: T, raw_mutex: sys::Mutex) -> Mutex<T> {
-        Mutex { inner: raw_mutex, data: UnsafeCell::new(t) }
+        Mutex {
+            inner: raw_mutex,
+            data: UnsafeCell::new(t),
+        }
     }
 
     /// Construct a new Mutex, dynamically allocating the underlying sys Mutex.
@@ -114,9 +117,7 @@ impl<T: ?Sized> Mutex<T> {
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
         // With `Forever`, should never return an error.
         self.inner.lock(Forever).unwrap();
-        unsafe {
-            Ok(MutexGuard::new(self))
-        }
+        unsafe { Ok(MutexGuard::new(self)) }
     }
 
     /// Attempts to acquire this lock.
@@ -127,16 +128,10 @@ impl<T: ?Sized> Mutex<T> {
     /// This function does not block.
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
         match self.inner.lock(NoWait) {
-            Ok(()) => {
-                unsafe {
-                    Ok(MutexGuard::new(self))
-                }
-            }
+            Ok(()) => unsafe { Ok(MutexGuard::new(self)) },
             // TODO: It might be better to distinguish these errors, and only return the WouldBlock
             // if that is the corresponding error. But, the lock shouldn't fail in Zephyr.
-            Err(_) => {
-                Err(TryLockError::WouldBlock)
-            }
+            Err(_) => Err(TryLockError::WouldBlock),
         }
     }
 }
@@ -144,7 +139,10 @@ impl<T: ?Sized> Mutex<T> {
 impl<'mutex, T: ?Sized> MutexGuard<'mutex, T> {
     unsafe fn new(lock: &'mutex Mutex<T>) -> MutexGuard<'mutex, T> {
         // poison todo
-        MutexGuard { lock, _nosend: PhantomData }
+        MutexGuard {
+            lock,
+            _nosend: PhantomData,
+        }
     }
 }
 
@@ -152,9 +150,7 @@ impl<T: ?Sized> Deref for MutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        unsafe {
-            &*self.lock.data.get()
-        }
+        unsafe { &*self.lock.data.get() }
     }
 }
 

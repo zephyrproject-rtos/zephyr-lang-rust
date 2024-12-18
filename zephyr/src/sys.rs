@@ -36,9 +36,7 @@ pub const K_NO_WAIT: k_timeout_t = k_timeout_t { ticks: 0 };
 /// Direct Zephyr call.  Precision is limited by the system tick timer.
 #[inline]
 pub fn uptime_get() -> i64 {
-    unsafe {
-        crate::raw::k_uptime_get()
-    }
+    unsafe { crate::raw::k_uptime_get() }
 }
 
 pub mod critical {
@@ -56,7 +54,7 @@ pub mod critical {
     use core::{ffi::c_int, ptr::addr_of_mut};
 
     use critical_section::RawRestoreState;
-    use zephyr_sys::{k_spinlock, k_spin_lock, k_spin_unlock, k_spinlock_key_t};
+    use zephyr_sys::{k_spin_lock, k_spin_unlock, k_spinlock, k_spinlock_key_t};
 
     struct ZephyrCriticalSection;
     critical_section::set_impl!(ZephyrCriticalSection);
@@ -71,10 +69,12 @@ pub mod critical {
         }
 
         unsafe fn release(token: RawRestoreState) {
-            k_spin_unlock(addr_of_mut!(LOCK),
-                          k_spinlock_key_t {
-                              key: token as c_int,
-                          });
+            k_spin_unlock(
+                addr_of_mut!(LOCK),
+                k_spinlock_key_t {
+                    key: token as c_int,
+                },
+            );
         }
     }
 }

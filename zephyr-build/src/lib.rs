@@ -11,9 +11,9 @@
 // This builds a program that is run on the compilation host before the code is compiled.  It can
 // output configuration settings that affect the compilation.
 
-use std::io::{BufRead, BufReader, Write};
 use std::env;
 use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
 use regex::Regex;
@@ -31,7 +31,7 @@ pub fn export_bool_kconfig() {
 
     let file = File::open(&dotconfig).expect("Unable to open dotconfig");
     for line in BufReader::new(file).lines() {
-        let line =  line.expect("reading line from dotconfig");
+        let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_y.captures(&line) {
             println!("cargo:rustc-cfg={}", &caps[1]);
         }
@@ -60,16 +60,18 @@ pub fn build_kconfig_mod() {
         let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_hex.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: usize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: usize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_int.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: isize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: isize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_str.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: &'static str = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(
+                &mut f,
+                "pub const {}: &'static str = {};",
+                &caps[1], &caps[2]
+            )
+            .unwrap();
         }
     }
 }

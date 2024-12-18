@@ -40,21 +40,23 @@ extern crate alloc;
 
 #[cfg(CONFIG_RUST_ALLOC)]
 use alloc::boxed::Box;
-use core::{cell::UnsafeCell, ffi::{c_int, c_void, CStr}, mem};
-
-use zephyr_sys::{
-    k_tid_t,
-    k_thread,
-    k_thread_entry_t,
-    k_thread_create,
-    k_thread_name_set,
-    z_thread_stack_element,
-    ZR_STACK_ALIGN,
-    ZR_STACK_RESERVED,
+use core::{
+    cell::UnsafeCell,
+    ffi::{c_int, c_void, CStr},
+    mem,
 };
-use super::K_NO_WAIT;
 
-use crate::{align::AlignAs, object::{StaticKernelObject, Wrapped}, sync::atomic::AtomicUsize};
+use super::K_NO_WAIT;
+use zephyr_sys::{
+    k_thread, k_thread_create, k_thread_entry_t, k_thread_name_set, k_tid_t,
+    z_thread_stack_element, ZR_STACK_ALIGN, ZR_STACK_RESERVED,
+};
+
+use crate::{
+    align::AlignAs,
+    object::{StaticKernelObject, Wrapped},
+    sync::atomic::AtomicUsize,
+};
 
 /// Adjust the stack size for alignment.  Note that, unlike the C code, we don't include the
 /// reservation in this, as it has its own fields in the struct.
@@ -225,12 +227,13 @@ impl Thread {
 
     /// Simple thread spawn.  This is unsafe because of the raw values being used.  This can be
     /// useful in systems without an allocator defined.
-    pub unsafe fn simple_spawn(mut self,
-                               child: k_thread_entry_t,
-                               p1: *mut c_void,
-                               p2: *mut c_void,
-                               p3: *mut c_void)
-    {
+    pub unsafe fn simple_spawn(
+        mut self,
+        child: k_thread_entry_t,
+        p1: *mut c_void,
+        p2: *mut c_void,
+        p3: *mut c_void,
+    ) {
         let tid = k_thread_create(
             self.raw,
             self.stack.base,
@@ -241,7 +244,8 @@ impl Thread {
             p3,
             self.priority,
             self.options,
-            K_NO_WAIT);
+            K_NO_WAIT,
+        );
 
         self.set_thread_name(tid);
     }
@@ -254,9 +258,7 @@ impl Thread {
         use core::ptr::null_mut;
 
         let child: closure::Closure = Box::new(child);
-        let child = Box::into_raw(Box::new(closure::ThreadData {
-            closure: child,
-        }));
+        let child = Box::into_raw(Box::new(closure::ThreadData { closure: child }));
         unsafe {
             let tid = k_thread_create(
                 self.raw,
@@ -268,7 +270,8 @@ impl Thread {
                 null_mut(),
                 self.priority,
                 self.options,
-                K_NO_WAIT);
+                K_NO_WAIT,
+            );
 
             self.set_thread_name(tid);
         }
@@ -404,7 +407,7 @@ pub struct StackToken {
 // possible to implement safe static threads and other data structures in Zephyr.
 
 /// A Statically defined Zephyr `k_thread` object to be used from Rust.
-/// 
+///
 /// This should be used in a manner similar to:
 /// ```
 /// const MY_STACK_SIZE: usize = 4096;

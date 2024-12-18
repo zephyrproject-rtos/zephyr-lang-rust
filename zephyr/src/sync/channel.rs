@@ -70,13 +70,13 @@ pub fn unbounded_from<T>(queue: Queue) -> (Sender<T>, Receiver<T>) {
         flavor: SenderFlavor::Unbounded {
             queue: s,
             _phantom: PhantomData,
-        }
+        },
     };
     let r = Receiver {
         flavor: ReceiverFlavor::Unbounded {
             queue: r,
             _phantom: PhantomData,
-        }
+        },
     };
     (s, r)
 }
@@ -130,10 +130,7 @@ pub struct Message<T> {
 
 impl<T> Message<T> {
     fn new(data: T) -> Message<T> {
-        Message {
-            _private: 0,
-            data,
-        }
+        Message { _private: 0, data }
     }
 }
 
@@ -155,7 +152,8 @@ impl<T> Sender<T> {
     /// For unbounded channels, this will perform an allocation (and always send immediately).  For
     /// bounded channels, no allocation will be performed.
     pub fn send_timeout<D>(&self, msg: T, timeout: D) -> Result<(), SendError<T>>
-        where D: Into<Timeout>,
+    where
+        D: Into<Timeout>,
     {
         match &self.flavor {
             SenderFlavor::Unbounded { queue, .. } => {
@@ -233,15 +231,11 @@ impl<T> Drop for Sender<T> {
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
         let flavor = match &self.flavor {
-            SenderFlavor::Unbounded { queue, .. } => {
-                SenderFlavor::Unbounded {
-                    queue: queue.acquire(),
-                    _phantom: PhantomData,
-                }
-            }
-            SenderFlavor::Bounded(chan) => {
-                SenderFlavor::Bounded(chan.acquire())
-            }
+            SenderFlavor::Unbounded { queue, .. } => SenderFlavor::Unbounded {
+                queue: queue.acquire(),
+                _phantom: PhantomData,
+            },
+            SenderFlavor::Bounded(chan) => SenderFlavor::Bounded(chan.acquire()),
         };
 
         Sender { flavor }
@@ -281,7 +275,8 @@ impl<T> Receiver<T> {
     /// operation can proceed or the operation times out.
     /// wake up and return an error.
     pub fn recv_timeout<D>(&self, timeout: D) -> Result<T, RecvError>
-        where D: Into<Timeout>,
+    where
+        D: Into<Timeout>,
     {
         match &self.flavor {
             ReceiverFlavor::Unbounded { queue, .. } => {
@@ -369,15 +364,11 @@ impl<T> Drop for Receiver<T> {
 impl<T> Clone for Receiver<T> {
     fn clone(&self) -> Self {
         let flavor = match &self.flavor {
-            ReceiverFlavor::Unbounded { queue, .. } => {
-                ReceiverFlavor::Unbounded {
-                    queue: queue.acquire(),
-                    _phantom: PhantomData,
-                }
-            }
-            ReceiverFlavor::Bounded(chan) => {
-                ReceiverFlavor::Bounded(chan.acquire())
-            }
+            ReceiverFlavor::Unbounded { queue, .. } => ReceiverFlavor::Unbounded {
+                queue: queue.acquire(),
+                _phantom: PhantomData,
+            },
+            ReceiverFlavor::Bounded(chan) => ReceiverFlavor::Bounded(chan.acquire()),
         };
 
         Receiver { flavor }
@@ -435,10 +426,8 @@ struct Bounded<T> {
 impl<T> Bounded<T> {
     fn new(cap: usize) -> Self {
         let slots: Box<[Slot<T>]> = (0..cap)
-            .map(|_| {
-                UnsafeCell::new(MaybeUninit::uninit())
-            })
-        .collect();
+            .map(|_| UnsafeCell::new(MaybeUninit::uninit()))
+            .collect();
         let slots = Box::into_pin(slots);
 
         let free = Queue::new().unwrap();
@@ -452,7 +441,11 @@ impl<T> Bounded<T> {
             }
         }
 
-        Bounded { _slots: slots, free, chan }
+        Bounded {
+            _slots: slots,
+            free,
+            chan,
+        }
     }
 }
 

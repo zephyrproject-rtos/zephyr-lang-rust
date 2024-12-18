@@ -35,9 +35,7 @@ impl Log for ZlogLogger {
             // Zephyr doesn't have a separate trace, so fold that into debug.
             Level::Trace => raw::LOG_LEVEL_DBG,
         };
-        let mut msg = format!("{}: {}",
-                              record.target(),
-                              record.args());
+        let mut msg = format!("{}: {}", record.target(), record.args());
         // Append a null so this is a valid C string.  This lets us avoid an additional allocation
         // and copying.
         msg.push('\x00');
@@ -47,8 +45,7 @@ impl Log for ZlogLogger {
     }
 
     // Flush not needed.
-    fn flush(&self) {
-    }
+    fn flush(&self) {}
 }
 
 extern "C" {
