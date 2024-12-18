@@ -1,0 +1,20 @@
+# Copyright (c) 2024 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+# This must be rustapp for now.
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "Blink an LED forever using the GPIO API"
+license = "Apache-2.0 OR MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = "3.7.0"
+log = "0.4.22"
+
+[build-dependencies]
+zephyr-build = "3.7.0"

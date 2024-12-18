@@ -15,8 +15,14 @@ use std::io::{BufRead, BufReader, Write};
 use std::env;
 use std::fs::File;
 use std::path::Path;
+use std::process::{Command, Stdio};
 
+use proc_macro2::TokenStream;
 use regex::Regex;
+
+use devicetree::{Augment, DeviceTree};
+
+mod devicetree;
 
 /// Export boolean Kconfig entries.  This must happen in any crate that wishes to access the
 /// configuration settings.
@@ -71,5 +77,93 @@ pub fn build_kconfig_mod() {
             writeln!(&mut f, "pub const {}: &'static str = {};",
                 &caps[1], &caps[2]).unwrap();
         }
+    }
+}
+
+/// Parse the finalized DTS file, generating the Rust devicetree file.
+fn import_dt() -> DeviceTree {
+    let zephyr_dts = env::var("ZEPHYR_DTS").expect("ZEPHYR_DTS must be set");
+    let gen_include = env::var("BINARY_DIR_INCLUDE_GENERATED")
+        .expect("BINARY_DIR_INCLUDE_GENERATED must be set");
+
+    let generated = format!("{}/devicetree_generated.h", gen_include);
+    DeviceTree::new(&zephyr_dts, generated)
+}
+
+pub fn build_dts() {
+    let dt = import_dt();
+
+    let outdir = env::var("OUT_DIR").expect("OUT_DIR must be set");
+    let out_path = Path::new(&outdir).join("devicetree.rs");
+    let mut out = File::create(&out_path).expect("Unable to create devicetree.rs");
+
+    let augments = env::var("DT_AUGMENTS").expect("DT_AUGMENTS must be set");
+    let augments: Vec<String> = augments.split_whitespace().map(String::from).collect();
+
+    // Make sure that cargo knows to run if this changes, or any file mentioned changes.
+    println!("cargo:rerun-if-env-changed=DT_AUGMENTS");
+    for name in &augments {
+        println!("cargo:rerun-if-changed={}", name);
+    }
+
+    let mut augs = Vec::new();
+    for aug in &augments {
+        // println!("Load augment: {:?}", aug);
+        let mut aug = devicetree::load_augments(aug).expect("Loading augment file");
+        augs.append(&mut aug);
+    }
+    // For now, just print it out.
+    // println!("augments: {:#?}", augs);
+    let augs: Vec<_> = augs
+        .into_iter()
+        .map(|aug| Box::new(aug) as Box<dyn Augment>)
+        .collect();
+
+    let tokens = dt.to_tokens(&augs);
+    if has_rustfmt() {
+        write_formatted(out, tokens);
+    } else {
+        writeln!(out, "{}", tokens).unwrap();
+    };
+}
+
+/// Generate cfg directives for each of the nodes in the generated device tree.
+///
+/// This assumes that build_dts was already run by the `zephyr` crate, which should happen if this
+/// is called from a user application.
+pub fn dt_cfgs() {
+    let dt = import_dt();
+    dt.output_node_paths(&mut std::io::stdout()).unwrap();
+}
+
+/// Determine if `rustfmt` is in the path, and can be excecuted. Returns false on any kind of error.
+pub fn has_rustfmt() -> bool {
+    match Command::new("rustfmt")
+        .arg("--version")
+        .status()
+    {
+        Ok(st) if st.success() => true,
+        _ => false,
+    }
+}
+
+/// Attempt to write the contents to a file, using rustfmt. If there is an error running rustfmt,
+/// print a warning, and then just directly write the file.
+fn write_formatted(file: File, tokens: TokenStream) {
+    let mut rustfmt = Command::new("rustfmt")
+        .args(["--emit", "stdout"])
+        .stdin(Stdio::piped())
+        .stdout(file)
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("Failed to run rustfmt");
+    // TODO: Handle the above failing.
+
+    let mut stdin = rustfmt.stdin.as_ref().expect("Stdin should have been opened by spawn");
+    writeln!(stdin, "{}", tokens).expect("Writing to rustfmt");
+
+    match rustfmt.wait() {
+        Ok(st) if st.success() => (),
+        _ => panic!("Failure running rustfmt"),
     }
 }

@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 
 pub mod align;
+pub mod device;
 pub mod error;
 pub mod logging;
 pub mod object;
@@ -41,6 +42,22 @@ pub mod kconfig {
     #![allow(missing_docs)]
 
     include!(concat!(env!("OUT_DIR"), "/kconfig.rs"));
+}
+
+pub mod devicetree {
+    //! Zephyr device tree
+    //!
+    //! This is an auto-generated module that represents the device tree for a given build.  The
+    //! hierarchy here should match the device tree, with an additional top-level module "labels"
+    //! that contains submodules for all of the labels.
+    //!
+    //! **Note**: Unless you are viewing docs generated for a specific build, the values below are
+    //! unlikely to directly correspond to those in a given build.
+
+    // Don't enforce doc comments on the generated device tree.
+    #![allow(missing_docs)]
+
+    include!(concat!(env!("OUT_DIR"), "/devicetree.rs"));
 }
 
 // Ensure that Rust is enabled.
