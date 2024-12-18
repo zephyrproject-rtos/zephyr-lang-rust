@@ -5,7 +5,7 @@
 //!
 //! Most of these instances come from the device tree.
 
-use crate::sync::atomic::{AtomicUsize, Ordering};
+use crate::sync::atomic::{AtomicBool, Ordering};
 
 pub mod gpio;
 pub mod flash;
@@ -21,12 +21,14 @@ pub mod flash;
 /// driver will be shared among then.  Generally, the constructor for the individual device will
 /// call `get_instance_raw()` on the underlying device.
 #[allow(dead_code)]
-pub(crate) struct Unique(pub(crate) AtomicUsize);
+pub(crate) struct Unique(pub(crate) AtomicBool);
 
 impl Unique {
+    // Note that there are circumstances where these are in zero-initialized memory, so false must
+    // be used here, and the result of `once` inverted.
     /// Construct a new unique counter.
     pub(crate) const fn new() -> Unique {
-        Unique(AtomicUsize::new(0))
+        Unique(AtomicBool::new(false))
     }
 
     /// Indicates if this particular entity can be used.  This function, on a given `Unique` value
@@ -35,6 +37,6 @@ impl Unique {
     pub(crate) fn once(&self) -> bool {
         // `fetch_add` is likely to be faster than compare_exchage.  This does have the limitation
         // that `once` is not called more than `usize::MAX` times.
-        self.0.fetch_add(1, Ordering::AcqRel) == 0
+        !self.0.fetch_or(true, Ordering::AcqRel)
     }
 }
