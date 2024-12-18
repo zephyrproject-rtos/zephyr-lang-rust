@@ -30,6 +30,7 @@ mod parse;
 
 pub use augment::{Augment, load_augments};
 
+/// Representation of a parsed device tree.
 pub struct DeviceTree {
     /// The root of the tree.
     root: Rc<Node>,
@@ -37,7 +38,7 @@ pub struct DeviceTree {
     labels: BTreeMap<String, Rc<Node>>,
 }
 
-// This is a single node in the devicetree.
+// A single node in a [`DeviceTree`].
 pub struct Node {
     // The name of the node itself.
     name: String,
@@ -90,7 +91,7 @@ pub enum Word {
 }
 
 impl DeviceTree {
-    /// Decode the zephyr.dts and devicetree_generated.h files from the build and build an internal
+    /// Decode the `zephyr.dts` and `devicetree_generated.h` files from the build and build an internal
     /// representation of the devicetree itself.
     pub fn new<P1: AsRef<Path>, P2: AsRef<Path>>(dts_path: P1, dt_gen: P2) -> DeviceTree {
         let ords = OrdMap::new(dt_gen);
@@ -98,19 +99,14 @@ impl DeviceTree {
         let dts = std::fs::read_to_string(dts_path)
             .expect("Reading zephyr.dts file");
         let dt = parse::parse(&dts, &ords);
-        dt.resolve_phandles();
-        dt.set_parents();
+
+        // Walk the node tree, fixing any phandles to include their reference.
+        dt.root.phandle_walk(&dt.labels);
+
+        // Walk the node tree, setting each node's parent appropriately.
+        dt.root.parent_walk();
+
         dt
-    }
-
-    /// Walk the node tree, fixing any phandles to include their reference.
-    fn resolve_phandles(&self) {
-        self.root.phandle_walk(&self.labels);
-    }
-
-    /// Walk the node tree, setting each node's parent appropriately.
-    fn set_parents(&self) {
-        self.root.parent_walk();
     }
 }
 

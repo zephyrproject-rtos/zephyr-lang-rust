@@ -6,7 +6,7 @@
 name = "rustapp"
 version = "0.1.0"
 edition = "2021"
-description = "A sample hello world application in Rust"
+description = "Blink an LED forever using the GPIO API"
 license = "Apache-2.0 or MIT"
 
 [lib]

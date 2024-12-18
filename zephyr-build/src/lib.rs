@@ -84,7 +84,7 @@ pub fn build_kconfig_mod() {
 fn import_dt() -> DeviceTree {
     let zephyr_dts = env::var("ZEPHYR_DTS").expect("ZEPHYR_DTS must be set");
     let gen_include = env::var("BINARY_DIR_INCLUDE_GENERATED")
-        .expect("BINARY_DIR_INCLUDE_GENERATED");
+        .expect("BINARY_DIR_INCLUDE_GENERATED must be set");
 
     let generated = format!("{}/devicetree_generated.h", gen_include);
     DeviceTree::new(&zephyr_dts, generated)
