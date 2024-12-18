@@ -21,9 +21,8 @@ extern "C" fn rust_main() {
     unsafe { zephyr::set_logger().unwrap(); }
 
     warn!("Starting blinky");
-    // println!("Blinky!");
+
     // Invoke "blink" as a user thread.
-    // blink();
     if false {
         unsafe {
             zephyr::raw::k_thread_user_mode_enter

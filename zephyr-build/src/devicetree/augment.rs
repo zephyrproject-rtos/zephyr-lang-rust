@@ -191,7 +191,7 @@ impl RawInfo {
     fn generate(&self, node: &Node, device: &str) -> TokenStream {
         let device_id = str_to_path(device);
         match self {
-            RawInfo::Myself => {
+            Self::Myself => {
                 let ord = node.ord;
                 let rawdev = format_ident!("__device_dts_ord_{}", ord);
                 quote! {
@@ -209,7 +209,7 @@ impl RawInfo {
                     }
                 }
             }
-            RawInfo::Phandle(pname) => {
+            Self::Phandle(pname) => {
                 let words = node.get_words(pname).unwrap();
                 // We assume that elt 0 is the phandle, and that the rest are numbers.
                 let target = if let Word::Phandle(handle) = &words[0] {
@@ -221,7 +221,7 @@ impl RawInfo {
                 // TODO: We would try to correlate with parent node's notion of number of cells, and
                 // try to handle cases where there is more than one reference.  It is unclear when
                 // this will be needed.
-                let args: Vec<u32> = words[1..].iter().map(|n| n.get_number().unwrap()).collect();
+                let args: Vec<u32> = words[1..].iter().map(|n| n.as_number().unwrap()).collect();
 
                 let target_route = target.route_to_rust();
 
@@ -235,7 +235,7 @@ impl RawInfo {
                     }
                 }
             }
-            RawInfo::Parent { level, args } => {
+            Self::Parent { level, args } => {
                 let get_args = args.iter().map(|arg| arg.args(node));
 
                 assert!(*level > 0);

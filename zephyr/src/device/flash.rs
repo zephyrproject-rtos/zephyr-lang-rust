@@ -1,5 +1,8 @@
 //! Device wrappers for flash controllers, and flash partitions.
 
+// Note that currently, the flash partition shares the controller, so the underlying operations
+// are not actually safe.  Need to rethink how to manage this.
+
 use crate::raw;
 use super::Unique;
 
@@ -54,6 +57,3 @@ impl FlashPartition {
         Some(FlashPartition { controller, offset, size })
     }
 }
-
-// Note that currently, the flash partition shares the controller, so the underlying operations
-// are not actually safe.  Need to rethink how to manage this.

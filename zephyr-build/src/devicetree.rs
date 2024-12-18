@@ -35,6 +35,7 @@ pub struct DeviceTree {
     /// The root of the tree.
     root: Rc<Node>,
     /// All of the labels.
+    /// Note that this is a BTree  so that the output will be deterministic.
     labels: BTreeMap<String, Rc<Node>>,
 }
 
@@ -70,7 +71,7 @@ pub struct Property {
 pub enum Value {
     Words(Vec<Word>),
     Bytes(Vec<u8>),
-    Phandle(Phandle), // TODO
+    Phandle(Phandle),
     String(String),
 }
 
@@ -123,8 +124,6 @@ impl Node {
     }
 
     fn parent_walk(self: &Rc<Self>) {
-        // *(self.parent.borrow_mut()) = Some(parent.clone());
-
         for child in &self.children {
             *(child.parent.borrow_mut()) = Some(self.clone());
             child.parent_walk()
@@ -132,25 +131,17 @@ impl Node {
     }
 
     fn is_compatible(&self, name: &str) -> bool {
-        if let Some(prop) = self.properties.iter().find(|p| p.name == "compatible") {
-            prop.value.iter().any(|v| {
-                match v {
-                    Value::String(vn) if name == vn => true,
-                    _ => false,
-                }
-            })
-        } else {
-            // If there is no compatible field, we are clearly not compatible.
-            false
-        }
+        self.properties
+            .iter()
+            .filter(|p| p.name == "compatible")
+            .flat_map(|prop| prop.value.iter())
+            .any(|v| matches!(v, Value::String(vn) if name == vn))
     }
 
     /// A richer compatible test.  Walks a series of names, in reverse.  Any that are "Some(x)" must
     /// be compatible with "x" at that level.
     fn compatible_path(&self, path: &[Option<&str>]) -> bool {
-        let res = self.path_walk(path, 0);
-        // println!("compatible? {}: {} {:?}", res, self.path, path);
-        res
+        self.path_walk(path, 0)
     }
 
     /// Recursive path walk, to make borrowing simpler.
@@ -161,10 +152,8 @@ impl Node {
         }
 
         // Check the failure condition, where this node isn't compatible with this section of the path.
-        if let Some(name) = path[pos] {
-            if !self.is_compatible(name) {
-                return false;
-            }
+        if matches!(path[pos], Some(name) if !self.is_compatible(name)) {
+            return false;
         }
 
         // Walk down the tree.  We have to check for None here, as we can't recurse on the none
@@ -177,19 +166,17 @@ impl Node {
         }
     }
 
-    /// Is the named property present?
+    /// Returns `true` if there is a property with this name.
     fn has_prop(&self, name: &str) -> bool {
         self.properties.iter().any(|p| p.name == name)
     }
 
-    /// Get this property in its entirety.
+    /// Returns the slice of values of a property with this name as `Some` or `None` if the property
+    /// does not exist.
     fn get_property(&self, name: &str) -> Option<&[Value]> {
-        for p in &self.properties {
-            if p.name == name {
-                return Some(&p.value);
-            }
-        }
-        return None;
+        self.properties
+            .iter()
+            .find_map(|p| if p.name == name { Some(p.value.as_slice()) } else { None })
     }
 
     /// Attempt to retrieve the named property, as a single entry of Words.
@@ -244,12 +231,11 @@ impl Node {
 impl Value {
     fn phandle_walk(&self, labels: &BTreeMap<String, Rc<Node>>) {
         match self {
-            Value::Phandle(ph) => ph.phandle_resolve(labels),
-            Value::Words(words) => {
+            Self::Phandle(ph) => ph.phandle_resolve(labels),
+            Self::Words(words) => {
                 for w in words {
-                    match w {
-                        Word::Phandle(ph) => ph.phandle_resolve(labels),
-                        _ => (),
+                    if let Word::Phandle(ph) = w {
+                        ph.phandle_resolve(labels);
                     }
                 }
             }
@@ -260,8 +246,8 @@ impl Value {
 
 impl Phandle {
     /// Construct a phandle that is unresolved.
-    pub fn new(name: String) -> Phandle {
-        Phandle {
+    pub fn new(name: String) -> Self {
+        Self {
             name,
             node: RefCell::new(None),
         }
@@ -286,9 +272,9 @@ impl Phandle {
 }
 
 impl Word {
-    pub fn get_number(&self) -> Option<u32> {
+    pub fn as_number(&self) -> Option<u32> {
         match self {
-            Word::Number(n) => Some(*n),
+            Self::Number(n) => Some(*n),
             _ => None,
         }
     }
@@ -297,6 +283,9 @@ impl Word {
 // To avoid recursion, the debug printer for Phandle just prints the name.
 impl std::fmt::Debug for Phandle {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(fmt, "Phandle({:?})", self.name)
+        fmt
+            .debug_struct("Phandle")
+            .field("name", &self.name)
+            .finish_non_exhaustive()
     }
 }

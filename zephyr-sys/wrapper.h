@@ -12,7 +12,7 @@
  */
 
 /*
- * This is getting build with KERNEL defined, which causes syscalls to not be implemented.  Work
+ * This is getting built with KERNEL defined, which causes syscalls to not be implemented.  Work
  * around this by just undefining this symbol.
  */
 #undef KERNEL

@@ -5,6 +5,9 @@
 //!
 //! Most of these instances come from the device tree.
 
+// Allow for a Zephyr build that has no devices at all.
+#![allow(dead_code)]
+
 use crate::sync::atomic::{AtomicBool, Ordering};
 
 pub mod gpio;
@@ -20,7 +23,6 @@ pub mod flash;
 /// example, a [`GpioPin`] will reference a single pin, but the underlying device for the gpio
 /// driver will be shared among then.  Generally, the constructor for the individual device will
 /// call `get_instance_raw()` on the underlying device.
-#[allow(dead_code)]
 pub(crate) struct Unique(pub(crate) AtomicBool);
 
 impl Unique {
@@ -33,7 +35,6 @@ impl Unique {
 
     /// Indicates if this particular entity can be used.  This function, on a given `Unique` value
     /// will return true exactly once.
-    #[allow(dead_code)]
     pub(crate) fn once(&self) -> bool {
         // `fetch_add` is likely to be faster than compare_exchage.  This does have the limitation
         // that `once` is not called more than `usize::MAX` times.
