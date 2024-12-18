@@ -1,3 +1,4 @@
+# See doc/develop/test/twister.rst for what is here.
 sample:
   name: Blinky Sample
 tests:
