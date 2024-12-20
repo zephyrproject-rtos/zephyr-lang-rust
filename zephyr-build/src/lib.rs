@@ -11,31 +11,43 @@
 // This builds a program that is run on the compilation host before the code is compiled.  It can
 // output configuration settings that affect the compilation.
 
-use std::io::{BufRead, BufReader, Write};
+use std::collections::HashSet;
 use std::env;
 use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
 use regex::Regex;
 
+/// Extract boolean Kconfig entries.  This must happen in any crate that wishes to access the
+/// configuration settings.
+pub fn extract_kconfig_bool_options(path: &str) -> anyhow::Result<HashSet<String>> {
+    let config_y = Regex::new(r"^(CONFIG_.*)=y$").expect("hardcoded regex is always valid");
+
+    let input = File::open(path)?;
+    let flags: HashSet<String> = BufReader::new(input)
+        .lines()
+        // If the line is an Err(_), just ignore it.
+        .map(|x| x.unwrap_or_default())
+        .filter(|line| config_y.is_match(line))
+        .collect();
+
+    Ok(flags)
+}
+
 /// Export boolean Kconfig entries.  This must happen in any crate that wishes to access the
 /// configuration settings.
-pub fn export_bool_kconfig() {
+pub fn export_kconfig_bool_options() {
     let dotconfig = env::var("DOTCONFIG").expect("DOTCONFIG must be set by wrapper");
 
     // Ensure the build script is rerun when the dotconfig changes.
     println!("cargo:rerun-if-env-changed=DOTCONFIG");
     println!("cargo-rerun-if-changed={}", dotconfig);
 
-    let config_y = Regex::new(r"^(CONFIG_.*)=y$").unwrap();
-
-    let file = File::open(&dotconfig).expect("Unable to open dotconfig");
-    for line in BufReader::new(file).lines() {
-        let line =  line.expect("reading line from dotconfig");
-        if let Some(caps) = config_y.captures(&line) {
-            println!("cargo:rustc-cfg={}", &caps[1]);
-        }
-    }
+    extract_kconfig_bool_options(&dotconfig)
+        .expect("failed to extract flags from .config")
+        .iter()
+        .for_each(|flag| println!("cargo:rustc-cfg={flag}"));
 }
 
 /// Capture bool, numeric and string kconfig values in a 'kconfig' module.
@@ -60,16 +72,18 @@ pub fn build_kconfig_mod() {
         let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_hex.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: usize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: usize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_int.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: isize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: isize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_str.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: &'static str = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(
+                &mut f,
+                "pub const {}: &'static str = {};",
+                &caps[1], &caps[2]
+            )
+            .unwrap();
         }
     }
 }

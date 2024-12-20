@@ -14,4 +14,5 @@ Provides utilities for accessing Kconfig and devicetree information.
 # Whether these need to be vendored is an open question.  They are not
 # used by the core Zephyr tree, but are needed by zephyr applications.
 [dependencies]
+anyhow = "1.0.93"
 regex = "1.10.3"
