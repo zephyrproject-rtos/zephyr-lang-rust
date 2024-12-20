@@ -4,7 +4,7 @@
 [package]
 # This must be rustapp for now.
 name = "rustapp"
-version = "3.7.0"
+version = "0.1.0"
 edition = "2021"
 description = "A small application to generate documentation"
 license = "Apache-2.0 or MIT"
@@ -13,4 +13,4 @@ license = "Apache-2.0 or MIT"
 crate-type = ["staticlib"]
 
 [dependencies]
-zephyr = "3.7.0"
+zephyr = "0.1.0"
