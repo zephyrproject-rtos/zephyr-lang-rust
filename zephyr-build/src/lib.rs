@@ -11,10 +11,10 @@
 // This builds a program that is run on the compilation host before the code is compiled.  It can
 // output configuration settings that affect the compilation.
 
-use std::io::{BufRead, BufReader, Write};
 use std::collections::HashSet;
 use std::env;
 use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
 use regex::Regex;
@@ -25,17 +25,12 @@ pub fn extract_kconfig_bool_options(path: &str) -> anyhow::Result<HashSet<String
     let config_y = Regex::new(r"^(CONFIG_.*)=y$").expect("hardcoded regex is always valid");
 
     let input = File::open(path)?;
-    let flags: HashSet<String> =
-        BufReader::new(input)
-            .lines()
-            .fold(HashSet::new(), |mut set, line| {
-                if let Ok(line) = &line {
-                    if let Some(caps) = config_y.captures(line) {
-                        set.insert(caps[1].into());
-                    }
-                }
-                set
-            });
+    let flags: HashSet<String> = BufReader::new(input)
+        .lines()
+        // If the line is an Err(_), just ignore it.
+        .map(|x| x.unwrap_or_default())
+        .filter(|line| config_y.is_match(line))
+        .collect();
 
     Ok(flags)
 }
@@ -77,16 +72,18 @@ pub fn build_kconfig_mod() {
         let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_hex.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: usize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: usize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_int.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: isize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: isize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_str.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: &'static str = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(
+                &mut f,
+                "pub const {}: &'static str = {};",
+                &caps[1], &caps[2]
+            )
+            .unwrap();
         }
     }
 }
