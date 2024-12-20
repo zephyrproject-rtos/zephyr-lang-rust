@@ -31,17 +31,12 @@ pub fn extract_kconfig_bool_options(path: &str) -> anyhow::Result<HashSet<String
     let config_y = Regex::new(r"^(CONFIG_.*)=y$").expect("hardcoded regex is always valid");
 
     let input = File::open(path)?;
-    let flags: HashSet<String> =
-        BufReader::new(input)
-            .lines()
-            .fold(HashSet::new(), |mut set, line| {
-                if let Ok(line) = &line {
-                    if let Some(caps) = config_y.captures(line) {
-                        set.insert(caps[1].into());
-                    }
-                }
-                set
-            });
+    let flags: HashSet<String> = BufReader::new(input)
+        .lines()
+        // If the line is an Err(_), just ignore it.
+        .map(|x| x.unwrap_or_default())
+        .filter_map(|line| config_y.captures(&line).map(|caps| caps[1].to_string()))
+        .collect();
 
     Ok(flags)
 }
