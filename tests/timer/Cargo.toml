@@ -3,7 +3,7 @@
 
 [package]
 # This must be rustapp for now.
-name = "rustapp"
+name = "timer"
 version = "3.7.0"
 edition = "2021"
 description = "Tests of timeers"
