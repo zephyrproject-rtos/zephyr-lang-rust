@@ -122,7 +122,7 @@ Then, you will need a ``build.rs`` file to call the support function.  The follo
 .. code-block:: rust
 
    fn main() {
-       zephyr_build::export_bool_kconfig();
+       zephyr_build::export_kconfig_bool_options();
    }
 
 At this point, it will be possible to use the ``cfg`` directive in Rust on boolean Kconfig values.
