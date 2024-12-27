@@ -102,7 +102,9 @@ fn main() -> Result<()> {
 fn define_args(bindings: Builder, prefix: &str, var_name: &str) -> Builder {
     let text = env::var(var_name).unwrap();
     let mut bindings = bindings;
-    for entry in text.split(" ") {
+    // Split on either spaces or semicolons, to allow some flexibility in what cmake might generate
+    // for us.
+    for entry in text.split(&[' ', ';']) {
         if entry.is_empty() {
             continue;
         }
