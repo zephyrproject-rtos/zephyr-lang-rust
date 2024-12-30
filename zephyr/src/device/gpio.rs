@@ -42,6 +42,9 @@ pub struct Gpio {
     pub(crate) device: *const raw::device,
 }
 
+// SAFETY: Gpio's can be shared with other threads.  Safety is maintained by the Token.
+unsafe impl Send for Gpio {}
+
 impl Gpio {
     /// Constructor, used by the devicetree generated code.
     ///
@@ -72,6 +75,9 @@ impl Gpio {
 pub struct GpioPin {
     pub(crate) pin: raw::gpio_dt_spec,
 }
+
+// SAFETY: GpioPin's can be shared with other threads.  Safety is maintained by the Token.
+unsafe impl Send for GpioPin {}
 
 impl GpioPin {
     /// Constructor, used by the devicetree generated code.
