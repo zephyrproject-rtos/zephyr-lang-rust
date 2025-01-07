@@ -49,3 +49,5 @@ macro_rules! derive_copy {
 
 derive_copy!(z_spinlock_key);
 derive_clone!(z_spinlock_key);
+derive_copy!(k_timeout_t);
+derive_clone!(k_timeout_t);

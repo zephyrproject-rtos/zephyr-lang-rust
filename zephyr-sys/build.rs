@@ -92,6 +92,7 @@ fn main() -> Result<()> {
         .allowlist_item("K_.*")
         .allowlist_item("ZR_.*")
         .allowlist_item("LOG_LEVEL_.*")
+        .allowlist_item("k_poll_modes")
         // Deprecated
         .blocklist_function("sys_clock_timeout_end_calc")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
