@@ -27,10 +27,19 @@ pub mod atomic {
 
 #[cfg(CONFIG_RUST_ALLOC)]
 pub use portable_atomic_util::Arc;
+#[cfg(CONFIG_RUST_ALLOC)]
+pub use portable_atomic_util::Weak;
 
 mod mutex;
 
-pub use mutex::{Condvar, LockResult, Mutex, MutexGuard, TryLockResult};
+pub use mutex::{
+    Mutex,
+    MutexGuard,
+    Condvar,
+    LockResult,
+    TryLockResult,
+    TryLockError,
+};
 
 mod spinmutex;
 

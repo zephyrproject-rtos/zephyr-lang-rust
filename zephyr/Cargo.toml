@@ -20,6 +20,7 @@ cfg-if = "1.0"
 
 # The log create is used if the user desires logging, and calls `set_logger()`.
 log = "0.4.22"
+arrayvec = { version = "0.7.6", default-features = false }
 
 [dependencies.fugit]
 version = "0.3.7"
