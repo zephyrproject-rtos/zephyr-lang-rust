@@ -8,14 +8,19 @@
 //! [`futures`]: crate::work::futures
 
 use core::ffi::CStr;
-use core::task::Poll;
+use core::task::{Context, Poll};
 use core::{future::Future, pin::Pin};
 
-use crate::time::NoWait;
+use crate::sys::queue::Queue;
+use crate::sys::sync::Semaphore;
+use crate::time::{NoWait, Timeout};
 use crate::work::futures::WakeInfo;
+use crate::work::Signal;
 use crate::work::{futures::JoinHandle, futures::WorkBuilder, WorkQueue};
 
 pub mod sync;
+
+pub use crate::work::futures::sleep;
 
 /// Run an async future on the given worker thread.
 ///
@@ -92,5 +97,69 @@ impl Future for YieldNow {
 
             Poll::Pending
         }
+    }
+}
+
+/// Extensions on [`Context`] to support scheduling via Zephyr's workqueue system.
+///
+/// All of these are called from within the context of running work, and indicate what _next_
+/// should cause this work to be run again.  If none of these methods are called before the work
+/// exits, the work will be scheduled to run after `Forever`, which is not useful.  There may be
+/// later support for having a `Waker` that can schedule work from another context.
+///
+/// Note that the events to wait on, such as Semaphores or channels, if there are multiple threads
+/// that can wait for them, might cause this worker to run, but not actually be available.  As such,
+/// to maintain the non-blocking requirements of Work, [`Semaphore::take`], and the blocking `send`
+/// and `recv` operations on channels should not be used, even after being woken.
+///
+/// For the timeout [`Forever`] is useful to indicate there is no timeout.  If called with
+/// [`NoWait`], the work will be immediately scheduled. In general, it is better to query the
+/// underlying object directly rather than have the overhead of being rescheduled.
+///
+/// # Safety
+///
+/// The lifetime bounds on the items waited for ensure that these items live at least as long as the
+/// work queue.  Practically, this can only be satisfied by using something with 'static' lifetime,
+/// or embedding the value in the Future itself.
+///
+/// With the Zephyr executor, the `Context` is embedded within a `WakeInfo` struct, which this makes
+/// use of.  If a different executor were to be used, these calls would result in undefined
+/// behavior.
+///
+/// This could be checked at runtime, but it would have runtime cost.
+pub trait ContextExt {
+    /// Indicate the work should next be scheduled based on a semaphore being available for "take".
+    ///
+    /// The work will be scheduled either when the given semaphore becomes available to 'take', or
+    /// after the timeout.
+    fn add_semaphore<'a>(&'a mut self, sem: &'a Semaphore, timeout: impl Into<Timeout>);
+
+    /// Indicate that the work should be scheduled after receiving the given [`Signal`], or the
+    /// timeout occurs.
+    fn add_signal<'a>(&'a mut self, signal: &'a Signal, timeout: impl Into<Timeout>);
+
+    /// Indicate that the work should be scheduled when the given [`Queue`] has data available to
+    /// recv, or the timeout occurs.
+    fn add_queue<'a>(&'a mut self, queue: &'a Queue, timeout: impl Into<Timeout>);
+}
+
+/// Implementation of ContextExt for the Rust [`Context`] type.
+impl<'b> ContextExt for Context<'b> {
+    fn add_semaphore<'a>(&'a mut self, sem: &'a Semaphore, timeout: impl Into<Timeout>) {
+        let info = unsafe { WakeInfo::from_context(self) };
+        info.add_semaphore(sem);
+        info.timeout = timeout.into();
+    }
+
+    fn add_signal<'a>(&'a mut self, signal: &'a Signal, timeout: impl Into<Timeout>) {
+        let info = unsafe { WakeInfo::from_context(self) };
+        info.add_signal(signal);
+        info.timeout = timeout.into();
+    }
+
+    fn add_queue<'a>(&'a mut self, queue: &'a Queue, timeout: impl Into<Timeout>) {
+        let info = unsafe { WakeInfo::from_context(self) };
+        info.add_queue(queue);
+        info.timeout = timeout.into();
     }
 }

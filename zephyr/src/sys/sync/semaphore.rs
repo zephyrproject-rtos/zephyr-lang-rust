@@ -25,10 +25,9 @@ use core::mem;
 #[cfg(CONFIG_RUST_ALLOC)]
 use zephyr_sys::ETIMEDOUT;
 
+use crate::kio::ContextExt;
 #[cfg(CONFIG_RUST_ALLOC)]
 use crate::time::NoWait;
-#[cfg(CONFIG_RUST_ALLOC)]
-use crate::work::futures::WakeInfo;
 use crate::{
     error::{to_result_void, Result},
     object::{Fixed, StaticKernelObject, Wrapped},
@@ -144,13 +143,7 @@ impl<'a> Future for SemTake<'a> {
         }
 
         // TODO: Clean this up.
-        let info = unsafe { WakeInfo::from_context(cx) };
-        unsafe {
-            // SAFETY: The semaphore must outlive the queued event.  The lifetime ensures that the
-            // Future won't outlive the semaphore.
-            info.add_semaphore(self.sem);
-        }
-        info.timeout = self.timeout;
+        cx.add_semaphore(self.sem, self.timeout);
         self.ran = true;
 
         Poll::Pending

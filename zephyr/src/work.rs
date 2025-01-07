@@ -179,7 +179,6 @@ use core::{
     ptr,
     task::Poll,
 };
-use futures::WakeInfo;
 
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
@@ -187,7 +186,7 @@ use zephyr_sys::{
     k_work_queue_start, k_work_submit, k_work_submit_to_queue, ETIMEDOUT,
 };
 
-use crate::{error::to_result_void, object::Fixed, simpletls::StaticTls, sys::thread::ThreadStack, time::Timeout};
+use crate::{error::to_result_void, kio::ContextExt, object::Fixed, simpletls::StaticTls, sys::thread::ThreadStack, time::Timeout};
 
 pub mod futures;
 
@@ -485,13 +484,7 @@ impl<'a> Future for SignalWait<'a> {
             return Poll::Ready(Err(crate::Error(ETIMEDOUT)));
         }
 
-        let info = unsafe { WakeInfo::from_context(cx) };
-        unsafe {
-            // SAFETY: The Signal must outlive the queued event.  The lifetime ensure that the
-            // Future can't outlive the Signal.
-            info.add_signal(self.signal);
-        }
-        info.timeout = self.timeout;
+        cx.add_signal(self.signal, self.timeout);
         self.ran = true;
 
         Poll::Pending
