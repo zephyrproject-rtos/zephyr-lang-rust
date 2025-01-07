@@ -11,16 +11,23 @@
 //! operation, which in situation where counting is actually desired, will result in the count being
 //! incorrect.
 
+#[cfg(CONFIG_RUST_ALLOC)]
 use core::pin::Pin;
+#[cfg(CONFIG_RUST_ALLOC)]
 use core::task::{Context, Poll};
-use core::{ffi::c_uint, future::Future};
+#[cfg(CONFIG_RUST_ALLOC)]
+use core::future::Future;
+use core::ffi::c_uint;
 use core::fmt;
 #[cfg(CONFIG_RUST_ALLOC)]
 use core::mem;
 
+#[cfg(CONFIG_RUST_ALLOC)]
 use zephyr_sys::ETIMEDOUT;
 
+#[cfg(CONFIG_RUST_ALLOC)]
 use crate::time::NoWait;
+#[cfg(CONFIG_RUST_ALLOC)]
 use crate::work::futures::WakeInfo;
 use crate::{
     error::{to_result_void, Result},
@@ -77,6 +84,7 @@ impl Semaphore {
     /// Take a semaphore, async version.
     ///
     /// Returns a future that either waits for the semaphore, or returns status.
+    #[cfg(CONFIG_RUST_ALLOC)]
     pub fn take_async<'a>(&'a self, timeout: impl Into<Timeout>) -> impl Future<Output = Result<()>> + 'a {
         SemTake {
             sem: self,
@@ -118,6 +126,7 @@ impl Semaphore {
 }
 
 /// The async 'take' Future
+#[cfg(CONFIG_RUST_ALLOC)]
 struct SemTake<'a> {
     /// The semaphore we're waiting on.
     sem: &'a Semaphore,
@@ -127,6 +136,7 @@ struct SemTake<'a> {
     ran: bool,
 }
 
+#[cfg(CONFIG_RUST_ALLOC)]
 impl<'a> Future for SemTake<'a> {
     type Output = Result<()>;
 
