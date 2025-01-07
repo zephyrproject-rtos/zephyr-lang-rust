@@ -88,6 +88,7 @@ fn main() -> Result<()> {
         .allowlist_function("sys_.*")
         .allowlist_function("z_log.*")
         .allowlist_function("bt_.*")
+        .allowlist_function("SEGGER.*")
         .allowlist_item("E.*")
         .allowlist_item("K_.*")
         .allowlist_item("ZR_.*")
