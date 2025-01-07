@@ -285,7 +285,7 @@ impl WakeInfo {
     }
 
     /// Add an event that represents waiting for a semaphore to be available for "take".
-    pub unsafe fn add_semaphore<'a>(&'a mut self, sem: &'a Semaphore) {
+    pub fn add_semaphore<'a>(&'a mut self, sem: &'a Semaphore) {
         // SAFETY: Fill with zeroed memory, initializatuon happens in the init function next.
         self.events.push(unsafe { mem::zeroed() });
         let ev = self.events.last().unwrap();
@@ -301,7 +301,7 @@ impl WakeInfo {
     }
 
     /// Add an event that represents waiting for a signal.
-    pub unsafe fn add_signal<'a>(&'a mut self, signal: &'a Signal) {
+    pub fn add_signal<'a>(&'a mut self, signal: &'a Signal) {
         // SAFETY: Fill with zeroed memory, initializatuon happens in the init function next.
         self.events.push(unsafe { mem::zeroed() });
         let ev = self.events.last().unwrap();
@@ -317,7 +317,7 @@ impl WakeInfo {
     }
 
     /// Add an event that represents waiting for a queue to have a message.
-    pub unsafe fn add_queue<'a>(&'a mut self, queue: &'a Queue) {
+    pub fn add_queue<'a>(&'a mut self, queue: &'a Queue) {
         // SAFETY: Fill with zeroed memory, initializatuon happens in the init function next.
         self.events.push(unsafe { mem::zeroed() });
         let ev = self.events.last().unwrap();

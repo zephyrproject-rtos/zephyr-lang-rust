@@ -51,9 +51,9 @@ use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::Poll;
 
+use crate::kio::ContextExt;
 use crate::sys::queue::Queue;
 use crate::time::{Duration, Forever, NoWait, Timeout};
-use crate::work::futures::WakeInfo;
 
 mod counter;
 
@@ -272,18 +272,14 @@ impl<'a, T: Unpin> Future for SendFuture<'a, T> {
         this.msg = Some(msg);
 
         // Otherwise, schedule to wake up on receipt or timeout.
-        let info = unsafe { WakeInfo::from_context(cx) };
         match &this.sender.flavor {
             SenderFlavor::Unbounded { .. } => {
                 panic!("Implementation error: unbounded queues should never fail");
             }
             SenderFlavor::Bounded(chan) => {
-                unsafe {
-                    info.add_queue(&chan.free);
-                }
+                cx.add_queue(&chan.free, this.timeout);
             }
         }
-        info.timeout = this.timeout;
 
         Poll::Pending
     }
@@ -531,11 +527,7 @@ impl<'a, T> Future for RecvFuture<'a, T> {
         }
 
         // Otherwise, schedule to wakeup on receipt or timeout.
-        let info = unsafe { WakeInfo::from_context(cx) };
-        unsafe {
-            info.add_queue(self.receiver.as_queue());
-        }
-        info.timeout = self.timeout;
+        cx.add_queue(self.receiver.as_queue(), self.timeout);
         self.waited = true;
 
         Poll::Pending
