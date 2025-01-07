@@ -11,16 +11,22 @@
 //! operation, which in situation where counting is actually desired, will result in the count being
 //! incorrect.
 
-use core::ffi::c_uint;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+use core::{ffi::c_uint, future::Future};
 use core::fmt;
 #[cfg(CONFIG_RUST_ALLOC)]
 use core::mem;
 
+use zephyr_sys::ETIMEDOUT;
+
+use crate::time::NoWait;
+use crate::work::futures::WakeInfo;
 use crate::{
     error::{to_result_void, Result},
     object::{Fixed, StaticKernelObject, Wrapped},
     raw::{
-        k_sem, k_sem_count_get, k_sem_give, k_sem_init, k_sem_reset, k_sem_take
+        k_sem, k_sem_count_get, k_sem_give, k_sem_init, k_sem_reset, k_sem_take,
     },
     time::Timeout,
 };
@@ -30,7 +36,7 @@ pub use crate::raw::K_SEM_MAX_LIMIT;
 /// A zephyr `k_sem` usable from safe Rust code.
 pub struct Semaphore {
     /// The raw Zephyr `k_sem`.
-    item: Fixed<k_sem>,
+    pub(crate) item: Fixed<k_sem>,
 }
 
 /// By nature, Semaphores are both Sync and Send.  Safety is handled by the underlying Zephyr
@@ -68,6 +74,17 @@ impl Semaphore {
         to_result_void(ret)
     }
 
+    /// Take a semaphore, async version.
+    ///
+    /// Returns a future that either waits for the semaphore, or returns status.
+    pub fn take_async<'a>(&'a self, timeout: impl Into<Timeout>) -> impl Future<Output = Result<()>> + 'a {
+        SemTake {
+            sem: self,
+            timeout: timeout.into(),
+            ran: false,
+        }
+    }
+
     /// Give a semaphore.
     ///
     /// This routine gives to the semaphore, unless the semaphore is already at its maximum
@@ -97,6 +114,45 @@ impl Semaphore {
         unsafe {
             k_sem_count_get(self.item.get()) as usize
         }
+    }
+}
+
+/// The async 'take' Future
+struct SemTake<'a> {
+    /// The semaphore we're waiting on.
+    sem: &'a Semaphore,
+    /// The timeout to use.
+    timeout: Timeout,
+    /// Set after we've waited once.
+    ran: bool,
+}
+
+impl<'a> Future for SemTake<'a> {
+    type Output = Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Always check if data is available.
+        if let Ok(()) = self.sem.take(NoWait) {
+            return Poll::Ready(Ok(()));
+        }
+
+        if self.ran {
+            // If we ran once, and still don't have any data, indicate this as a timeout.
+            return Poll::Ready(Err(crate::Error(ETIMEDOUT)));
+
+        }
+
+        // TODO: Clean this up.
+        let info = unsafe { WakeInfo::from_context(cx) };
+        unsafe {
+            // SAFETY: The semaphore must outlive the queued event.  The lifetime ensures that the
+            // Future won't outlive the semaphore.
+            info.add_semaphore(self.sem);
+        }
+        info.timeout = self.timeout;
+        self.ran = true;
+
+        Poll::Pending
     }
 }
 

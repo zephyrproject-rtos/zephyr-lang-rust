@@ -27,6 +27,8 @@ pub mod atomic {
 
 #[cfg(CONFIG_RUST_ALLOC)]
 pub use portable_atomic_util::Arc;
+#[cfg(CONFIG_RUST_ALLOC)]
+pub use portable_atomic_util::Weak;
 
 mod mutex;
 
@@ -36,6 +38,7 @@ pub use mutex::{
     Condvar,
     LockResult,
     TryLockResult,
+    TryLockError,
 };
 
 mod spinmutex;

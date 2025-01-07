@@ -23,7 +23,7 @@ use crate::time::Timeout;
 
 /// A wrapper around a Zephyr `k_queue` object.
 pub struct Queue {
-    item: Fixed<k_queue>,
+    pub(crate) item: Fixed<k_queue>,
 }
 
 unsafe impl Sync for StaticKernelObject<k_queue> { }
