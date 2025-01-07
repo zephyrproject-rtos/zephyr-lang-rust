@@ -384,6 +384,23 @@ impl<F: Future> WorkData<F> {
         unsafe {
             // SAFETY: The above Arc allocates the worker.  The code here is careful to not move it.
             k_work_poll_init(this.work.get(), Some(Self::handler));
+
+            // If we have a name, send it to Segger.
+            #[cfg(CONFIG_SEGGER_SYSTEMVIEW)]
+            {
+                let ww = &(&*this.work.get()).work;
+                if let Some(name) = name {
+                    let info = crate::raw::SEGGER_SYSVIEW_TASKINFO {
+                        TaskID: this.work.get() as ::core::ffi::c_ulong,
+                        sName: name.as_ptr(),
+                        Prio: 1,
+                        StackBase: 0,
+                        StackSize: 32,
+                    };
+                    crate::raw::SEGGER_SYSVIEW_OnTaskCreate(this.work.get() as ::core::ffi::c_ulong);
+                    crate::raw::SEGGER_SYSVIEW_SendTaskInfo(&info);
+                }
+            }
         }
 
         this
@@ -458,8 +475,16 @@ impl<F: Future> WorkData<F> {
         // SAFETY: poll requires the pointer to be pinned, in case that is needed.  We rely on the
         // Boxing of the pointer, and that our code does not move the future.
         let future = unsafe { Pin::new_unchecked(&mut this_ref.future) };
+        #[cfg(CONFIG_SEGGER_SYSTEMVIEW)]
+        unsafe {
+            crate::raw::SEGGER_SYSVIEW_OnTaskStartExec(work as u32);
+        }
         match future.poll(&mut this_ref.info.context) {
             Poll::Pending => {
+                #[cfg(CONFIG_SEGGER_SYSTEMVIEW)]
+                unsafe {
+                    crate::raw::SEGGER_SYSVIEW_OnTaskStopExec();
+                }
                 // With pending, use the timeout and events to schedule ourselves to do more work.
                 // TODO: If we want to support a real Waker, this would need to detect that, and
                 // schedule a possible wake on this no wake case.
@@ -473,6 +498,11 @@ impl<F: Future> WorkData<F> {
                 Self::submit(this).expect("Unable to schedule work");
             }
             Poll::Ready(answer) => {
+                #[cfg(CONFIG_SEGGER_SYSTEMVIEW)]
+                unsafe {
+                    crate::raw::SEGGER_SYSVIEW_OnTaskStopExec();
+                }
+                // TODO: Delete the task as well.
                 // If the spawning task is still interested in the answer, provide it.
                 if let Some(store) = this.answer.upgrade() {
                     store.place(answer);
