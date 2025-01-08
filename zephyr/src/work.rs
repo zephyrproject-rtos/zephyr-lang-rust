@@ -166,6 +166,14 @@
 //! As such, this means that manually constructed work is still built using `Future`.  The `_async`
 //! primitives throughout this crate can be used just as readily by hand-written Futures as by async
 //! code.  Notable, the use of [`Signal`] will likely be common, along with possible timeouts.
+//!
+//! [`sys::sync::Semaphore`]: crate::sys::sync::Semaphore
+//! [`sync::channel`]: crate::sync::channel
+//! [`sync::Mutex`]: crate::sync::Mutex
+//! [`kio::sync::Mutex`]: crate::kio::sync::Mutex
+//! [`kio::spawn`]: crate::kio::spawn
+//! [`join`]: futures::JoinHandle::join
+//! [`join_async`]: futures::JoinHandle::join_async
 
 extern crate alloc;
 
@@ -408,6 +416,8 @@ impl Signal {
     ///
     /// This reads the status of the signal.  If the state is "signalled", this will return
     /// `Some(result)` where the `result` is the result value given to [`raise`].
+    ///
+    /// [`raise`]: Self::raise
     pub fn check(&self) -> Option<c_int> {
         let mut signaled: c_uint = 0;
         let mut result: c_int = 0;

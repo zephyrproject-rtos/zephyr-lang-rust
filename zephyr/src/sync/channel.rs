@@ -215,6 +215,8 @@ impl<T: Unpin> Sender<T> {
     /// version.
     ///
     /// This has the same behavior as [`send_timeout`], but as an Async function.
+    ///
+    /// [`send_timeout`]: Sender::send_timeout
     pub fn send_timeout_async<'a>(&'a self, msg: T, timeout: impl Into<Timeout>)
         -> impl Future<Output = Result<(), SendError<T>>> + 'a
     {

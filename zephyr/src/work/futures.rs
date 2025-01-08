@@ -10,6 +10,8 @@
 //! time the event is ready.  However, work queues expect the work to be queued immediately,
 //! with a "poll" indicating what kind of even the work.  Work will be scheduled either based on
 //! one of these events, or a timeout.
+//!
+//! [`SimpleAction`]: super::SimpleAction
 
 extern crate alloc;
 
