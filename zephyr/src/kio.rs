@@ -127,6 +127,8 @@ impl Future for YieldNow {
 /// behavior.
 ///
 /// This could be checked at runtime, but it would have runtime cost.
+///
+/// [`Forever`]: crate::time::Forever
 pub trait ContextExt {
     /// Indicate the work should next be scheduled based on a semaphore being available for "take".
     ///
