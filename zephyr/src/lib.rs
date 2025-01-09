@@ -14,11 +14,17 @@ pub mod align;
 pub mod error;
 pub mod logging;
 pub mod object;
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod simpletls;
 pub mod sync;
 pub mod sys;
 pub mod time;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod timer;
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod work;
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod kio;
 
 pub use error::{Error, Result};
 
@@ -91,3 +97,11 @@ pub mod _export {
 // If allocation has been requested, provide the allocator.
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod alloc_impl;
+
+#[cfg(CONFIG_RUST_ALLOC)]
+pub mod task {
+    //! Provides the portable-atomic version of `alloc::task::Wake`, which uses the compatible
+    //! versionm of Arc.
+
+    pub use portable_atomic_util::task::Wake;
+}

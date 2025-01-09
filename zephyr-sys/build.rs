@@ -73,10 +73,12 @@ fn main() -> Result<()> {
         .allowlist_function("sys_.*")
         .allowlist_function("z_log.*")
         .allowlist_function("bt_.*")
+        .allowlist_function("SEGGER.*")
         .allowlist_item("E.*")
         .allowlist_item("K_.*")
         .allowlist_item("ZR_.*")
         .allowlist_item("LOG_LEVEL_.*")
+        .allowlist_item("k_poll_modes")
         // Deprecated
         .blocklist_function("sys_clock_timeout_end_calc")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
@@ -93,7 +95,9 @@ fn main() -> Result<()> {
 fn define_args(bindings: Builder, prefix: &str, var_name: &str) -> Builder {
     let text = env::var(var_name).unwrap();
     let mut bindings = bindings;
-    for entry in text.split(" ") {
+    // Split on either spaces or semicolons, to allow some flexibility in what cmake might generate
+    // for us.
+    for entry in text.split(&[' ', ';']) {
         if entry.is_empty() {
             continue;
         }

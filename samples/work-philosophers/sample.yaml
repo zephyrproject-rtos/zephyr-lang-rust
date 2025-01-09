@@ -1,0 +1,15 @@
+sample:
+  description: Philosphers, in Rust
+  name: workq philosophers rust
+common:
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "All threads done"
+  tags: rust
+  filter: CONFIG_RUST_SUPPORTED
+tests:
+  sample.rust.philosopher:
+    tags: introduction
+    min_ram: 32

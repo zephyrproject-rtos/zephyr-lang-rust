@@ -24,7 +24,7 @@
 //! by non-constant values).  Similarly, the `fugit` crate offers constructors that aim to result
 //! in constants when possible, avoiding costly division operations.
 
-use zephyr_sys::{k_timeout_t, k_ticks_t};
+use zephyr_sys::{k_ticks_t, k_timeout_t, k_uptime_ticks};
 
 use core::fmt::Debug;
 
@@ -54,6 +54,12 @@ pub type Duration = fugit::Duration<Tick, 1, SYS_FREQUENCY>;
 #[cfg(CONFIG_TIMEOUT_64BIT)]
 pub type Instant = fugit::Instant<Tick, 1, SYS_FREQUENCY>;
 
+/// Retrieve the current scheduler time as an Instant.  This can be used to schedule timeouts at
+/// absolute points in time.
+pub fn now() -> Instant {
+    Instant::from_ticks(unsafe { k_uptime_ticks() as u64 })
+}
+
 // The Zephyr `k_timeout_t` represents several different types of intervals, based on the range of
 // the value.  It is a signed number of the same size as the Tick here, which effectively means it
 // is one bit less.
@@ -71,7 +77,16 @@ pub type Instant = fugit::Instant<Tick, 1, SYS_FREQUENCY>;
 /// This wrapper allows us to implement `From` and `Info` from the Fugit types into the Zephyr
 /// types.  This allows various methods to accept either value, as well as the `Forever` and
 /// `NoWait` values defined here.
+#[derive(Clone, Copy, Debug)]
 pub struct Timeout(pub k_timeout_t);
+
+impl PartialEq for Timeout {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.ticks == other.0.ticks
+    }
+}
+
+impl Eq for Timeout {}
 
 // `From` allows methods to take a time of various types and convert it into a Zephyr timeout.
 impl From<Duration> for Timeout {
