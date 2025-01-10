@@ -190,6 +190,15 @@ pub struct JoinHandle<F: Future> {
     answer: Arc<Answer<F::Output>>,
 }
 
+// SAFETY: The join handle can be Send as long as the Output is send.  It does not depend on the
+// Future being send.
+unsafe impl<F> Send for JoinHandle<F>
+where
+    F: Future,
+    F::Output: Send
+{
+}
+
 impl<F: Future + Send> JoinHandle<F> {
     /// Construct new [`JoinHandle`] that runs on a specified [`WorkQueue`].
     fn new(builder: &WorkBuilder, future: F) -> Self {
