@@ -54,6 +54,15 @@ pub type Duration = fugit::Duration<Tick, 1, SYS_FREQUENCY>;
 #[cfg(CONFIG_TIMEOUT_64BIT)]
 pub type Instant = fugit::Instant<Tick, 1, SYS_FREQUENCY>;
 
+/// Returns an Instant corresponding to "now".
+// Since the ticks are coming from Zephyr they should be safe to put into the Instant
+#[cfg(CONFIG_TIMEOUT_64BIT)]
+pub fn now() -> Instant
+{
+    let t = unsafe { crate::raw::k_uptime_ticks() };
+    Instant::from_ticks(t.try_into().unwrap())
+}
+
 // The Zephyr `k_timeout_t` represents several different types of intervals, based on the range of
 // the value.  It is a signed number of the same size as the Tick here, which effectively means it
 // is one bit less.
