@@ -464,6 +464,12 @@ impl Signal {
     }
 }
 
+impl Default for Signal {
+    fn default() -> Self {
+        Signal::new().unwrap()
+    }
+}
+
 /// The Future for Signal::wait_async.
 struct SignalWait<'a> {
     /// The signal we are waiting on.
