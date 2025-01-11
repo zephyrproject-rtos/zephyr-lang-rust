@@ -143,6 +143,12 @@ pub trait ContextExt {
     /// Indicate that the work should be scheduled when the given [`Queue`] has data available to
     /// recv, or the timeout occurs.
     fn add_queue<'a>(&'a mut self, queue: &'a Queue, timeout: impl Into<Timeout>);
+
+    /// Indicate that the work should just be scheduled after the given timeout.
+    ///
+    /// Note that this only works if none of the other wake methods are called, as those also set
+    /// the timeout.
+    fn add_timeout(&mut self, timeout: impl Into<Timeout>);
 }
 
 /// Implementation of ContextExt for the Rust [`Context`] type.
@@ -162,6 +168,11 @@ impl<'b> ContextExt for Context<'b> {
     fn add_queue<'a>(&'a mut self, queue: &'a Queue, timeout: impl Into<Timeout>) {
         let info = unsafe { WakeInfo::from_context(self) };
         info.add_queue(queue);
+        info.timeout = timeout.into();
+    }
+
+    fn add_timeout(&mut self, timeout: impl Into<Timeout>) {
+        let info = unsafe { WakeInfo::from_context(self) };
         info.timeout = timeout.into();
     }
 }
