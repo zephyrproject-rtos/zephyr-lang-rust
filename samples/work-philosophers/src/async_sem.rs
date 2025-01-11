@@ -59,7 +59,9 @@ async fn local_phil() -> Stats {
                 [forks[i].clone(), forks[i + 1].clone()]
             };
 
-            spawn_local(one_phil(forks, i, stats.clone()), c"phil")
+            let phil = one_phil(forks, i, stats.clone());
+            printkln!("Size of child {i}: {}", size_of_val(&phil));
+            spawn_local(phil, c"phil")
         })
         .collect();
 

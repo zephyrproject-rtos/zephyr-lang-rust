@@ -9,6 +9,8 @@
 
 extern crate alloc;
 
+use alloc::vec;
+use alloc::vec::Vec;
 use zephyr::{
     kio::spawn,
     kobj_define, printkln,
@@ -19,9 +21,13 @@ use zephyr::{
 };
 
 mod async_sem;
+mod hand_worker;
 
 /// How many philosophers.  There will be the same number of forks.
+///
+/// For async, this can typically be quite a bit larger than the number of threads possible.
 const NUM_PHIL: usize = 6;
+//const NUM_PHIL: usize = 16;
 
 /// Size of the stack for the work queue.
 const WORK_STACK_SIZE: usize = 2048;
@@ -57,9 +63,20 @@ extern "C" fn rust_main() {
     let _ = Arc::into_raw(lower_worker.clone());
     let _ = Arc::into_raw(worker.clone());
 
-    // First run the async semaphore based one.
+    // Run the by-hand worker.
+    printkln!("Running hand-worker test");
+    let work = hand_worker::phil(&lower_worker);
+    let handle = spawn(work, &worker, c"hand-work");
+    let stats = handle.join();
+    printkln!("Done with hand-worker");
+    stats.show();
+
+    // Run the async semaphore based worker.
     printkln!("Running 'async-sem' test");
-    let handle = spawn(async_sem::phil(), &worker, c"async-sem");
+    // let handle = spawn(async_sem::phil(), &worker, c"async-sem");
+    let work = async_sem::phil();
+    printkln!("size of async-sem worker: {}", size_of_val(&work));
+    let handle = spawn(work, &worker, c"async-sem");
     let stats = handle.join();
     printkln!("Done with 'async-sem' test");
     stats.show();
@@ -83,23 +100,34 @@ fn get_random_delay(id: usize, period: usize) -> Duration {
 
 /// Instead of just printint out so much information that the data just scolls by, gather
 /// statistics.
-#[derive(Default)]
-struct Stats {
+// #[derive(Default)]
+pub struct Stats {
     /// How many times each philosopher has gone through the loop.
-    count: [u64; NUM_PHIL],
+    count: Vec<u16>,
     /// How much time each philosopher has spent eating.
-    eating: [u64; NUM_PHIL],
+    eating: Vec<u16>,
     /// How much time each philosopher has spent thinking.
-    thinking: [u64; NUM_PHIL],
+    thinking: Vec<u16>,
+}
+
+// Implement default manually, as the fixed arrays only implement initialization up to 64 elements.
+impl Default for Stats {
+    fn default() -> Self {
+        Self {
+            count: vec![0; NUM_PHIL],
+            eating: vec![0; NUM_PHIL],
+            thinking: vec![0; NUM_PHIL],
+        }
+    }
 }
 
 impl Stats {
     fn record_eat(&mut self, index: usize, time: Duration) {
-        self.eating[index] += time.to_millis();
+        self.eating[index] += time.to_millis() as u16;
     }
 
     fn record_think(&mut self, index: usize, time: Duration) {
-        self.thinking[index] += time.to_millis();
+        self.thinking[index] += time.to_millis() as u16;
         self.count[index] += 1;
     }
 
