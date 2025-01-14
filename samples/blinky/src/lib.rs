@@ -24,6 +24,9 @@ extern "C" fn rust_main() {
 
     // Invoke "blink" as a user thread.
     if false {
+        // Note that for now, this is just a 'false', but is an easy test to use to see if
+        // permissions are correct for usermode Rust.  At this point, the GPIO won't be accessible,
+        // and neither will the memory needed for allocation.
         unsafe {
             zephyr::raw::k_thread_user_mode_enter
                 (Some(blink),
@@ -57,7 +60,6 @@ fn do_blink() {
         warn!("LED is not ready");
         loop {
         }
-        // return;
     }
 
     unsafe { led0.configure(&mut gpio_token, GPIO_OUTPUT_ACTIVE); }
