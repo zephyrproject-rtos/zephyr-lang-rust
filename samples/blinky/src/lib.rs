@@ -11,8 +11,6 @@
 
 use log::warn;
 
-use core::ffi::c_void;
-
 use zephyr::raw::GPIO_OUTPUT_ACTIVE;
 use zephyr::time::{ Duration, sleep };
 
@@ -22,30 +20,6 @@ extern "C" fn rust_main() {
 
     warn!("Starting blinky");
 
-    // Invoke "blink" as a user thread.
-    if false {
-        // Note that for now, this is just a 'false', but is an easy test to use to see if
-        // permissions are correct for usermode Rust.  At this point, the GPIO won't be accessible,
-        // and neither will the memory needed for allocation.
-        unsafe {
-            zephyr::raw::k_thread_user_mode_enter
-                (Some(blink),
-                core::ptr::null_mut(),
-                core::ptr::null_mut(),
-                core::ptr::null_mut());
-        }
-    } else {
-        unsafe {
-            blink(core::ptr::null_mut(),
-                  core::ptr::null_mut(),
-                  core::ptr::null_mut());
-        }
-    }
-}
-
-// fn blink() {
-unsafe extern "C" fn blink(_p1: *mut c_void, _p2: *mut c_void, _p3: *mut c_void) {
-    // Just call a "safe" rust function.
     do_blink();
 }
 
