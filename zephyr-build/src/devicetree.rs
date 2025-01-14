@@ -141,28 +141,21 @@ impl Node {
     /// A richer compatible test.  Walks a series of names, in reverse.  Any that are "Some(x)" must
     /// be compatible with "x" at that level.
     fn compatible_path(&self, path: &[Option<&str>]) -> bool {
-        self.path_walk(path, 0)
-    }
+        if let Some(first) = path.first() {
+            if !matches!(first, Some(name) if !self.is_compatible(name)) {
+                return false;
+            }
 
-    /// Recursive path walk, to make borrowing simpler.
-    fn path_walk(&self, path: &[Option<&str>], pos: usize) -> bool {
-        if pos >= path.len() {
-            // Once past the end, we consider everything a match.
-            return true;
-        }
-
-        // Check the failure condition, where this node isn't compatible with this section of the path.
-        if matches!(path[pos], Some(name) if !self.is_compatible(name)) {
-            return false;
-        }
-
-        // Walk down the tree.  We have to check for None here, as we can't recurse on the none
-        // case.
-        if let Some(child) = self.parent.borrow().as_ref() {
-            child.path_walk(path, pos + 1)
+            // Walk down the tree with the remainder of the path.
+            if let Some(child) = self.parent.borrow().as_ref() {
+                child.compatible_path(&path[1..])
+            } else {
+                // We've run out of nodes, so this is considered not matching.
+                false
+            }
         } else {
-            // We've run out of nodes, so this is considered not matching.
-            false
+            // The empty path always matches.
+            true
         }
     }
 
