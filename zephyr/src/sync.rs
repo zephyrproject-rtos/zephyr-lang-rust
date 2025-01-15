@@ -30,17 +30,8 @@ pub use portable_atomic_util::Arc;
 
 mod mutex;
 
-pub use mutex::{
-    Mutex,
-    MutexGuard,
-    Condvar,
-    LockResult,
-    TryLockResult,
-};
+pub use mutex::{Condvar, LockResult, Mutex, MutexGuard, TryLockResult};
 
 mod spinmutex;
 
-pub use spinmutex::{
-    SpinMutex,
-    SpinMutexGuard,
-};
+pub use spinmutex::{SpinMutex, SpinMutexGuard};

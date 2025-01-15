@@ -188,8 +188,8 @@ where
             KOBJ_UNINITIALIZED,
             KOBJ_INITING,
             Ordering::AcqRel,
-            Ordering::Acquire)
-        {
+            Ordering::Acquire,
+        ) {
             return None;
         }
         let result = self.get_wrapped(args);
@@ -401,7 +401,7 @@ macro_rules! _kobj_stack {
                 [$crate::sys::thread::RealStaticThreadStack<{$crate::sys::thread::stack_len($size)}>; $asize] =
                 unsafe { ::core::mem::zeroed() };
 
-            $v static $name: 
+            $v static $name:
                 [$crate::_export::KStaticThreadStack; $asize] =
                 $crate::_export::KStaticThreadStack::new_from_array(&[< $name _REAL >]);
         }

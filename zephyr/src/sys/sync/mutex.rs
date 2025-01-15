@@ -8,30 +8,19 @@
 //!
 //! [`object`]: crate::object
 
-use core::fmt;
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::mem;
+use crate::object::{Fixed, StaticKernelObject, Wrapped};
+use crate::sys::K_FOREVER;
 use crate::{
-    error::{Result, to_result_void},
+    error::{to_result_void, Result},
     raw::{
-        k_condvar,
-        k_condvar_init,
-        k_condvar_broadcast,
-        k_condvar_signal,
-        k_condvar_wait,
-        k_mutex,
-        k_mutex_init,
-        k_mutex_lock,
-        k_mutex_unlock,
+        k_condvar, k_condvar_broadcast, k_condvar_init, k_condvar_signal, k_condvar_wait, k_mutex,
+        k_mutex_init, k_mutex_lock, k_mutex_unlock,
     },
     time::Timeout,
 };
-use crate::object::{
-    Fixed,
-    StaticKernelObject,
-    Wrapped,
-};
-use crate::sys::K_FOREVER;
+use core::fmt;
+#[cfg(CONFIG_RUST_ALLOC)]
+use core::mem;
 
 /// A Zephyr `k_mutux` usable from safe Rust code.
 ///
@@ -79,7 +68,8 @@ impl Mutex {
     /// acquired, and an error indicating a timeout (Zephyr returns different errors depending on
     /// the reason).
     pub fn lock<T>(&self, timeout: T) -> Result<()>
-        where T: Into<Timeout>,
+    where
+        T: Into<Timeout>,
     {
         let timeout: Timeout = timeout.into();
         to_result_void(unsafe { k_mutex_lock(self.item.get(), timeout.0) })
@@ -93,7 +83,6 @@ impl Mutex {
         to_result_void(unsafe { k_mutex_unlock(self.item.get()) })
     }
 }
-
 
 /// A static Zephyr `k_mutex`
 ///
@@ -123,7 +112,7 @@ impl Wrapped for StaticKernelObject<k_mutex> {
         unsafe {
             k_mutex_init(ptr);
         }
-        Mutex { 
+        Mutex {
             item: Fixed::Static(ptr),
         }
     }
@@ -146,7 +135,7 @@ pub struct Condvar {
 #[doc(hidden)]
 pub type StaticCondvar = StaticKernelObject<k_condvar>;
 
-unsafe impl Sync for StaticKernelObject<k_condvar> { }
+unsafe impl Sync for StaticKernelObject<k_condvar> {}
 
 unsafe impl Sync for Condvar {}
 unsafe impl Send for Condvar {}
@@ -173,19 +162,25 @@ impl Condvar {
     /// [`sync::Condvar`]: http://www.example.com/TODO
     // /// [`sync::Condvar`]: crate::sync::Condvar
     pub fn wait(&self, lock: &Mutex) {
-        unsafe { k_condvar_wait(self.item.get(), lock.item.get(), K_FOREVER); }
+        unsafe {
+            k_condvar_wait(self.item.get(), lock.item.get(), K_FOREVER);
+        }
     }
 
     // TODO: timeout.
 
     /// Wake a single thread waiting on this condition variable.
     pub fn notify_one(&self) {
-        unsafe { k_condvar_signal(self.item.get()); }
+        unsafe {
+            k_condvar_signal(self.item.get());
+        }
     }
 
     /// Wake all threads waiting on this condition variable.
     pub fn notify_all(&self) {
-        unsafe { k_condvar_broadcast(self.item.get()); }
+        unsafe {
+            k_condvar_broadcast(self.item.get());
+        }
     }
 }
 

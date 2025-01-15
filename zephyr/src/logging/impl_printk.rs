@@ -24,15 +24,11 @@ impl Log for PrintkLogger {
     // printing will be racy.  Otherwise, the message will be broken into small chunks that are each
     // printed atomically.
     fn log(&self, record: &Record<'_>) {
-        printkln!("{}:{}: {}",
-                  record.level(),
-                  record.target(),
-                  record.args());
+        printkln!("{}:{}: {}", record.level(), record.target(), record.args());
     }
 
     // Flush is not needed.
-    fn flush(&self) {
-    }
+    fn flush(&self) {}
 }
 
 static PRINTK_LOGGER: PrintkLogger = PrintkLogger;
