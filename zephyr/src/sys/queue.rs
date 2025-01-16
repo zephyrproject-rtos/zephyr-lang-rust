@@ -9,12 +9,7 @@ use core::fmt;
 #[cfg(CONFIG_RUST_ALLOC)]
 use core::mem;
 
-use zephyr_sys::{
-    k_queue,
-    k_queue_init,
-    k_queue_append,
-    k_queue_get,
-};
+use zephyr_sys::{k_queue, k_queue_append, k_queue_get, k_queue_init};
 
 #[cfg(CONFIG_RUST_ALLOC)]
 use crate::error::Result;
@@ -26,10 +21,10 @@ pub struct Queue {
     item: Fixed<k_queue>,
 }
 
-unsafe impl Sync for StaticKernelObject<k_queue> { }
+unsafe impl Sync for StaticKernelObject<k_queue> {}
 
-unsafe impl Sync for Queue { }
-unsafe impl Send for Queue { }
+unsafe impl Sync for Queue {}
+unsafe impl Send for Queue {}
 
 impl Queue {
     /// Create a new Queue, dynamically allocated.
@@ -70,7 +65,8 @@ impl Queue {
     /// [`NoWait`]: crate::time::NoWait
     /// [`Duration`]: crate::time::Duration
     pub unsafe fn recv<T>(&self, timeout: T) -> *mut c_void
-        where T: Into<Timeout>
+    where
+        T: Into<Timeout>,
     {
         let timeout: Timeout = timeout.into();
         k_queue_get(self.item.get(), timeout.0)

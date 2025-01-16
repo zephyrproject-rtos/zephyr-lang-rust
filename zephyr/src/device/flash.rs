@@ -3,8 +3,8 @@
 // Note that currently, the flash partition shares the controller, so the underlying operations
 // are not actually safe.  Need to rethink how to manage this.
 
-use crate::raw;
 use super::Unique;
+use crate::raw;
 
 /// A flash controller
 ///
@@ -20,7 +20,10 @@ pub struct FlashController {
 impl FlashController {
     /// Constructor, intended to be called by devicetree generated code.
     #[allow(dead_code)]
-    pub(crate) unsafe fn new(unique: &Unique, device: *const raw::device) -> Option<FlashController> {
+    pub(crate) unsafe fn new(
+        unique: &Unique,
+        device: *const raw::device,
+    ) -> Option<FlashController> {
         if !unique.once() {
             return None;
         }
@@ -45,7 +48,12 @@ pub struct FlashPartition {
 impl FlashPartition {
     /// Constructor, intended to be called by devicetree generated code.
     #[allow(dead_code)]
-    pub(crate) unsafe fn new(unique: &Unique, device: *const raw::device, offset: u32, size: u32) -> Option<FlashPartition> {
+    pub(crate) unsafe fn new(
+        unique: &Unique,
+        device: *const raw::device,
+        offset: u32,
+        size: u32,
+    ) -> Option<FlashPartition> {
         if !unique.once() {
             return None;
         }
@@ -54,6 +62,10 @@ impl FlashPartition {
         // but in this case, we need one for each device, so just construct it here.
         // TODO: This is not actually safe.
         let controller = FlashController { device };
-        Some(FlashPartition { controller, offset, size })
+        Some(FlashPartition {
+            controller,
+            offset,
+            size,
+        })
     }
 }

@@ -5,12 +5,7 @@
 //!
 //! This uses the `k_str_out` syscall, which is part of printk to output to the console.
 
-use core::fmt::{
-    Arguments,
-    Result,
-    Write,
-    write,
-};
+use core::fmt::{write, Arguments, Result, Write};
 
 /// Print to Zephyr's console, without a newline.
 ///

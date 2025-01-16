@@ -3,13 +3,12 @@
 
 // This file is taken from crossbeam-channels, with modifications to be nostd.
 
-
 extern crate alloc;
 
+use crate::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use alloc::boxed::Box;
 use core::ops;
 use core::ptr::NonNull;
-use crate::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// Reference counter internals.
 struct Counter<C> {

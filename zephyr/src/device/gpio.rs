@@ -7,8 +7,8 @@
 //! pervasively throughout Zephyr device drivers.  As such, most of the calls in this module are
 //! unsafe.
 
-use crate::raw;
 use super::Unique;
+use crate::raw;
 
 /// Global instance to help make gpio in Rust slightly safer.
 ///
@@ -60,9 +60,7 @@ impl Gpio {
     /// Verify that the device is ready for use.  At a minimum, this means the device has been
     /// successfully initialized.
     pub fn is_ready(&self) -> bool {
-        unsafe {
-            raw::device_is_ready(self.device)
-        }
+        unsafe { raw::device_is_ready(self.device) }
     }
 }
 
@@ -82,7 +80,12 @@ unsafe impl Send for GpioPin {}
 impl GpioPin {
     /// Constructor, used by the devicetree generated code.
     #[allow(dead_code)]
-    pub(crate) unsafe fn new(unique: &Unique, device: *const raw::device, pin: u32, dt_flags: u32) -> Option<GpioPin> {
+    pub(crate) unsafe fn new(
+        unique: &Unique,
+        device: *const raw::device,
+        pin: u32,
+        dt_flags: u32,
+    ) -> Option<GpioPin> {
         if !unique.once() {
             return None;
         }
@@ -91,7 +94,7 @@ impl GpioPin {
                 port: device,
                 pin: pin as raw::gpio_pin_t,
                 dt_flags: dt_flags as raw::gpio_dt_flags_t,
-            }
+            },
         })
     }
 
@@ -112,9 +115,11 @@ impl GpioPin {
     pub unsafe fn configure(&mut self, _token: &mut GpioToken, extra_flags: raw::gpio_flags_t) {
         // TODO: Error?
         unsafe {
-            raw::gpio_pin_configure(self.pin.port,
+            raw::gpio_pin_configure(
+                self.pin.port,
                 self.pin.pin,
-                self.pin.dt_flags as raw::gpio_flags_t | extra_flags);
+                self.pin.dt_flags as raw::gpio_flags_t | extra_flags,
+            );
         }
     }
 
