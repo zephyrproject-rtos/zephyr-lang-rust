@@ -5,7 +5,10 @@
 
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use pest::{iterators::{Pair, Pairs}, Parser};
+use pest::{
+    iterators::{Pair, Pairs},
+    Parser,
+};
 use pest_derive::Parser;
 
 use crate::devicetree::Phandle;
@@ -17,8 +20,7 @@ use super::{ordmap::OrdMap, DeviceTree, Node, Property, Value, Word};
 pub struct Dts;
 
 pub fn parse(text: &str, ords: &OrdMap) -> DeviceTree {
-    let pairs = Dts::parse(Rule::file, text)
-        .expect("Parsing zephyr.dts");
+    let pairs = Dts::parse(Rule::file, text).expect("Parsing zephyr.dts");
 
     let b = TreeBuilder::new(ords);
     b.walk(pairs)
@@ -123,7 +125,7 @@ fn decode_property(node: Pair<'_, Rule>) -> Property {
                 // No escapes at this point.
                 let text = pair.as_str();
                 // Remove the quotes.
-                let text = &text[1..text.len()-1];
+                let text = &text[1..text.len() - 1];
                 value.push(Value::String(text.to_string()));
             }
             Rule::bytes => {
@@ -132,7 +134,10 @@ fn decode_property(node: Pair<'_, Rule>) -> Property {
             r => panic!("rule: {:?}", r),
         }
     }
-    Property { name: name.unwrap(), value }
+    Property {
+        name: name.unwrap(),
+        value,
+    }
 }
 
 fn decode_words<'i>(node: Pair<'i, Rule>) -> Vec<Word> {
@@ -205,7 +210,7 @@ impl<'a, 'b> LazyName<'a, 'b> {
                     name: "/".to_string(),
                     path: "/".to_string(),
                     ord,
-                })
+                }),
             }
         } else {
             LazyName {
@@ -232,11 +237,7 @@ impl<'a, 'b> LazyName<'a, 'b> {
         path.push_str(&name);
         // println!("node: {:?}", path);
         let ord = self.ords.0[&path];
-        self.info = Some(Info {
-            name,
-            path,
-            ord,
-        });
+        self.info = Some(Info { name, path, ord });
     }
 
     fn path_ref(&self) -> &str {
