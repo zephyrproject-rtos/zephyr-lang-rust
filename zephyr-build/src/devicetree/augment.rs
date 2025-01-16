@@ -230,7 +230,7 @@ fn decode_gpios_gpio(unique: &Ident, entry: &Value) -> TokenStream {
         panic!("gpios currently must be three items");
     }
     let gpio_route = entry[0].get_phandle().unwrap().node_ref().route_to_rust();
-    let args: Vec<u32> = entry[1..].iter().map(|n| n.get_number().unwrap()).collect();
+    let args: Vec<u32> = entry[1..].iter().map(|n| n.as_number().unwrap()).collect();
 
     quote! {
         // TODO: Don't hard code this but put in yaml file.
