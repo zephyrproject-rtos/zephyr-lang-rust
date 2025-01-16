@@ -399,7 +399,6 @@ impl<F: Future> WorkData<F> {
             // If we have a name, send it to Segger.
             #[cfg(CONFIG_SEGGER_SYSTEMVIEW)]
             {
-                let ww = &(&*this.work.get()).work;
                 if let Some(name) = name {
                     let info = crate::raw::SEGGER_SYSVIEW_TASKINFO {
                         TaskID: this.work.get() as ::core::ffi::c_ulong,
