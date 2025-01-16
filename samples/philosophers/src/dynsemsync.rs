@@ -7,12 +7,10 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 
-use zephyr::{
-    sync::Arc, sys::sync::Semaphore, time::Forever
-};
+use zephyr::{sync::Arc, sys::sync::Semaphore, time::Forever};
 
 use crate::{ForkSync, NUM_PHIL};
 
@@ -35,17 +33,19 @@ impl ForkSync for SemSync {
 
 #[allow(dead_code)]
 pub fn dyn_semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
-    let forks = [(); NUM_PHIL].each_ref().map(|()| {
-        Arc::new(Semaphore::new(1, 1).unwrap())
-    });
+    let forks = [(); NUM_PHIL]
+        .each_ref()
+        .map(|()| Arc::new(Semaphore::new(1, 1).unwrap()));
 
-    let syncers = (0..NUM_PHIL).map(|_| {
-        let syncer = SemSync {
-            forks: forks.clone(),
-        };
-        let item = Box::new(syncer) as Box<dyn ForkSync>;
-        Arc::from(item)
-    }).collect();
+    let syncers = (0..NUM_PHIL)
+        .map(|_| {
+            let syncer = SemSync {
+                forks: forks.clone(),
+            };
+            let item = Box::new(syncer) as Box<dyn ForkSync>;
+            Arc::from(item)
+        })
+        .collect();
 
     syncers
 }

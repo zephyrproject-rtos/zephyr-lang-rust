@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![no_std]
-
 // Cargo tries to detect configs that have typos in them.  Unfortunately, the Zephyr Kconfig system
 // uses a large number of Kconfigs and there is no easy way to know which ones might conceivably be
 // valid.  This prevents a warning about each cfg that is used.
@@ -13,31 +12,30 @@ extern crate alloc;
 #[allow(unused_imports)]
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use zephyr::time::{Duration, sleep, Tick};
+use zephyr::time::{sleep, Duration, Tick};
 use zephyr::{
-    printkln,
-    kobj_define,
-    sys::uptime_get,
+    kobj_define, printkln,
     sync::{Arc, Mutex},
+    sys::uptime_get,
 };
 
 // These are optional, based on Kconfig, so allow them to be unused.
 #[allow(unused_imports)]
+use crate::channel::get_channel_syncer;
+#[allow(unused_imports)]
 use crate::condsync::CondSync;
 #[allow(unused_imports)]
-use crate::sysmutex::SysMutexSync;
-#[allow(unused_imports)]
-use crate::channel::get_channel_syncer;
+use crate::dynsemsync::dyn_semaphore_sync;
 #[allow(unused_imports)]
 use crate::semsync::semaphore_sync;
 #[allow(unused_imports)]
-use crate::dynsemsync::dyn_semaphore_sync;
+use crate::sysmutex::SysMutexSync;
 
 mod channel;
 mod condsync;
 mod dynsemsync;
-mod sysmutex;
 mod semsync;
+mod sysmutex;
 
 /// How many philosophers.  There will be the same number of forks.
 const NUM_PHIL: usize = 6;
@@ -67,11 +65,13 @@ trait ForkSync: core::fmt::Debug + Sync + Send {
 
 #[no_mangle]
 extern "C" fn rust_main() {
-    printkln!("Hello world from Rust on {}",
-              zephyr::kconfig::CONFIG_BOARD);
+    printkln!("Hello world from Rust on {}", zephyr::kconfig::CONFIG_BOARD);
     printkln!("Time tick: {}", zephyr::time::SYS_FREQUENCY);
 
-    let stats = Arc::new(Mutex::new_from(Stats::default(), STAT_MUTEX.init_once(()).unwrap()));
+    let stats = Arc::new(Mutex::new_from(
+        Stats::default(),
+        STAT_MUTEX.init_once(()).unwrap(),
+    ));
 
     let syncers = get_syncer();
 
@@ -79,7 +79,9 @@ extern "C" fn rust_main() {
 
     for (i, syncer) in (0..NUM_PHIL).zip(syncers.into_iter()) {
         let child_stat = stats.clone();
-        let thread = PHIL_THREADS[i].init_once(PHIL_STACKS[i].init_once(()).unwrap()).unwrap();
+        let thread = PHIL_THREADS[i]
+            .init_once(PHIL_STACKS[i].init_once(()).unwrap())
+            .unwrap();
         thread.spawn(move || {
             phil_thread(i, syncer, child_stat);
         });
@@ -105,8 +107,7 @@ fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
 
 #[cfg(CONFIG_SYNC_SYS_MUTEX)]
 fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
-    let syncer = Box::new(SysMutexSync::new())
-        as Box<dyn ForkSync>;
+    let syncer = Box::new(SysMutexSync::new()) as Box<dyn ForkSync>;
     let syncer: Arc<dyn ForkSync> = Arc::from(syncer);
     let mut result = Vec::new();
     for _ in 0..NUM_PHIL {
@@ -118,8 +119,7 @@ fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
 #[cfg(CONFIG_SYNC_CONDVAR)]
 fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
     // Condvar version
-    let syncer = Box::new(CondSync::new())
-        as Box<dyn ForkSync>;
+    let syncer = Box::new(CondSync::new()) as Box<dyn ForkSync>;
     let syncer: Arc<dyn ForkSync> = Arc::from(syncer);
     let mut result = Vec::new();
     for _ in 0..NUM_PHIL {
@@ -141,7 +141,7 @@ fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>, stats: Arc<Mutex<Stats>>) {
         // Per Dijkstra, the last phyilosopher needs to reverse forks, or we deadlock.
         (0, n)
     } else {
-        (n, n+1)
+        (n, n + 1)
     };
 
     loop {
@@ -202,7 +202,12 @@ impl Stats {
     }
 
     fn show(&self) {
-        printkln!("c:{:?}, e:{:?}, t:{:?}", self.count, self.eating, self.thinking);
+        printkln!(
+            "c:{:?}, e:{:?}, t:{:?}",
+            self.count,
+            self.eating,
+            self.thinking
+        );
     }
 }
 
