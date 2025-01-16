@@ -72,12 +72,7 @@ pub fn build_kconfig_mod() {
             writeln!(&mut f, "pub const {}: isize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_str.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(
-                &mut f,
-                "pub const {}: &'static str = {};",
-                &caps[1], &caps[2]
-            )
-            .unwrap();
+            writeln!(&mut f, "pub const {}: &str = {};", &caps[1], &caps[2]).unwrap();
         }
     }
 }
