@@ -19,9 +19,7 @@ use core::mem;
 use crate::{
     error::{to_result_void, Result},
     object::{Fixed, StaticKernelObject, Wrapped},
-    raw::{
-        k_sem, k_sem_count_get, k_sem_give, k_sem_init, k_sem_reset, k_sem_take
-    },
+    raw::{k_sem, k_sem_count_get, k_sem_give, k_sem_init, k_sem_reset, k_sem_take},
     time::Timeout,
 };
 
@@ -59,12 +57,11 @@ impl Semaphore {
     ///
     /// [`NoWait`]: crate::time::NoWait
     pub fn take<T>(&self, timeout: T) -> Result<()>
-        where T: Into<Timeout>,
+    where
+        T: Into<Timeout>,
     {
         let timeout: Timeout = timeout.into();
-        let ret = unsafe {
-            k_sem_take(self.item.get(), timeout.0)
-        };
+        let ret = unsafe { k_sem_take(self.item.get(), timeout.0) };
         to_result_void(ret)
     }
 
@@ -73,9 +70,7 @@ impl Semaphore {
     /// This routine gives to the semaphore, unless the semaphore is already at its maximum
     /// permitted count.
     pub fn give(&self) {
-        unsafe {
-            k_sem_give(self.item.get())
-        }
+        unsafe { k_sem_give(self.item.get()) }
     }
 
     /// Resets a semaphor's count to zero.
@@ -85,18 +80,14 @@ impl Semaphore {
     ///
     /// [`take`]: Self::take
     pub fn reset(&mut self) {
-        unsafe {
-            k_sem_reset(self.item.get())
-        }
+        unsafe { k_sem_reset(self.item.get()) }
     }
 
     /// Get a semaphore's count.
     ///
     /// Returns the current count.
     pub fn count_get(&mut self) -> usize {
-        unsafe {
-            k_sem_count_get(self.item.get()) as usize
-        }
+        unsafe { k_sem_count_get(self.item.get()) as usize }
     }
 }
 

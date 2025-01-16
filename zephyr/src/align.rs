@@ -34,11 +34,12 @@ impl_alignas!(1, 2, 4, 8, 16, 32, 64, 128, 256);
 /// member of the struct.
 #[repr(transparent)]
 pub struct AlignAs<const N: usize>([<AlignAsStruct as AlignAsTrait<N>>::Aligned; 0])
-    where
+where
     AlignAsStruct: AlignAsTrait<N>;
 
 impl<const N: usize> AlignAs<N>
-    where AlignAsStruct: AlignAsTrait<N>
+where
+    AlignAsStruct: AlignAsTrait<N>,
 {
     /// Construct a new AlignAs.
     ///

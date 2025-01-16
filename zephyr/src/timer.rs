@@ -43,14 +43,8 @@ use core::{fmt, mem};
 
 use crate::object::{Fixed, StaticKernelObject, Wrapped};
 use crate::raw::{
-    k_timer,
-    k_timer_init,
-    k_timer_start,
-    k_timer_status_get,
-    k_timer_status_sync,
-    k_timer_stop,
-    k_timer_user_data_get,
-    k_timer_user_data_set,
+    k_timer, k_timer_init, k_timer_start, k_timer_status_get, k_timer_status_sync, k_timer_stop,
+    k_timer_user_data_get, k_timer_user_data_set,
 };
 use crate::time::Timeout;
 
@@ -86,7 +80,11 @@ impl StoppedTimer {
     ///
     /// [`NoWait`]: crate::time::NoWait
     /// [`Forever`]: crate::time::Forever
-    pub fn start_simple(self, delay: impl Into<Timeout>, period: impl Into<Timeout>) -> SimpleTimer {
+    pub fn start_simple(
+        self,
+        delay: impl Into<Timeout>,
+        period: impl Into<Timeout>,
+    ) -> SimpleTimer {
         unsafe {
             // SAFETY: The timer will be registered with Zephyr, using fields within the struct.
             // The `Fixed` type takes care of ensuring that the memory is not used.  Drop will call
@@ -94,7 +92,9 @@ impl StoppedTimer {
             k_timer_start(self.item.get(), delay.into().0, period.into().0);
         }
 
-        SimpleTimer { item: Some(self.item) }
+        SimpleTimer {
+            item: Some(self.item),
+        }
     }
 
     /// Start the timer in "callback" mode.
@@ -117,16 +117,17 @@ impl StoppedTimer {
     /// [`SpinMutex`]: crate::sync::SpinMutex
     /// [`Semaphore`]: crate::sys::sync::Semaphore
     /// [`Sender`]: crate::sync::channel::Sender
-    pub fn start_callback<T>(self,
-                             callback: Callback<T>,
-                             delay: impl Into<Timeout>,
-                             period: impl Into<Timeout>,
+    pub fn start_callback<T>(
+        self,
+        callback: Callback<T>,
+        delay: impl Into<Timeout>,
+        period: impl Into<Timeout>,
     ) -> Pin<Box<CallbackTimer<T>>>
-        where T: Send + Sync
+    where
+        T: Send + Sync,
     {
         CallbackTimer::new(self, callback, delay, period)
     }
-
 }
 
 impl fmt::Debug for StoppedTimer {
@@ -223,7 +224,10 @@ impl SimpleTimer {
 
     /// Get the item pointer, assuming it is still present.
     fn item_ptr(&self) -> *mut k_timer {
-        self.item.as_ref().expect("Use of SimpleTimer after stop").get()
+        self.item
+            .as_ref()
+            .expect("Use of SimpleTimer after stop")
+            .get()
     }
 
     /// Stop the timer.
@@ -294,10 +298,11 @@ pub struct CallbackTimer<T: Send + Sync> {
 }
 
 impl<T: Send + Sync> CallbackTimer<T> {
-    fn new(item: StoppedTimer,
-           callback: Callback<T>,
-           delay: impl Into<Timeout>,
-           period: impl Into<Timeout>,
+    fn new(
+        item: StoppedTimer,
+        callback: Callback<T>,
+        delay: impl Into<Timeout>,
+        period: impl Into<Timeout>,
     ) -> Pin<Box<CallbackTimer<T>>> {
         let this = Box::pin(CallbackTimer {
             item: Some(item.item),
@@ -342,7 +347,10 @@ impl<T: Send + Sync> CallbackTimer<T> {
 
     /// Get the item pointer, assuming it is still present.
     fn item_ptr(&self) -> *mut k_timer {
-        self.item.as_ref().expect("Use of SimpleTimer after stop").get()
+        self.item
+            .as_ref()
+            .expect("Use of SimpleTimer after stop")
+            .get()
     }
 
     /// Stop the timer.

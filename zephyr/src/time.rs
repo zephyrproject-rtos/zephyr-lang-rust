@@ -24,7 +24,7 @@
 //! by non-constant values).  Similarly, the `fugit` crate offers constructors that aim to result
 //! in constants when possible, avoiding costly division operations.
 
-use zephyr_sys::{k_timeout_t, k_ticks_t};
+use zephyr_sys::{k_ticks_t, k_timeout_t};
 
 use core::fmt::Debug;
 
@@ -89,7 +89,9 @@ impl From<Instant> for Timeout {
         let ticks: k_ticks_t = checked_cast(value.ticks());
         debug_assert_ne!(ticks, crate::sys::K_FOREVER.ticks);
         debug_assert_ne!(ticks, crate::sys::K_NO_WAIT.ticks);
-        Timeout(k_timeout_t { ticks: -1 - 1 - ticks })
+        Timeout(k_timeout_t {
+            ticks: -1 - 1 - ticks,
+        })
     }
 }
 
@@ -116,7 +118,8 @@ impl From<NoWait> for Timeout {
 /// Put the current thread to sleep, for the given duration.  Uses `k_sleep` for the actual sleep.
 /// Returns a duration roughly representing the remaining amount of time if the sleep was woken.
 pub fn sleep<T>(timeout: T) -> Duration
-    where T: Into<Timeout>,
+where
+    T: Into<Timeout>,
 {
     let timeout: Timeout = timeout.into();
     let rest = unsafe { crate::raw::k_sleep(timeout.0) };
