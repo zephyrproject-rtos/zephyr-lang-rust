@@ -19,7 +19,6 @@ use super::{augment::Augment, DeviceTree, Node, Property, Value, Word};
 impl DeviceTree {
     /// Generate a TokenStream for the Rust representation of this device tree.
     pub fn to_tokens(&self, augments: &[Box<dyn Augment>]) -> TokenStream {
-
         // Root is a little special.  Since we don't want a module for this (it will be provided
         // above where it is included, so it can get documentation and attributes), we use None for
         // the name.
@@ -39,15 +38,19 @@ impl DeviceTree {
         Ok(())
     }
 
-    fn node_walk(&self, node: &Node, name: Option<&str>, augments: &[Box<dyn Augment>]) -> TokenStream {
-        let children = node.children.iter().map(|child| {
-            self.node_walk(child.as_ref(), Some(&child.name), augments)
-        });
+    fn node_walk(
+        &self,
+        node: &Node,
+        name: Option<&str>,
+        augments: &[Box<dyn Augment>],
+    ) -> TokenStream {
+        let children = node
+            .children
+            .iter()
+            .map(|child| self.node_walk(child.as_ref(), Some(&child.name), augments));
         // Simplistic first pass, turn the properties into constents of the formatted text of the
         // property.
-        let props = node.properties.iter().map(|prop| {
-            self.property_walk(prop)
-        });
+        let props = node.properties.iter().map(|prop| self.property_walk(prop));
         let ord = node.ord;
 
         // Open the parent as a submodule.  This is the same as 'super', so not particularly useful.
@@ -114,7 +117,7 @@ impl DeviceTree {
                         pub mod #tag {
                             pub use #route::*;
                         }
-                    }
+                    };
                 }
                 _ => (),
             }
@@ -172,7 +175,12 @@ impl Property {
     fn output_path<W: Write>(&self, write: &mut W, name: &str) -> Result<()> {
         if let Some(value) = self.get_single_value() {
             if let Value::Phandle(_) = value {
-                writeln!(write, "cargo:rustc-cfg=dt=\"{}::{}\"", name, fix_id(&self.name))?;
+                writeln!(
+                    write,
+                    "cargo:rustc-cfg=dt=\"{}::{}\"",
+                    name,
+                    fix_id(&self.name)
+                )?;
             }
         }
         Ok(())

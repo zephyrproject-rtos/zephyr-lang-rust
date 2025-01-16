@@ -2,7 +2,13 @@
 //!
 //! The OrdMap provides a mapping between nodes on the devicetree, and their "ord" index.
 
-use std::{collections::BTreeMap, fs::File, io::{BufRead, BufReader}, path::Path, str::FromStr};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+    str::FromStr,
+};
 
 use regex::Regex;
 
@@ -19,8 +25,7 @@ impl OrdMap {
         let mut c_name = "".to_string();
         let mut dt_path = "".to_string();
 
-        let fd = File::open(path)
-            .expect("Opening devicetree_generated.h");
+        let fd = File::open(path).expect("Opening devicetree_generated.h");
         for line in BufReader::new(fd).lines() {
             let line = line.expect("Reading from devicetree_generated.h");
 

@@ -87,10 +87,7 @@ pub enum Rule {
     /// Matches if this node has one of the listed compatible strings.  The the 'level' property
     /// indicates how many levels up in the tree.  Zero means match the current node, 1 means the
     /// parent node, and so on.
-    Compatible {
-        names: Vec<String>,
-        level: usize,
-    },
+    Compatible { names: Vec<String>, level: usize },
     /// Matches at the root of tree.
     Root,
 }
@@ -143,9 +140,7 @@ pub enum Action {
 impl Action {
     fn generate(&self, _name: &Ident, node: &Node, tree: &DeviceTree) -> TokenStream {
         match self {
-            Action::Instance { raw, device } => {
-                raw.generate(node, device)
-            }
+            Action::Instance { raw, device } => raw.generate(node, device),
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
                     let name = dt_to_lower_id(k);

@@ -11,9 +11,9 @@
 // This builds a program that is run on the compilation host before the code is compiled.  It can
 // output configuration settings that affect the compilation.
 
-use std::io::{BufRead, BufReader, Write};
 use std::env;
 use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -37,7 +37,7 @@ pub fn export_bool_kconfig() {
 
     let file = File::open(&dotconfig).expect("Unable to open dotconfig");
     for line in BufReader::new(file).lines() {
-        let line =  line.expect("reading line from dotconfig");
+        let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_y.captures(&line) {
             println!("cargo:rustc-cfg={}", &caps[1]);
         }
@@ -66,16 +66,18 @@ pub fn build_kconfig_mod() {
         let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_hex.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: usize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: usize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_int.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: isize = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(&mut f, "pub const {}: isize = {};", &caps[1], &caps[2]).unwrap();
         } else if let Some(caps) = config_str.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: &'static str = {};",
-                &caps[1], &caps[2]).unwrap();
+            writeln!(
+                &mut f,
+                "pub const {}: &'static str = {};",
+                &caps[1], &caps[2]
+            )
+            .unwrap();
         }
     }
 }
@@ -83,8 +85,8 @@ pub fn build_kconfig_mod() {
 /// Parse the finalized DTS file, generating the Rust devicetree file.
 fn import_dt() -> DeviceTree {
     let zephyr_dts = env::var("ZEPHYR_DTS").expect("ZEPHYR_DTS must be set");
-    let gen_include = env::var("BINARY_DIR_INCLUDE_GENERATED")
-        .expect("BINARY_DIR_INCLUDE_GENERATED must be set");
+    let gen_include =
+        env::var("BINARY_DIR_INCLUDE_GENERATED").expect("BINARY_DIR_INCLUDE_GENERATED must be set");
 
     let generated = format!("{}/devicetree_generated.h", gen_include);
     DeviceTree::new(&zephyr_dts, generated)
@@ -138,10 +140,7 @@ pub fn dt_cfgs() {
 
 /// Determine if `rustfmt` is in the path, and can be excecuted. Returns false on any kind of error.
 pub fn has_rustfmt() -> bool {
-    match Command::new("rustfmt")
-        .arg("--version")
-        .status()
-    {
+    match Command::new("rustfmt").arg("--version").status() {
         Ok(st) if st.success() => true,
         _ => false,
     }
@@ -159,7 +158,10 @@ fn write_formatted(file: File, tokens: TokenStream) {
         .expect("Failed to run rustfmt");
     // TODO: Handle the above failing.
 
-    let mut stdin = rustfmt.stdin.as_ref().expect("Stdin should have been opened by spawn");
+    let mut stdin = rustfmt
+        .stdin
+        .as_ref()
+        .expect("Stdin should have been opened by spawn");
     writeln!(stdin, "{}", tokens).expect("Writing to rustfmt");
 
     match rustfmt.wait() {

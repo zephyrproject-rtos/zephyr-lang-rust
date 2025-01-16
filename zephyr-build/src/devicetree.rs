@@ -28,7 +28,7 @@ mod ordmap;
 mod output;
 mod parse;
 
-pub use augment::{Augment, load_augments};
+pub use augment::{load_augments, Augment};
 
 /// Representation of a parsed device tree.
 pub struct DeviceTree {
@@ -97,8 +97,7 @@ impl DeviceTree {
     pub fn new<P1: AsRef<Path>, P2: AsRef<Path>>(dts_path: P1, dt_gen: P2) -> DeviceTree {
         let ords = OrdMap::new(dt_gen);
 
-        let dts = std::fs::read_to_string(dts_path)
-            .expect("Reading zephyr.dts file");
+        let dts = std::fs::read_to_string(dts_path).expect("Reading zephyr.dts file");
         let dt = parse::parse(&dts, &ords);
 
         // Walk the node tree, fixing any phandles to include their reference.
@@ -167,32 +166,32 @@ impl Node {
     /// Returns the slice of values of a property with this name as `Some` or `None` if the property
     /// does not exist.
     fn get_property(&self, name: &str) -> Option<&[Value]> {
-        self.properties
-            .iter()
-            .find_map(|p| if p.name == name { Some(p.value.as_slice()) } else { None })
+        self.properties.iter().find_map(|p| {
+            if p.name == name {
+                Some(p.value.as_slice())
+            } else {
+                None
+            }
+        })
     }
 
     /// Attempt to retrieve the named property, as a single entry of Words.
     fn get_words(&self, name: &str) -> Option<&[Word]> {
-        self.get_property(name)
-            .and_then(|p| {
-                match p {
-                    &[Value::Words(ref w)] => Some(w.as_ref()),
-                    _ => None,
-                }
-            })
+        self.get_property(name).and_then(|p| match p {
+            &[Value::Words(ref w)] => Some(w.as_ref()),
+            _ => None,
+        })
     }
 
     /// Get a property that consists of a single number.
     fn get_number(&self, name: &str) -> Option<u32> {
-        self.get_words(name)
-            .and_then(|p| {
-                if let &[Word::Number(n)] = p {
-                    Some(n)
-                } else {
-                    None
-                }
-            })
+        self.get_words(name).and_then(|p| {
+            if let &[Word::Number(n)] = p {
+                Some(n)
+            } else {
+                None
+            }
+        })
     }
 
     /// Get a property that consists of multiple numbers.
@@ -210,14 +209,13 @@ impl Node {
 
     /// Get a property that is a single string.
     fn get_single_string(&self, name: &str) -> Option<&str> {
-        self.get_property(name)
-            .and_then(|p| {
-                if let &[Value::String(ref text)] = p {
-                    Some(text.as_ref())
-                } else {
-                    None
-                }
-            })
+        self.get_property(name).and_then(|p| {
+            if let &[Value::String(ref text)] = p {
+                Some(text.as_ref())
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -253,8 +251,7 @@ impl Phandle {
             return;
         }
 
-        let node = labels.get(&self.name).cloned()
-            .expect("Missing phandle");
+        let node = labels.get(&self.name).cloned().expect("Missing phandle");
         *self.node.borrow_mut() = Some(node);
     }
 
@@ -276,8 +273,7 @@ impl Word {
 // To avoid recursion, the debug printer for Phandle just prints the name.
 impl std::fmt::Debug for Phandle {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt
-            .debug_struct("Phandle")
+        fmt.debug_struct("Phandle")
             .field("name", &self.name)
             .finish_non_exhaustive()
     }
