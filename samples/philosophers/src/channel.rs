@@ -8,16 +8,13 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 
 use zephyr::sync::channel::{self, Receiver, Sender};
-use zephyr::{
-    kobj_define,
-    sync::Arc,
-};
+use zephyr::{kobj_define, sync::Arc};
 
-use crate::{NUM_PHIL, ForkSync};
+use crate::{ForkSync, NUM_PHIL};
 
 /// An implementation of ForkSync that uses a server commnicated with channels to perform the
 /// synchronization.
@@ -97,10 +94,7 @@ impl ChannelFork {
 }
 
 impl ChannelSync {
-    pub fn new(
-        command: Sender<Command>,
-        reply: (Sender<()>, Receiver<()>)) -> ChannelSync
-    {
+    pub fn new(command: Sender<Command>, reply: (Sender<()>, Receiver<()>)) -> ChannelSync {
         ChannelSync {
             command,
             reply_send: reply.0,
@@ -118,23 +112,20 @@ pub fn get_channel_syncer() -> Vec<Arc<dyn ForkSync>> {
     if cfg!(CONFIG_USE_BOUNDED_CHANNELS) {
         // Use only one message, so that send will block, to ensure that works.
         (cq_send, cq_recv) = channel::bounded(1);
-        reply_queues = [(); NUM_PHIL].each_ref().map(|()| {
-            channel::bounded(1)
-        });
+        reply_queues = [(); NUM_PHIL].each_ref().map(|()| channel::bounded(1));
     } else {
         (cq_send, cq_recv) = channel::unbounded();
-        reply_queues = [(); NUM_PHIL].each_ref().map(|()| {
-            channel::unbounded()
-        });
+        reply_queues = [(); NUM_PHIL].each_ref().map(|()| channel::unbounded());
     }
 
     let syncer = reply_queues.into_iter().map(|rqueue| {
-        let item = Box::new(ChannelSync::new(cq_send.clone(), rqueue))
-            as Box<dyn ForkSync>;
+        let item = Box::new(ChannelSync::new(cq_send.clone(), rqueue)) as Box<dyn ForkSync>;
         Arc::from(item)
     });
 
-    let channel_child = CHANNEL_THREAD.init_once(CHANNEL_STACK.init_once(()).unwrap()).unwrap();
+    let channel_child = CHANNEL_THREAD
+        .init_once(CHANNEL_STACK.init_once(()).unwrap())
+        .unwrap();
     channel_child.spawn(move || {
         channel_thread(cq_recv);
     });
@@ -162,7 +153,9 @@ fn channel_thread(cq_recv: Receiver<Command>) {
 
 impl ForkSync for ChannelSync {
     fn take(&self, index: usize) {
-        self.command.send(Command::Acquire(index, self.reply_send.clone())).unwrap();
+        self.command
+            .send(Command::Acquire(index, self.reply_send.clone()))
+            .unwrap();
         // When the reply comes, we know we have the resource.
         self.reply_recv.recv().unwrap();
     }

@@ -6,10 +6,7 @@
 //! This is a simple implementation of the Fork synchronizer that uses underlying Zephyr `k_mutex`
 //! wrapped in `sys::Mutex`.  The ForkSync semantics map simply to these.
 
-use crate::{
-    ForkSync,
-    NUM_PHIL,
-};
+use crate::{ForkSync, NUM_PHIL};
 use zephyr::sys::sync::Mutex;
 use zephyr::time::Forever;
 
@@ -25,10 +22,8 @@ pub struct SysMutexSync {
 
 impl SysMutexSync {
     #[allow(dead_code)]
-    pub fn new() -> SysMutexSync  {
-        let locks = [(); NUM_PHIL].each_ref().map(|()| {
-            Mutex::new().unwrap()
-        });
+    pub fn new() -> SysMutexSync {
+        let locks = [(); NUM_PHIL].each_ref().map(|()| Mutex::new().unwrap());
         SysMutexSync { locks }
     }
 }

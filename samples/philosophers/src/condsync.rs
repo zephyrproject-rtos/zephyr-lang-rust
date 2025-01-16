@@ -6,12 +6,9 @@
 //! This implementation of the Fork synchronizer uses a single data object, protected by a
 //! `sync::Mutex`, and coordinated by a `sync::Condvar`.
 
-use crate::{
-    ForkSync,
-    NUM_PHIL,
-};
-use zephyr::sync::Mutex;
+use crate::{ForkSync, NUM_PHIL};
 use zephyr::sync::Condvar;
+use zephyr::sync::Mutex;
 // use zephyr::time::Forever;
 
 #[derive(Debug)]
@@ -24,7 +21,7 @@ pub struct CondSync {
 
 impl CondSync {
     #[allow(dead_code)]
-    pub fn new() -> CondSync  {
+    pub fn new() -> CondSync {
         CondSync {
             lock: Mutex::new([false; NUM_PHIL]),
             cond: Condvar::new(),
