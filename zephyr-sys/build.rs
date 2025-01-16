@@ -55,7 +55,13 @@ fn main() -> Result<()> {
 
     // Bindgen everything.
     let bindings = Builder::default()
-        .header(Path::new("wrapper.h").canonicalize().unwrap().to_str().unwrap())
+        .header(
+            Path::new("wrapper.h")
+                .canonicalize()
+                .unwrap()
+                .to_str()
+                .unwrap(),
+        )
         .use_core()
         .clang_arg(&target_arg);
     let bindings = define_args(bindings, "-I", "INCLUDE_DIRS");
