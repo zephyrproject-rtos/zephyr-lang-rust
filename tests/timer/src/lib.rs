@@ -11,7 +11,10 @@ use alloc::{boxed::Box, vec::Vec};
 use rand::Rng;
 use rand_pcg::Pcg32;
 use zephyr::{
-    printkln, sync::{atomic::AtomicUsize, Arc}, time::{Duration, NoWait, Tick}, timer::{Callback, CallbackTimer, SimpleTimer, StoppedTimer}
+    printkln,
+    sync::{atomic::AtomicUsize, Arc},
+    time::{Duration, NoWait, Tick},
+    timer::{Callback, CallbackTimer, SimpleTimer, StoppedTimer},
 };
 
 // Test the timers interface.  There are a couple of things this tries to test:
@@ -77,7 +80,9 @@ fn timer_test() {
 
     // Now that everything is done and cleaned up, allow a little time to pass to make sure there
     // are no stray timers.  We can re-use the total test timer.
-    let mut total_test = total_test.stop().start_simple(Duration::millis_at_least(1), NoWait);
+    let mut total_test = total_test
+        .stop()
+        .start_simple(Duration::millis_at_least(1), NoWait);
     total_test.read_count_wait();
 }
 
