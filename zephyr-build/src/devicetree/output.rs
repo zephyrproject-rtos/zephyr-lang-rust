@@ -192,13 +192,13 @@ fn general_property(prop: &Property) -> TokenStream {
     let tag = format!("{}_DEBUG", prop.name);
     let tag = dt_to_upper_id(&tag);
     quote! {
-        pub const #tag: &'static str = #text;
+        pub const #tag: &str = #text;
     }
 }
 
 /// Given a DT name, return an identifier for a lower-case version.
 pub fn dt_to_lower_id(text: &str) -> Ident {
-    format_ident!("{}", fix_id(&text))
+    format_ident!("{}", fix_id(text))
 }
 
 pub fn dt_to_upper_id(text: &str) -> Ident {
