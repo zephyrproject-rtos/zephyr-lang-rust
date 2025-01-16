@@ -7,16 +7,13 @@
 //! Zephyr.
 
 #![no_std]
-
 // Allow rust naming convention violations.
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
-
 // Zephyr makes use of zero-sized structs, which Rustc considers invalid.  Suppress this warning.
 // Note, however, that this suppresses any warnings in the bindings about improper C types.
 #![allow(improper_ctypes)]
-
 #![allow(rustdoc::broken_intra_doc_links)]
 #![allow(rustdoc::bare_urls)]
 
