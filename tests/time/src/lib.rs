@@ -3,14 +3,11 @@
 
 #![no_std]
 
-use core::ffi::{
-    c_char,
-    CStr,
-};
+use core::ffi::{c_char, CStr};
 
 use zephyr::printkln;
-use zephyr::time::{Duration, Instant, Tick, Timeout};
 use zephyr::raw::k_timeout_t;
+use zephyr::time::{Duration, Instant, Tick, Timeout};
 
 #[no_mangle]
 extern "C" fn rust_main() {
@@ -29,7 +26,9 @@ fn check_conversions() {
             break;
         }
         let name = unsafe {
-            CStr::from_ptr(entry.name).to_str().expect("Invalid C string")
+            CStr::from_ptr(entry.name)
+                .to_str()
+                .expect("Invalid C string")
         };
         printkln!("Testing: {}", name);
 
@@ -57,8 +56,7 @@ fn check_conversions() {
                 let value: Timeout = value.into();
                 let c_value = unsafe { ms_to_abs_timeout(entry.uvalue) };
                 if c_value.ticks != value.0.ticks {
-                    printkln!("Mismatch C: {}, Rust: {}",
-                        c_value.ticks, value.0.ticks);
+                    printkln!("Mismatch C: {}, Rust: {}", c_value.ticks, value.0.ticks);
                 }
                 assert_eq!(c_value.ticks, value.0.ticks);
             }
