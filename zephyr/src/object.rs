@@ -188,12 +188,16 @@ where
     ///
     /// If it is called an additional time, it will return None.
     pub fn init_once(&self, args: <Self as Wrapped>::I) -> Option<<Self as Wrapped>::T> {
-        if let Err(_) = self.init.compare_exchange(
-            KOBJ_UNINITIALIZED,
-            KOBJ_INITING,
-            Ordering::AcqRel,
-            Ordering::Acquire,
-        ) {
+        if self
+            .init
+            .compare_exchange(
+                KOBJ_UNINITIALIZED,
+                KOBJ_INITING,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_err()
+        {
             return None;
         }
         let result = self.get_wrapped(args);
