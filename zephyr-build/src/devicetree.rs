@@ -5,13 +5,13 @@
 //! different ways:
 //!
 //! - Canonical DTS.  There is a single DTS file (`build/zephyr/zephyr.dts`) that contains the final
-//! tree, but still in DTS format (the DTB file would have information discarded).
+//!   tree, but still in DTS format (the DTB file would have information discarded).
 //!
 //! - Generated.  The C header `devicetree_generated.h` contains all of the definitions.  This isn't
-//! a particularly friendly file to read or parse, but it does have one piece of information that is
-//! not represented anywhere else: the mapping between devicetree nodes and their "ORD" index.  The
-//! device nodes in the system are indexed by this number, and we need this in order to be able to
-//! reference the nodes from Rust.
+//!   a particularly friendly file to read or parse, but it does have one piece of information that is
+//!   not represented anywhere else: the mapping between devicetree nodes and their "ORD" index.  The
+//!   device nodes in the system are indexed by this number, and we need this in order to be able to
+//!   reference the nodes from Rust.
 //!
 //! Beyond the ORD field, it seems easier to deal with the DTS file itself.  Parsing is fairly
 //! straightforward, as it is a subset of the DTS format, and we only have to be able to deal with

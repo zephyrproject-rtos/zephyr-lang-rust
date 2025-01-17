@@ -22,7 +22,7 @@ impl DeviceTree {
         // Root is a little special.  Since we don't want a module for this (it will be provided
         // above where it is included, so it can get documentation and attributes), we use None for
         // the name.
-        self.node_walk(self.root.as_ref(), None, &augments)
+        self.node_walk(self.root.as_ref(), None, augments)
     }
 
     // Write, to the given writer, CFG lines so that Rust code can conditionalize based on the DT.
@@ -98,14 +98,11 @@ impl DeviceTree {
             match value {
                 Value::Words(ref words) => {
                     if words.len() == 1 {
-                        match &words[0] {
-                            Word::Number(n) => {
-                                let tag = dt_to_upper_id(&prop.name);
-                                return quote! {
-                                    pub const #tag: u32 = #n;
-                                };
-                            }
-                            _ => (),
+                        if let Word::Number(n) = &words[0] {
+                            let tag = dt_to_upper_id(&prop.name);
+                            return quote! {
+                                pub const #tag: u32 = #n;
+                            };
                         }
                     }
                 }
@@ -173,15 +170,13 @@ impl Property {
     // If this property is a single top-level phandle, output that a that path is valid.  It isn't a
     // real node, but acts like one.
     fn output_path<W: Write>(&self, write: &mut W, name: &str) -> Result<()> {
-        if let Some(value) = self.get_single_value() {
-            if let Value::Phandle(_) = value {
-                writeln!(
-                    write,
-                    "cargo:rustc-cfg=dt=\"{}::{}\"",
-                    name,
-                    fix_id(&self.name)
-                )?;
-            }
+        if let Some(Value::Phandle(_)) = self.get_single_value() {
+            writeln!(
+                write,
+                "cargo:rustc-cfg=dt=\"{}::{}\"",
+                name,
+                fix_id(&self.name)
+            )?;
         }
         Ok(())
     }

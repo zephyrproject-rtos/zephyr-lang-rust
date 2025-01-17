@@ -135,10 +135,7 @@ pub fn dt_cfgs() {
 
 /// Determine if `rustfmt` is in the path, and can be excecuted. Returns false on any kind of error.
 pub fn has_rustfmt() -> bool {
-    match Command::new("rustfmt").arg("--version").status() {
-        Ok(st) if st.success() => true,
-        _ => false,
-    }
+    matches!(Command::new("rustfmt").arg("--version").status(), Ok(st) if st.success())
 }
 
 /// Attempt to write the contents to a file, using rustfmt. If there is an error running rustfmt,
