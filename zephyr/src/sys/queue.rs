@@ -50,6 +50,16 @@ impl Queue {
     /// safely.
     ///
     /// [`Message`]: crate::sync::channel::Message
+    ///
+    /// # Safety
+    ///
+    /// Zephyr has specific requirements on the memory given in data, which can be summarized as:
+    /// - The memory must remain valid until after the data is returned, via recv.
+    /// - The first `usize` in the pointed data will be mutated by Zephyr to manage structures.
+    /// - This first field must not be modified by any code while the message is enqueued.
+    ///
+    /// These are easiest to satisfy by ensuring the message is Boxed, and owned by the queue
+    /// system.
     pub unsafe fn send(&self, data: *mut c_void) {
         k_queue_append(self.item.get(), data)
     }
@@ -64,6 +74,11 @@ impl Queue {
     /// [`Forever`]: crate::time::Forever
     /// [`NoWait`]: crate::time::NoWait
     /// [`Duration`]: crate::time::Duration
+    ///
+    /// # Safety
+    ///
+    /// Once an item is received from a queue, ownership is returned to the caller, and Zephyr no
+    /// longer depends on it not being freed, or the first `usize` field being for its use.
     pub unsafe fn recv<T>(&self, timeout: T) -> *mut c_void
     where
         T: Into<Timeout>,

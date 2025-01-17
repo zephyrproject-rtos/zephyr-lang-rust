@@ -227,6 +227,12 @@ impl Thread {
 
     /// Simple thread spawn.  This is unsafe because of the raw values being used.  This can be
     /// useful in systems without an allocator defined.
+    ///
+    /// # Safety
+    ///
+    /// Safe use follows similar requirements to using this safely from within C code.  Passing Rust
+    /// values through this interface is difficult to get right, and it is generally recommended to
+    /// use [`spawn`].
     pub unsafe fn simple_spawn(
         mut self,
         child: k_thread_entry_t,

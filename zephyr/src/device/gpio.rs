@@ -24,8 +24,13 @@ pub struct GpioToken(());
 static GPIO_TOKEN: Unique = Unique::new();
 
 impl GpioToken {
-    /// Retrieves the gpio token.  This is unsafe because lots of code in zephyr operates on the
-    /// gpio drivers.
+    /// Retrieves the gpio token.
+    ///
+    /// # Safety
+    /// This is unsafe because lots of code in zephyr operates on the gpio drivers.  The user of the
+    /// gpio subsystem, in general should either coordinate all gpio access across the system (the
+    /// token coordinates this only within Rust code), or verify that the particular gpio driver and
+    /// methods are thread safe.
     pub unsafe fn get_instance() -> Option<GpioToken> {
         if !GPIO_TOKEN.once() {
             return None;
@@ -112,6 +117,12 @@ impl GpioPin {
     }
 
     /// Configure a single pin.
+    ///
+    /// # Safety
+    ///
+    /// The `_token` enforces single threaded use of gpios from Rust code.  However, many drivers
+    /// within Zephyr use GPIOs, and to use gpios safely, the caller must ensure that there is
+    /// either not simultaneous use, or the gpio driver in question is thread safe.
     pub unsafe fn configure(&mut self, _token: &mut GpioToken, extra_flags: raw::gpio_flags_t) {
         // TODO: Error?
         unsafe {
@@ -124,6 +135,12 @@ impl GpioPin {
     }
 
     /// Toggle pin level.
+    ///
+    /// # Safety
+    ///
+    /// The `_token` enforces single threaded use of gpios from Rust code.  However, many drivers
+    /// within Zephyr use GPIOs, and to use gpios safely, the caller must ensure that there is
+    /// either not simultaneous use, or the gpio driver in question is thread safe.
     pub unsafe fn toggle_pin(&mut self, _token: &mut GpioToken) {
         // TODO: Error?
         unsafe {
