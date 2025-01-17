@@ -215,9 +215,11 @@ impl<T: Unpin> Sender<T> {
     /// This has the same behavior as [`send_timeout`], but as an Async function.
     ///
     /// [`send_timeout`]: Sender::send_timeout
-    pub fn send_timeout_async<'a>(&'a self, msg: T, timeout: impl Into<Timeout>)
-        -> impl Future<Output = Result<(), SendError<T>>> + 'a
-    {
+    pub fn send_timeout_async<'a>(
+        &'a self,
+        msg: T,
+        timeout: impl Into<Timeout>,
+    ) -> impl Future<Output = Result<(), SendError<T>>> + 'a {
         SendFuture {
             sender: self,
             msg: Some(msg),
@@ -245,7 +247,10 @@ struct SendFuture<'a, T: Unpin> {
 impl<'a, T: Unpin> Future for SendFuture<'a, T> {
     type Output = Result<(), SendError<T>>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<Self::Output> {
+    fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut core::task::Context<'_>,
+    ) -> core::task::Poll<Self::Output> {
         /*
         let this = unsafe {
             Pin::get_unchecked_mut(self)
@@ -426,9 +431,10 @@ impl<T> Receiver<T> {
     /// If the channel is empty and not disconnected, this call will block until the receive
     /// operation can proceed or the operation times out.
     /// wake up and return an error.
-    pub fn recv_timeout_async<'a>(&'a self, timeout: impl Into<Timeout>)
-        -> impl Future<Output = Result<T, RecvError>> + 'a
-    {
+    pub fn recv_timeout_async<'a>(
+        &'a self,
+        timeout: impl Into<Timeout>,
+    ) -> impl Future<Output = Result<T, RecvError>> + 'a {
         RecvFuture {
             receiver: self,
             timeout: timeout.into(),
@@ -644,7 +650,7 @@ pub struct RecvError;
 ///
 /// TODO: This function, in general, is completely worthless without Rust support for [async
 /// closures](https://rust-lang.github.io/rfcs/3668-async-closures.html).
-pub async fn event_loop_useless<T, EF, EFF> (
+pub async fn event_loop_useless<T, EF, EFF>(
     events: Receiver<T>,
     period: Duration,
     mut handle: EF,

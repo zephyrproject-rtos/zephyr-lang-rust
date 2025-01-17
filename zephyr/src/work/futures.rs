@@ -195,7 +195,7 @@ pub struct JoinHandle<F: Future> {
 unsafe impl<F> Send for JoinHandle<F>
 where
     F: Future,
-    F::Output: Send
+    F::Output: Send,
 {
 }
 
@@ -205,12 +205,7 @@ impl<F: Future + Send> JoinHandle<F> {
         // Answer holds the result when the work finishes.
         let answer = Arc::new(Answer::new());
 
-        let work = WorkData::new(
-            future,
-            Arc::downgrade(&answer),
-            builder.queue,
-            builder.name,
-        );
+        let work = WorkData::new(future, Arc::downgrade(&answer), builder.queue, builder.name);
         WorkData::submit(work).expect("Unable to enqueue worker");
 
         Self { answer }
@@ -422,9 +417,7 @@ impl<F: Future> WorkData<F> {
     fn submit(mut this: Pin<Box<Self>>) -> crate::Result<SubmitResult> {
         // SAFETY: This is unsafe because the pointer lose the Pin guarantee, but C code will not
         // move it.
-        let this_ref = unsafe {
-            Pin::get_unchecked_mut(this.as_mut())
-        };
+        let this_ref = unsafe { Pin::get_unchecked_mut(this.as_mut()) };
 
         let result = if let Some(queue) = this_ref.info.queue {
             unsafe {
@@ -474,9 +467,7 @@ impl<F: Future> WorkData<F> {
         // not necessarily at the beginning of the struct.
         let mut this = unsafe { Self::from_raw(work) };
 
-        let this_ref = unsafe {
-            Pin::get_unchecked_mut(this.as_mut())
-        };
+        let this_ref = unsafe { Pin::get_unchecked_mut(this.as_mut()) };
 
         // Set the next work to Forever, with no events.  TODO: This prevents the next poll from
         // being able to determine the reason for the wakeup.

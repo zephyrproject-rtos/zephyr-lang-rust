@@ -52,9 +52,7 @@ where
     F: Future + 'static,
     F::Output: Send + 'static,
 {
-    WorkBuilder::new()
-        .set_name(name)
-        .start_local(future)
+    WorkBuilder::new().set_name(name).start_local(future)
 }
 
 /// Yield the current thread, returning it to the work queue to be run after other work on that

@@ -11,16 +11,16 @@
 //! operation, which in situation where counting is actually desired, will result in the count being
 //! incorrect.
 
+use core::ffi::c_uint;
+use core::fmt;
+#[cfg(CONFIG_RUST_ALLOC)]
+use core::future::Future;
+#[cfg(CONFIG_RUST_ALLOC)]
+use core::mem;
 #[cfg(CONFIG_RUST_ALLOC)]
 use core::pin::Pin;
 #[cfg(CONFIG_RUST_ALLOC)]
 use core::task::{Context, Poll};
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::future::Future;
-use core::ffi::c_uint;
-use core::fmt;
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::mem;
 
 #[cfg(CONFIG_RUST_ALLOC)]
 use zephyr_sys::ETIMEDOUT;
@@ -81,7 +81,10 @@ impl Semaphore {
     ///
     /// Returns a future that either waits for the semaphore, or returns status.
     #[cfg(CONFIG_RUST_ALLOC)]
-    pub fn take_async<'a>(&'a self, timeout: impl Into<Timeout>) -> impl Future<Output = Result<()>> + 'a {
+    pub fn take_async<'a>(
+        &'a self,
+        timeout: impl Into<Timeout>,
+    ) -> impl Future<Output = Result<()>> + 'a {
         SemTake {
             sem: self,
             timeout: timeout.into(),
@@ -139,7 +142,6 @@ impl<'a> Future for SemTake<'a> {
         if self.ran {
             // If we ran once, and still don't have any data, indicate this as a timeout.
             return Poll::Ready(Err(crate::Error(ETIMEDOUT)));
-
         }
 
         // TODO: Clean this up.
