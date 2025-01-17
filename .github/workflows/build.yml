@@ -68,6 +68,18 @@ jobs:
           rm renode_${RENODE_VERSION}_amd64.deb
           pip3 install -r /opt/renode/tests/requirements.txt --no-cache-dir
 
+      - name: Check formatting
+        working-directory: apptest
+        shell: bash
+        run: |
+          for name in $(find . -name Cargo.toml); do
+            name=$(dirname $name)
+            echo "Checking formatting of $name"
+            cd $name
+            cargo fmt --check
+            cd - > /dev/null
+          done
+
       - name: Build firmware
         working-directory: apptest
         shell: bash
