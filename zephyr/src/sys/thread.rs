@@ -507,7 +507,7 @@ mod closure {
 
     pub unsafe extern "C" fn child(child: *mut c_void, _p2: *mut c_void, _p3: *mut c_void) {
         let thread_data: Box<ThreadData> = unsafe { Box::from_raw(child as *mut ThreadData) };
-        let closure = (*thread_data).closure;
+        let closure = thread_data.closure;
         closure();
     }
 }
