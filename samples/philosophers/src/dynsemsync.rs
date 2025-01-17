@@ -37,7 +37,7 @@ pub fn dyn_semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
         .each_ref()
         .map(|()| Arc::new(Semaphore::new(1, 1).unwrap()));
 
-    let syncers = (0..NUM_PHIL)
+    (0..NUM_PHIL)
         .map(|_| {
             let syncer = SemSync {
                 forks: forks.clone(),
@@ -45,7 +45,5 @@ pub fn dyn_semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
             let item = Box::new(syncer) as Box<dyn ForkSync>;
             Arc::from(item)
         })
-        .collect();
-
-    syncers
+        .collect()
 }
