@@ -136,6 +136,12 @@ impl fmt::Debug for StoppedTimer {
     }
 }
 
+impl Default for StoppedTimer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A statically allocated `k_timer` (StoppedTimer).
 ///
 /// This is intended to be used from within the `kobj_define!` macro.  It declares a static

@@ -238,6 +238,13 @@ impl Condvar {
     }
 }
 
+#[cfg(CONFIG_RUST_ALLOC)]
+impl Default for Condvar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl fmt::Debug for Condvar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Condvar {:?}", self.inner)

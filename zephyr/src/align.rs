@@ -48,3 +48,12 @@ where
         AlignAs([])
     }
 }
+
+impl<const N: usize> Default for AlignAs<N>
+where
+    AlignAsStruct: AlignAsTrait<N>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
