@@ -11,6 +11,5 @@ extern crate zephyr;
 
 #[no_mangle]
 extern "C" fn rust_main() {
-    printkln!("Hello world from Rust on {}",
-              zephyr::kconfig::CONFIG_BOARD);
+    printkln!("Hello world from Rust on {}", zephyr::kconfig::CONFIG_BOARD);
 }
