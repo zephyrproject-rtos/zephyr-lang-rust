@@ -32,19 +32,15 @@ enum Command {
 }
 
 /// This implements a single Fork on the server side for the ChannelSync.
+#[derive(Default)]
 enum ChannelFork {
     /// The fork is free,
+    #[default]
     Free,
     /// The work is in use, nobody is waiting.
     InUse,
     /// The fork is in use, and someone is waiting on it.
     InUseWait(Sender<()>),
-}
-
-impl Default for ChannelFork {
-    fn default() -> Self {
-        ChannelFork::Free
-    }
 }
 
 impl ChannelFork {

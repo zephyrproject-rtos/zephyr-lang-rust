@@ -38,7 +38,7 @@ pub fn semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
         Arc::new(m.init_once((1, 1)).unwrap())
     });
 
-    let syncers = (0..NUM_PHIL)
+    (0..NUM_PHIL)
         .map(|_| {
             let syncer = SemSync {
                 forks: forks.clone(),
@@ -46,9 +46,7 @@ pub fn semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
             let item = Box::new(syncer) as Box<dyn ForkSync>;
             Arc::from(item)
         })
-        .collect();
-
-    syncers
+        .collect()
 }
 
 kobj_define! {
