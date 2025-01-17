@@ -32,14 +32,7 @@ pub use portable_atomic_util::Weak;
 
 mod mutex;
 
-pub use mutex::{
-    Mutex,
-    MutexGuard,
-    Condvar,
-    LockResult,
-    TryLockResult,
-    TryLockError,
-};
+pub use mutex::{Condvar, LockResult, Mutex, MutexGuard, TryLockError, TryLockResult};
 
 mod spinmutex;
 

@@ -194,7 +194,10 @@ use zephyr_sys::{
     k_work_queue_start, k_work_submit, k_work_submit_to_queue, ETIMEDOUT,
 };
 
-use crate::{error::to_result_void, kio::ContextExt, object::Fixed, simpletls::StaticTls, sys::thread::ThreadStack, time::Timeout};
+use crate::{
+    error::to_result_void, kio::ContextExt, object::Fixed, simpletls::StaticTls,
+    sys::thread::ThreadStack, time::Timeout,
+};
 
 pub mod futures;
 

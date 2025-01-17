@@ -75,7 +75,7 @@ impl<T: Copy + Send> StaticTls<T> {
         Self {
             data: AtomicPtr::new(ptr::null_mut()),
         }
-    } 
+    }
 
     /// Get the underlying Mutex out of the data, initializing it with an empty type if necessary.
     fn get_inner(&self) -> &Mutex<SimpleTls<T>> {
@@ -92,7 +92,8 @@ impl<T: Copy + Send> StaticTls<T> {
                     // If there was already a value, just use it.
                     None
                 }
-            });
+            },
+        );
         let data = match data {
             Ok(_) => {
                 // If the update stored something, it unhelpfully returns the old value, which was
