@@ -112,12 +112,10 @@ fn parent_compatible(node: &Node, names: &[String], level: usize) -> bool {
     // runs on the host, so the stack is easier.
     if level == 0 {
         names.iter().any(|n| node.is_compatible(n))
+    } else if let Some(parent) = node.parent.borrow().as_ref() {
+        parent_compatible(parent, names, level - 1)
     } else {
-        if let Some(parent) = node.parent.borrow().as_ref() {
-            parent_compatible(parent, names, level - 1)
-        } else {
-            false
-        }
+        false
     }
 }
 

@@ -60,7 +60,7 @@ impl<'a> TreeBuilder<'a> {
         println!("Root: {:?} {}", name, ord);
         */
 
-        let mut name = LazyName::new(path, route.to_owned(), &self.ords);
+        let mut name = LazyName::new(path, route.to_owned(), self.ords);
         let mut labels = Vec::new();
         let mut properties = Vec::new();
         let mut children = Vec::new();
@@ -79,7 +79,7 @@ impl<'a> TreeBuilder<'a> {
                 }
                 Rule::node => {
                     let child_path = name.path_ref();
-                    children.push(self.walk_node(pair, child_path, &name.route_ref()));
+                    children.push(self.walk_node(pair, child_path, name.route_ref()));
                 }
                 r => panic!("node: {:?}", r),
             }
@@ -140,7 +140,7 @@ fn decode_property(node: Pair<'_, Rule>) -> Property {
     }
 }
 
-fn decode_words<'i>(node: Pair<'i, Rule>) -> Vec<Word> {
+fn decode_words(node: Pair<'_, Rule>) -> Vec<Word> {
     let mut value = Vec::new();
     for pair in node.into_inner() {
         match pair.as_rule() {
@@ -151,7 +151,7 @@ fn decode_words<'i>(node: Pair<'i, Rule>) -> Vec<Word> {
             }
             Rule::decimal_number => {
                 let text = pair.as_str();
-                let num = u32::from_str_radix(text, 10).unwrap();
+                let num = text.parse::<u32>().unwrap();
                 value.push(Word::Number(num));
             }
             Rule::phandle => {
@@ -165,7 +165,7 @@ fn decode_words<'i>(node: Pair<'i, Rule>) -> Vec<Word> {
     value
 }
 
-fn decode_bytes<'i>(node: Pair<'i, Rule>) -> Vec<u8> {
+fn decode_bytes(node: Pair<'_, Rule>) -> Vec<u8> {
     let mut value = Vec::new();
     for pair in node.into_inner() {
         match pair.as_rule() {
