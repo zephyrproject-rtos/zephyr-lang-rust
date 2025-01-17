@@ -16,7 +16,11 @@
 #![allow(improper_ctypes)]
 #![allow(rustdoc::broken_intra_doc_links)]
 #![allow(rustdoc::bare_urls)]
-
+// Disable various clippy warnings as they will not be fixable in the bindgen generated code.
+#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::transmute_int_to_bool)]
+#![allow(clippy::useless_transmute)]
+#![allow(clippy::len_without_is_empty)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 // We have directed bindgen to not generate copy for any times.  It unfortunately doesn't have an
