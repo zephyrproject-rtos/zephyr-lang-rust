@@ -167,9 +167,13 @@ impl<T> StaticKernelObject<T>
 where
     StaticKernelObject<T>: Wrapped,
 {
-    /// Construct an empty of these objects, with the zephyr data zero-filled.  This is safe in the
-    /// sense that Zephyr we track the initialization, they start in the uninitialized state, and
-    /// the zero value of the initialize atomic indicates that it is uninitialized.
+    /// Construct an empty of these objects, with the zephyr data zero-filled.
+    ///
+    /// # Safety
+    ///
+    /// This is safe in the sense that Zephyr we track the initialization, they start in the
+    /// uninitialized state, and the zero value of the initialize atomic indicates that it is
+    /// uninitialized.
     pub const unsafe fn new() -> StaticKernelObject<T> {
         StaticKernelObject {
             value: unsafe { mem::zeroed() },

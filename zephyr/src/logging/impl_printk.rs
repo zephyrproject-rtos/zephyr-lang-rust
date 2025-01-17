@@ -35,8 +35,10 @@ static PRINTK_LOGGER: PrintkLogger = PrintkLogger;
 
 /// Set the log handler to log messages through printk in Zephyr.
 ///
+/// # Safety
+///
 /// This is unsafe due to racy issues in the log framework on targets that do not support atomic
-/// pointers.
+/// pointers.  As long as this is called ever by a single thread, it is safe to use.
 pub unsafe fn set_logger() -> Result<(), SetLoggerError> {
     super::set_logger_internal(&PRINTK_LOGGER)
 }
