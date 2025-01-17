@@ -6,6 +6,7 @@
 
 use core::{
     cell::UnsafeCell,
+    convert::Infallible,
     fmt,
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -15,7 +16,7 @@ use crate::sys::sync as sys;
 use crate::time::{Forever, NoWait};
 
 /// Until poisoning is implemented, mutexes never return an error, and we just get back the guard.
-pub type LockResult<Guard> = Result<Guard, ()>;
+pub type LockResult<Guard> = Result<Guard, Infallible>;
 
 /// The return type from [`Mutex::try_lock`].
 ///
