@@ -106,14 +106,14 @@ impl Semaphore {
     /// `Error(EAGAIN)`.
     ///
     /// [`take`]: Self::take
-    pub fn reset(&mut self) {
+    pub fn reset(&self) {
         unsafe { k_sem_reset(self.item.get()) }
     }
 
     /// Get a semaphore's count.
     ///
     /// Returns the current count.
-    pub fn count_get(&mut self) -> usize {
+    pub fn count_get(&self) -> usize {
         unsafe { k_sem_count_get(self.item.get()) as usize }
     }
 }
