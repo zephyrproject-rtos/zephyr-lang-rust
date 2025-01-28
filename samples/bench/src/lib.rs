@@ -47,6 +47,9 @@ extern "C" fn rust_main() {
     tester.run(Command::SemWaitAsync(10_000));
     tester.run(Command::SemWaitSameAsync(10_000));
     tester.run(Command::SemHigh(10_000));
+    tester.run(Command::SemPingPong(10_000));
+    tester.run(Command::SemPingPongAsync(10_000));
+    tester.run(Command::Empty);
 
     printkln!("Done with all tests\n");
     tester.leak();
@@ -62,6 +65,9 @@ extern "C" fn rust_main() {
 struct ThreadTests {
     /// Each test thread gets a semaphore, to use as appropriate for that test.
     sems: Vec<Arc<Semaphore>>,
+
+    /// This semaphore is used to ping-ping back to another thread.
+    back_sems: Vec<Arc<Semaphore>>,
 
     /// Each test also has a message queue, for testing, that it has sender and receiver for.
     chans: Vec<ChanPair<u32>>,
@@ -100,6 +106,7 @@ impl ThreadTests {
 
         let mut result = Self {
             sems: Vec::new(),
+            back_sems: Vec::new(),
             chans: Vec::new(),
             commands: Vec::new(),
             results: ChanPair::new_unbounded(),
@@ -113,6 +120,9 @@ impl ThreadTests {
         for _ in 0..count {
             let sem = Arc::new(Semaphore::new(0, u32::MAX).unwrap());
             result.sems.push(sem.clone());
+
+            let sem = Arc::new(Semaphore::new(0, u32::MAX).unwrap());
+            result.back_sems.push(sem);
 
             let chans = ChanPair::new_bounded(1);
             result.chans.push(chans.clone());
@@ -167,6 +177,22 @@ impl ThreadTests {
 
     fn run(&self, command: Command) {
         // printkln!("Running {:?}", command);
+
+        // In case previous runs left the semaphore non-zero, reset all of them.  This is safe due
+        // to nothing using the semaphores right now.
+        for sem in &self.sems {
+            if sem.count_get() > 0 {
+                printkln!("Warning: previous test left count: {}", sem.count_get());
+                sem.reset();
+            }
+        }
+        for sem in &self.back_sems {
+            if sem.count_get() > 0 {
+                printkln!("Warning: previous test left count: {}", sem.count_get());
+                sem.reset();
+            }
+        }
+
         let start = now();
 
         let mut results = vec![None; self.chans.len()];
@@ -257,6 +283,10 @@ impl ThreadTests {
                     this.sem_take(&this.sems[id], count, &mut total);
                 }
 
+                Command::SemPingPong(count) => {
+                    this.ping_pong_worker(id, &this.sems[id], &this.back_sems[id], count, &mut total);
+                }
+
                 // For the async commands, spawn this on the worker thread and don't reply
                 // ourselves.
                 Command::SimpleSemAsync(count) => {
@@ -297,11 +327,39 @@ impl ThreadTests {
                         &this.workq,
                         c"worker",
                     );
+                    if id == 0 {
+                        spawn(
+                            Self::sem_giver_async(this.clone(), this.sems.clone(), count),
+                            &this.workq,
+                            c"giver",
+                        );
+                    }
+                    continue;
+                }
+
+                Command::SemPingPongAsync(count) => {
                     spawn(
-                        Self::sem_giver_async(this.clone(), this.sems.clone(), count),
+                        Self::ping_pong_worker_async(
+                            this.clone(),
+                            id,
+                            this.sems[id].clone(),
+                            this.back_sems[id].clone(),
+                            count,
+                        ),
                         &this.workq,
-                        c"giver",
+                        c"worker",
                     );
+                    if id == 0 {
+                        spawn(
+                            Self::ping_pong_replier_async(
+                                this.clone(),
+                                count,
+                            ),
+                            &this.workq,
+                            c"giver",
+                        );
+                    }
+
                     continue;
                 }
             }
@@ -370,6 +428,12 @@ impl ThreadTests {
 
     async fn sem_take_async(this: Arc<Self>, id: usize, sem: Arc<Semaphore>, count: usize) {
         for _ in 0..count {
+            // Enable this to verify that we are actually blocking.
+            if false {
+                if let Ok(_) = sem.take(NoWait) {
+                    panic!("Semaphore was already available");
+                }
+            }
             sem.take_async(Forever).await.unwrap();
         }
 
@@ -380,12 +444,71 @@ impl ThreadTests {
             .unwrap();
     }
 
+    /// Worker side of the ping pong sem, takes the 'sem' and gives to the back_sem.
+    fn ping_pong_worker(&self, id: usize, sem: &Semaphore, back_sem: &Semaphore, count: usize, total: &mut usize) {
+        for i in 0..count {
+            if false {
+                if let Ok(_) = sem.take(NoWait) {
+                    panic!("Semaphore was already available: {} loop:{}", id, i);
+                }
+            }
+            sem.take(Forever).unwrap();
+            back_sem.give();
+            *total += 1;
+        }
+    }
+
+    async fn ping_pong_worker_async(
+        this: Arc<Self>,
+        id: usize,
+        sem: Arc<Semaphore>,
+        back_sem: Arc<Semaphore>,
+        count: usize,
+    ) {
+        for i in 0..count {
+            if false {
+                if let Ok(_) = sem.take(NoWait) {
+                    panic!("Semaphore was already available: {} loop:{}", id, i);
+                }
+            }
+            sem.take_async(Forever).await.unwrap();
+            back_sem.give();
+        }
+
+        this.results
+            .sender
+            .send_async(Result::Worker { id, count })
+            .await
+            .unwrap();
+    }
+
+    fn ping_pong_replier(&self, count: usize) {
+        for _ in 0..count {
+            for (sem, back) in self.sems.iter().zip(&self.back_sems) {
+                sem.give();
+                back.take(Forever).unwrap();
+            }
+        }
+    }
+
+    async fn ping_pong_replier_async(this: Arc<Self>, count: usize) {
+        for _ in 0..count {
+            for (sem, back) in this.sems.iter().zip(&this.back_sems) {
+                sem.give();
+                back.take_async(Forever).await.unwrap();
+            }
+        }
+
+        // No reply.
+    }
+
     async fn sem_giver_async(this: Arc<Self>, sems: Vec<Arc<Semaphore>>, count: usize) {
         for _ in 0..count {
             for sem in &sems {
                 sem.give();
-                // Yield after each, forcing us back into the work queue, to allow the workers to
-                // run, and block.
+
+                // Yield after each loop.  This should only force a reschedule each task's operation,
+                // just enough to make sure everything still blocks.
                 yield_now().await;
             }
         }
@@ -415,6 +538,10 @@ impl ThreadTests {
                 }
                 Command::SemWaitSameAsync(_) => (),
                 Command::SemHigh(_) => (),
+                Command::SemPingPong(count) => {
+                    this.ping_pong_replier(count);
+                }
+                Command::SemPingPongAsync(_) => (),
             }
             // printkln!("low command: {:?}", cmd);
 
@@ -434,6 +561,7 @@ impl ThreadTests {
                 Command::SemWait(_) => (),
                 Command::SemWaitAsync(_) => (),
                 Command::SemWaitSameAsync(_) => (),
+                Command::SemPingPong(_) => (),
                 Command::SemHigh(count) => {
                     // The high-priority thread does all of the gives, this should cause every single
                     // semaphore operation to be ready.
@@ -443,6 +571,7 @@ impl ThreadTests {
                         }
                     }
                 }
+                Command::SemPingPongAsync(_) => (),
             }
             // printkln!("high command: {:?}", cmd);
 
@@ -492,6 +621,10 @@ enum Command {
     /// Semaphore tests where the high priority thread does the 'give', so every wait should be
     /// read.
     SemHigh(usize),
+    /// Semaphores ping-ponging between worker threads and a low priority thread.
+    SemPingPong(usize),
+    /// SemPingPong, but async
+    SemPingPongAsync(usize),
 }
 
 enum Result {
