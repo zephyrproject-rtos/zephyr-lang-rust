@@ -1,0 +1,51 @@
+# Copyright (c) 2024 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "Rust Dining Philosphers"
+
+source "Kconfig.zephyr"
+
+choice
+	prompt "Select Synchronization implementation"
+	default SYNC_CHANNEL
+
+	config SYNC_SYS_SEMAPHORE
+		bool "Use sys::Semaphore to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use sys::Semaphore, with one per fork, to
+		  synchronize.
+
+	config SYNC_SYS_DYNAMIC_SEMAPHORE
+		bool "Use a dynamic sys::Semaphore to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use sys::Semaphore, with one per fork, to
+		  synchronize.  The Semaphores will be dynamically allocated.
+
+	config SYNC_SYS_MUTEX
+		bool "Use sys::Semaphore to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use sys::Mutex, with one per fork, to
+		  synchronize.
+
+	config SYNC_CONDVAR
+		bool "Use sync::Condvar and sync::Mutex to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use a single data structure, protected
+		  by a sync::Mutex and coordinated with a sync::Condvar, to synchronize.
+
+	config SYNC_CHANNEL
+		bool "Use sync::channel to synchronize forks"
+		help
+		  Use to have the dining philosophers sample use a worker thread, communicating via
+		  channels to synchronize.
+
+endchoice
+
+if SYNC_CHANNEL
+	config USE_BOUNDED_CHANNELS
+	bool "Should channel sync use bounded channels?"
+	default y
+	help
+	  If set, the channel-based communication will use bounded channels with bounds calculated
+	  to not ever block.
+endif
