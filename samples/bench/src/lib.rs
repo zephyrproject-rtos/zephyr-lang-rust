@@ -12,6 +12,7 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 use zephyr::time::NoWait;
+use zephyr::work::futures::work_size;
 use zephyr::{
     kconfig::CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
     kio::{spawn, yield_now},
@@ -49,7 +50,20 @@ extern "C" fn rust_main() {
     tester.run(Command::SemHigh(10_000));
     tester.run(Command::SemPingPong(10_000));
     tester.run(Command::SemPingPongAsync(10_000));
+    tester.run(Command::SemOnePingPong(10_000));
+    /*
+    tester.run(Command::SemOnePingPongAsync(NUM_THREADS, 10_000 / 6));
+    tester.run(Command::SemOnePingPongAsync(20, 10_000 / 20));
+    tester.run(Command::SemOnePingPongAsync(50, 10_000 / 50));
+    tester.run(Command::SemOnePingPongAsync(100, 10_000 / 100));
+    tester.run(Command::SemOnePingPongAsync(500, 10_000 / 500));
     tester.run(Command::Empty);
+    */
+    let mut num = 6;
+    while num < 500 {
+        tester.run(Command::SemOnePingPongAsync(num, 10_000 / num));
+        num = num * 13 / 10;
+    }
 
     printkln!("Done with all tests\n");
     tester.leak();
@@ -166,6 +180,16 @@ impl ThreadTests {
         thread.spawn(move || {
             Self::high_runner(result2, high_recv);
         });
+
+        // Calculate a size to show.
+        printkln!("worker size: {} bytes",
+                  work_size(
+                      Self::ping_pong_worker_async(
+                          result.clone(),
+                          0,
+                          result.sems[0].clone(),
+                          result.back_sems[0].clone(),
+                          6)));
 
         result
     }
@@ -287,6 +311,10 @@ impl ThreadTests {
                     this.ping_pong_worker(id, &this.sems[id], &this.back_sems[id], count, &mut total);
                 }
 
+                Command::SemOnePingPong(count) => {
+                    this.ping_pong_worker(id, &this.sems[0], &this.back_sems[0], count, &mut total);
+                }
+
                 // For the async commands, spawn this on the worker thread and don't reply
                 // ourselves.
                 Command::SimpleSemAsync(count) => {
@@ -361,6 +389,39 @@ impl ThreadTests {
                     }
 
                     continue;
+                }
+
+                Command::SemOnePingPongAsync(nthread, count) => {
+                    if id == 0 {
+                        for th in 0..nthread {
+                            spawn(
+                                Self::ping_pong_worker_async(
+                                    this.clone(),
+                                    th,
+                                    this.sems[0].clone(),
+                                    this.back_sems[0].clone(),
+                                    count,
+                                ),
+                                &this.workq,
+                                c"worker",
+                            );
+                        }
+                        spawn(
+                            Self::one_ping_pong_replier_async(
+                                this.clone(),
+                                nthread,
+                                count,
+                            ),
+                            &this.workq,
+                            c"giver",
+                        );
+                    }
+
+                    // Avoid the reply for the number of workers that are within the range.  This
+                    // does assume that nthread will always be >= the number configured.
+                    if id < this.sems.len() {
+                        continue;
+                    }
                 }
             }
 
@@ -475,11 +536,14 @@ impl ThreadTests {
             back_sem.give();
         }
 
-        this.results
-            .sender
-            .send_async(Result::Worker { id, count })
-            .await
-            .unwrap();
+        // Only send for an ID in range.
+        if id < this.sems.len() {
+            this.results
+                .sender
+                .send_async(Result::Worker { id, count })
+                .await
+                .unwrap();
+        }
     }
 
     fn ping_pong_replier(&self, count: usize) {
@@ -491,11 +555,31 @@ impl ThreadTests {
         }
     }
 
+    fn one_ping_pong_replier(&self, count: usize) {
+        for _ in 0..count {
+            for _ in 0..self.sems.len() {
+                self.sems[0].give();
+                self.back_sems[0].take(Forever).unwrap();
+            }
+        }
+    }
+
     async fn ping_pong_replier_async(this: Arc<Self>, count: usize) {
         for _ in 0..count {
             for (sem, back) in this.sems.iter().zip(&this.back_sems) {
                 sem.give();
                 back.take_async(Forever).await.unwrap();
+            }
+        }
+
+        // No reply.
+    }
+
+    async fn one_ping_pong_replier_async(this: Arc<Self>, nthread: usize, count: usize) {
+        for _ in 0..count {
+            for _ in 0..nthread {
+                this.sems[0].give();
+                this.back_sems[0].take_async(Forever).await.unwrap();
             }
         }
 
@@ -541,7 +625,11 @@ impl ThreadTests {
                 Command::SemPingPong(count) => {
                     this.ping_pong_replier(count);
                 }
+                Command::SemOnePingPong(count) => {
+                    this.one_ping_pong_replier(count);
+                }
                 Command::SemPingPongAsync(_) => (),
+                Command::SemOnePingPongAsync(_, _) => (),
             }
             // printkln!("low command: {:?}", cmd);
 
@@ -562,6 +650,7 @@ impl ThreadTests {
                 Command::SemWaitAsync(_) => (),
                 Command::SemWaitSameAsync(_) => (),
                 Command::SemPingPong(_) => (),
+                Command::SemOnePingPong(_) => (),
                 Command::SemHigh(count) => {
                     // The high-priority thread does all of the gives, this should cause every single
                     // semaphore operation to be ready.
@@ -572,6 +661,7 @@ impl ThreadTests {
                     }
                 }
                 Command::SemPingPongAsync(_) => (),
+                Command::SemOnePingPongAsync(_, _) => (),
             }
             // printkln!("high command: {:?}", cmd);
 
@@ -625,6 +715,11 @@ enum Command {
     SemPingPong(usize),
     /// SemPingPong, but async
     SemPingPongAsync(usize),
+    /// PingPong but with a single shared semaphore.  Demonstrates multiple threads queued on the
+    /// same object.
+    SemOnePingPong(usize),
+    /// Same as SemOnePingPong, but async.  The first parameter is the number of async tasks.
+    SemOnePingPongAsync(usize, usize),
 }
 
 enum Result {
