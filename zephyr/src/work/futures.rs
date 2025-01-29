@@ -174,6 +174,12 @@ impl WorkBuilder {
     }
 }
 
+/// Calculate the memory needed by scheduled work.  This does not include the size of the Answer
+/// (which can be dropped).
+pub fn work_size<F: Future>(f: F) -> usize {
+    WorkData::size_of(f)
+}
+
 /// A potentially running Work.
 ///
 /// This encapsulates a Future that is potentially running in the Zephyr work queue system.
@@ -534,6 +540,13 @@ impl<F: Future> WorkData<F> {
             .cast::<Self>();
         let this = Box::from_raw(ptr);
         Pin::new_unchecked(this)
+    }
+
+    /// Determine the size of WorkData for a given Future.
+    ///
+    /// It is difficult to otherwise calculate this.  The future will be dropped by this.
+    pub fn size_of(_: F) -> usize {
+        mem::size_of::<Self>()
     }
 }
 
