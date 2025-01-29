@@ -6,41 +6,19 @@ common:
   harness_config:
     type: one_line
     regex:
-      # Match the statistics, and make sure that each philosopher has at least 10 (two digits)
-      # meals.
-      - "c:\\[\\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}, \\d{2,}\\]"
+      # Match message printed at the end.
+      - "Done with all tests"
   tags: rust
   filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m0
+    - qemu_cortex_m3
+    - qemu_riscv32
+    - qemu_riscv32/qemu_virt_riscv32/smp
+    - qemu_riscv64
+    - qemu_riscv64/qemu_virt_riscv64/smp
+    - nrf52840dk/nrf52840
 tests:
-  sample.rust.philosopher.semaphore:
-    tags: introduction
-    min_ram: 32
-    extra_configs:
-      - CONFIG_SYNC_SYS_SEMAPHORE=y
-  sample.rust.philosopher.dynsemaphore:
-    tags: introduction
-    min_ram: 32
-    extra_configs:
-      - CONFIG_SYNC_SYS_DYNAMIC_SEMAPHORE=y
-  sample.rust.philosopher.sysmutex:
-    tags: introduction
-    min_ram: 32
-    extra_configs:
-      - CONFIG_SYNC_SYS_MUTEX=y
-  sample.rust.philosopher.condvar:
-    tags: introduction
-    min_ram: 32
-    extra_configs:
-      - CONFIG_SYNC_CONDVAR=y
-  sample.rust.philosopher.channel_bounded:
-    tags: introduction
-    min_ram: 32
-    extra_configs:
-      - CONFIG_SYNC_CHANNEL=y
-      - CONFIG_USE_BOUNDED_CHANNELS=y
-  sample.rust.philosopher.channel_unbounded:
-    tags: introduction
-    min_ram: 32
-    extra_configs:
-      - CONFIG_SYNC_CHANNEL=y
-      - CONFIG_USE_BOUNDED_CHANNELS=n
+  sample.rust/bench.plain:
+    tags: benchmark
+    min_ram: 256
