@@ -182,14 +182,16 @@ impl ThreadTests {
         });
 
         // Calculate a size to show.
-        printkln!("worker size: {} bytes",
-                  work_size(
-                      Self::ping_pong_worker_async(
-                          result.clone(),
-                          0,
-                          result.sems[0].clone(),
-                          result.back_sems[0].clone(),
-                          6)));
+        printkln!(
+            "worker size: {} bytes",
+            work_size(Self::ping_pong_worker_async(
+                result.clone(),
+                0,
+                result.sems[0].clone(),
+                result.back_sems[0].clone(),
+                6
+            ))
+        );
 
         result
     }
@@ -308,7 +310,13 @@ impl ThreadTests {
                 }
 
                 Command::SemPingPong(count) => {
-                    this.ping_pong_worker(id, &this.sems[id], &this.back_sems[id], count, &mut total);
+                    this.ping_pong_worker(
+                        id,
+                        &this.sems[id],
+                        &this.back_sems[id],
+                        count,
+                        &mut total,
+                    );
                 }
 
                 Command::SemOnePingPong(count) => {
@@ -379,10 +387,7 @@ impl ThreadTests {
                     );
                     if id == 0 {
                         spawn(
-                            Self::ping_pong_replier_async(
-                                this.clone(),
-                                count,
-                            ),
+                            Self::ping_pong_replier_async(this.clone(), count),
                             &this.workq,
                             c"giver",
                         );
@@ -407,11 +412,7 @@ impl ThreadTests {
                             );
                         }
                         spawn(
-                            Self::one_ping_pong_replier_async(
-                                this.clone(),
-                                nthread,
-                                count,
-                            ),
+                            Self::one_ping_pong_replier_async(this.clone(), nthread, count),
                             &this.workq,
                             c"giver",
                         );
@@ -506,7 +507,14 @@ impl ThreadTests {
     }
 
     /// Worker side of the ping pong sem, takes the 'sem' and gives to the back_sem.
-    fn ping_pong_worker(&self, id: usize, sem: &Semaphore, back_sem: &Semaphore, count: usize, total: &mut usize) {
+    fn ping_pong_worker(
+        &self,
+        id: usize,
+        sem: &Semaphore,
+        back_sem: &Semaphore,
+        count: usize,
+        total: &mut usize,
+    ) {
         for i in 0..count {
             if false {
                 if let Ok(_) = sem.take(NoWait) {
