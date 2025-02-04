@@ -233,6 +233,8 @@ impl Thread {
     /// Safe use follows similar requirements to using this safely from within C code.  Passing Rust
     /// values through this interface is difficult to get right, and it is generally recommended to
     /// use [`spawn`].
+    ///
+    /// [`spawn`]: Self::spawn
     pub unsafe fn simple_spawn(
         mut self,
         child: k_thread_entry_t,
