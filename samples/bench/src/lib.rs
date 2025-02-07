@@ -9,10 +9,16 @@
 
 extern crate alloc;
 
+use core::mem;
+use core::pin::Pin;
+
+use alloc::collections::vec_deque::VecDeque;
 use alloc::vec;
 use alloc::vec::Vec;
+use zephyr::sync::SpinMutex;
 use zephyr::time::NoWait;
 use zephyr::work::futures::work_size;
+use zephyr::work::{SimpleAction, Work};
 use zephyr::{
     kconfig::CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
     kio::{spawn, yield_now},
@@ -39,6 +45,19 @@ const WORK_STACK_SIZE: usize = 2048;
 #[no_mangle]
 extern "C" fn rust_main() {
     let tester = ThreadTests::new(NUM_THREADS);
+
+    // Some basic benchmarks
+    arc_bench();
+    spin_bench();
+    sem_bench();
+
+    let simple = Simple::new(tester.workq.clone());
+    let mut num = 6;
+    while num < 500 {
+        simple.run(num, 10_000 / num);
+        num = num * 13 / 10;
+    }
+
     tester.run(Command::Empty);
     tester.run(Command::SimpleSem(10_000));
     tester.run(Command::SimpleSemAsync(10_000));
@@ -65,8 +84,8 @@ extern "C" fn rust_main() {
         num = num * 13 / 10;
     }
 
+
     printkln!("Done with all tests\n");
-    tester.leak();
 }
 
 /// Thread-based tests use this information to manage the test and results.
@@ -117,6 +136,9 @@ impl ThreadTests {
                 .set_no_yield(true)
                 .start(WORK_STACK.init_once(()).unwrap()),
         );
+
+        // Leak the workqueue so it doesn't get dropped.
+        let _ = Arc::into_raw(workq.clone());
 
         let mut result = Self {
             sems: Vec::new(),
@@ -194,11 +216,6 @@ impl ThreadTests {
         );
 
         result
-    }
-
-    /// At the end of the tests, leak the work queue.
-    fn leak(&self) {
-        let _ = Arc::into_raw(self.workq.clone());
     }
 
     fn run(&self, command: Command) {
@@ -743,9 +760,202 @@ enum Result {
     High,
 }
 
+/// The Simple test just does a ping pong test using manually submitted work.
+struct Simple {
+    workq: Arc<WorkQueue>,
+}
+
+impl Simple {
+    fn new(workq: Arc<WorkQueue>) -> Self {
+        Self { workq }
+    }
+
+    fn run(&self, workers: usize, iterations: usize) {
+        // printkln!("Running Simple");
+        let main = Work::new(SimpleMain::new(workers * iterations, self.workq.clone()));
+
+        let children: VecDeque<_> = (0..workers)
+            .map(|n| Work::new(SimpleWorker::new(main.clone(), self.workq.clone(), n)))
+            .collect();
+
+        let mut locked = main.action().locked.lock().unwrap();
+        let _ = mem::replace(&mut locked.works, children);
+        drop(locked);
+
+        let start = now();
+        // Fire off main, which will run everything.
+        Work::submit_to_queue(main.clone(), &self.workq).unwrap();
+
+        // And wait for the completion semaphore.
+        main.action().done.take(Forever).unwrap();
+
+        let stop = now();
+        let time = (stop - start) as f64 / (CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC as f64) * 1000.0;
+
+        let total = workers * iterations;
+        let time = if total > 0 {
+            time / (total as f64) * 1000.0
+        } else {
+            0.0
+        };
+
+        printkln!("    {:8.3} us, {} of {} workers {} times", time, total, workers, iterations);
+    }
+}
+
+/// A simple worker.  When run, it submits the main worker to do the next work.
+struct SimpleWorker {
+    main: Pin<Arc<Work<SimpleMain>>>,
+    workq: Arc<WorkQueue>,
+    _id: usize,
+}
+
+impl SimpleWorker {
+    fn new(main: Pin<Arc<Work<SimpleMain>>>, workq: Arc<WorkQueue>, id: usize) -> Self {
+        Self { main, workq, _id: id }
+    }
+}
+
+impl SimpleAction for SimpleWorker {
+    fn act(self: Pin<&Self>) {
+        // Each time we are run, fire the main worker back up.
+        Work::submit_to_queue(self.main.clone(), &self.workq).unwrap();
+    }
+}
+
+/// This is the main worker.
+///
+/// Each time it is run, it submits the next worker from the queue and exits.
+struct SimpleMain {
+    /// All of the work items.
+    locked: SpinMutex<Locked>,
+    workq: Arc<WorkQueue>,
+    done: Semaphore,
+}
+
+impl SimpleAction for SimpleMain {
+    fn act(self: Pin<&Self>) {
+        // Each time, take a worker from the queue, and submit it.
+        let mut lock = self.locked.lock().unwrap();
+
+        if lock.count == 0 {
+            // The last time, indicate we are done.
+            self.done.give();
+            return;
+        }
+
+        let worker = lock.works.pop_front().unwrap();
+        lock.works.push_back(worker.clone());
+        lock.count -= 1;
+        drop(lock);
+
+        Work::submit_to_queue(worker.clone(), &self.workq).unwrap();
+    }
+}
+
+impl SimpleMain {
+    fn new(count: usize, workq: Arc<WorkQueue>) -> Self {
+        Self {
+            locked: SpinMutex::new(Locked::new(count)),
+            done: Semaphore::new(0, 1).unwrap(),
+            workq,
+        }
+    }
+}
+
+struct Locked {
+    works: VecDeque<Pin<Arc<Work<SimpleWorker>>>>,
+    count: usize,
+}
+
+impl Locked {
+    fn new(count: usize) -> Self {
+        Self {
+            works: VecDeque::new(),
+            count,
+        }
+    }
+}
+
+/// Benchmark the performance of Arc.
+fn arc_bench() {
+    let thing = Arc::new(123);
+    let timer = BenchTimer::new("Arc clone+drop", 10_000);
+    for _ in 0..10_000 {
+        let _ = thing.clone();
+    }
+    timer.stop();
+}
+
+/// Benchmark SpinMutex.
+#[inline(never)]
+#[no_mangle]
+fn spin_bench() {
+    let iters = 10_000;
+    let thing = SpinMutex::new(123);
+    let timer = BenchTimer::new("SpinMutex lock", iters);
+    for _ in 0..iters {
+        *thing.lock().unwrap() += 1;
+    }
+    timer.stop();
+}
+
+/// Semaphore benchmark.
+///
+/// This benchmarks a single thread with a semaphore that is always ready.  This is pretty close to
+/// just syscall with spinlock time.
+#[inline(never)]
+#[no_mangle]
+fn sem_bench() {
+    let iters = 10_000;
+    let sem = Semaphore::new(iters as u32, iters as u32).unwrap();
+    let timer = BenchTimer::new("Semaphore take", iters);
+    for _ in 0..iters {
+        sem.take(Forever).unwrap();
+    }
+    timer.stop();
+}
+
 // For accurate timing, use the cycle counter.
 fn now() -> u64 {
     unsafe { k_cycle_get_64() }
+}
+
+/// Timing some operations.
+///
+/// To use:
+/// ```
+/// /// 500 is the number of iterations happening.
+/// let timer = BenchTimer::new("My thing", 500);
+/// // operations
+/// timer.stop("Thing being timed");
+/// ```
+pub struct BenchTimer<'a> {
+    what: &'a str,
+    start: u64,
+    count: usize,
+}
+
+impl<'a> BenchTimer<'a> {
+    pub fn new(what: &'a str, count: usize) -> Self {
+        Self {
+            what,
+            start: now(),
+            count,
+        }
+    }
+
+    pub fn stop(self) {
+        let stop = now();
+        let time = (stop - self.start) as f64 / (CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC as f64) * 1000.0;
+        let time = if self.count > 0 {
+            time / (self.count as f64) * 1000.0
+        } else {
+            0.0
+        };
+
+        printkln!("    {:8.3} us, {} of {}", time, self.count, self.what);
+    }
 }
 
 kobj_define! {
