@@ -42,6 +42,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// Map a return result from Zephyr into an Result.
 ///
 /// Negative return results being considered errors.
+#[inline(always)]
 pub fn to_result(code: c_int) -> Result<c_int> {
     if code < 0 {
         Err(Error(-code as u32))
@@ -51,6 +52,7 @@ pub fn to_result(code: c_int) -> Result<c_int> {
 }
 
 /// Map a return result, with a void result.
+#[inline(always)]
 pub fn to_result_void(code: c_int) -> Result<()> {
     to_result(code).map(|_| ())
 }
