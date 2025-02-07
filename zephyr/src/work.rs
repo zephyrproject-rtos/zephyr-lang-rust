@@ -177,15 +177,8 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
 use core::{
-    convert::Infallible,
-    ffi::{c_int, c_uint, CStr},
-    future::Future,
-    mem,
-    pin::Pin,
-    ptr,
-    task::Poll,
+    cell::UnsafeCell, convert::Infallible, ffi::{c_int, c_uint, CStr}, future::Future, mem, pin::Pin, ptr, task::Poll
 };
 
 use zephyr_sys::{
@@ -196,6 +189,7 @@ use zephyr_sys::{
 
 use crate::{
     error::to_result_void, kio::ContextExt, object::Fixed, simpletls::StaticTls,
+    sync::Arc,
     sys::thread::ThreadStack, time::Timeout,
 };
 
@@ -543,22 +537,40 @@ impl SubmitResult {
 ///
 /// This is similar to a Future, except there is no concept of it completing.  It manages its
 /// associated data however it wishes, and is responsible for re-queuing as needed.
-pub trait SimpleAction<T> {
+///
+/// Note, specifically, that the Act does not take a mutable reference.  This is because the Work
+/// below uses an Arc, so this data can be shared.
+pub trait SimpleAction {
     /// Perform the action.
-    fn act(self: Pin<&mut Self>);
+    fn act(self: Pin<&Self>);
 }
 
 /// A basic Zephyr work item.
 ///
 /// Holds a `k_work`, along with the data associated with that work.  When the work is queued, the
 /// `act` method will be called on the provided `SimpleAction`.
-#[repr(C)]
 pub struct Work<T> {
-    work: k_work,
+    work: UnsafeCell<k_work>,
     action: T,
 }
 
-impl<T: SimpleAction<T>> Work<T> {
+/// SAFETY: Work queues can be sent as long as the action itself can be.
+unsafe impl<F> Send for Work<F>
+where
+    F: SimpleAction,
+    F: Send,
+{
+}
+
+/// SAFETY: Work queues are Sync when the action is.
+unsafe impl<F> Sync for Work<F>
+where
+    F: SimpleAction,
+    F: Sync,
+{
+}
+
+impl<T: SimpleAction + Send> Work<T> {
     /// Construct a new Work from the given action.
     ///
     /// Note that the data will be moved into the pinned Work.  The data is internal, and only
@@ -566,16 +578,16 @@ impl<T: SimpleAction<T>> Work<T> {
     /// inter-thread sharing mechanisms are needed.
     ///
     /// TODO: Can we come up with a way to allow sharing on the same worker using Rc instead of Arc?
-    pub fn new(action: T) -> Pin<Box<Self>> {
-        let mut this = Box::pin(Self {
+    pub fn new(action: T) -> Pin<Arc<Self>> {
+        let this = Arc::pin(Self {
             // SAFETY: will be initialized below, after this is pinned.
             work: unsafe { mem::zeroed() },
             action,
         });
-        let ptr = this.as_mut().as_k_work();
-        // SAFETY: Initializes the zero allocated struct.
+
+        // SAFETY: Initializes above zero-initialized struct.
         unsafe {
-            k_work_init(ptr, Some(Self::handler));
+            k_work_init(this.work.get(), Some(Self::handler));
         }
 
         this
@@ -585,41 +597,80 @@ impl<T: SimpleAction<T>> Work<T> {
     ///
     /// This can return several possible `Ok` results.  See the docs on [`SubmitResult`] for an
     /// explanation of them.
-    pub fn submit(self: Pin<&mut Self>) -> crate::Result<SubmitResult> {
+    pub fn submit(this: Pin<Arc<Self>>) -> crate::Result<SubmitResult> {
+        // We "leak" the arc, so that when the handler runs, it can be safely turned back into an
+        // Arc, and the drop on the arc will then run.
+        let work = this.work.get();
+
+        // SAFETY: C the code does not perform moves on the data, and the `from_raw` below puts it
+        // back into a Pin when it reconstructs the Arc.
+        let this = unsafe { Pin::into_inner_unchecked(this) };
+        let _ = Arc::into_raw(this);
+
         // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
         // work item is no longer queued when the data is dropped.
-        SubmitResult::to_result(unsafe { k_work_submit(self.as_k_work()) })
+        SubmitResult::to_result(unsafe { k_work_submit(work) })
     }
 
     /// Submit this work to a specified work queue.
     ///
     /// TODO: Change when we have better wrappers for work queues.
     pub fn submit_to_queue(
-        self: Pin<&mut Self>,
-        queue: *mut k_work_q,
+        this: Pin<Arc<Self>>,
+        queue: &WorkQueue,
     ) -> crate::Result<SubmitResult> {
+        let work = this.work.get();
+
+        // "leak" the arc to give to C.  We'll reconstruct it in the handler.
+        // SAFETY: The C code does not perform moves on the data, and the `from_raw` below puts it
+        // back into a Pin when it reconstructs the Arc.
+        let this = unsafe { Pin::into_inner_unchecked(this) };
+        let _ = Arc::into_raw(this);
+
         // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
         // work item is no longer queued when the data is dropped.
-        SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue, self.as_k_work()) })
-    }
-
-    /// Get the pointer to the underlying work queue.
-    fn as_k_work(self: Pin<&mut Self>) -> *mut k_work {
-        // SAFETY: This is private, and no code here will move the pinned item.
-        unsafe { self.map_unchecked_mut(|s| &mut s.work).get_unchecked_mut() }
-    }
-
-    /// Get a pointer into our action.
-    fn as_action(self: Pin<&mut Self>) -> Pin<&mut T> {
-        // SAFETY: We rely on the worker itself not moving the data.
-        unsafe { self.map_unchecked_mut(|s| &mut s.action) }
+        SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) })
     }
 
     /// Callback, through C, but bound by a specific type.
     extern "C" fn handler(work: *mut k_work) {
-        // SAFETY: We rely on repr(C) placing the first field of a struct at the same address as the
-        // struct.  This avoids needing a Rust equivalent to `CONTAINER_OF`.
-        let this: Pin<&mut Self> = unsafe { Pin::new_unchecked(&mut *(work as *mut Self)) };
-        this.as_action().act();
+        // We want to avoid needing a `repr(C)` on our struct, so the `k_work` pointer is not
+        // necessarily at the beginning of the struct.
+        // SAFETY: Converts raw pointer to work back into the box.
+        let this = unsafe { Self::from_raw(work) };
+
+        // Access the action within, still pinned.
+        // SAFETY: It is safe to keep the pin on the interior.
+        let action = unsafe { this.as_ref().map_unchecked(|p| &p.action) };
+
+        action.act();
+    }
+
+    /*
+    /// Consume this Arc, returning the internal pointer.  Needs to have a complementary `from_raw`
+    /// called to avoid leaking the item.
+    fn into_raw(this: Pin<Arc<Self>>) -> *const Self {
+        // SAFETY: This removes the Pin guarantee, but is given as a raw pointer to C, which doesn't
+        // generally use move.
+        let this = unsafe { Pin::into_inner_unchecked(this) };
+        Arc::into_raw(this)
+    }
+    */
+
+    /// Given a pointer to the work_q burried within, recover the Pinned Box containing our data.
+    unsafe fn from_raw(ptr: *const k_work) -> Pin<Arc<Self>> {
+        // SAFETY: This fixes the pointer back to the beginning of Self.  This also assumes the
+        // pointer is valid.
+        let ptr = ptr
+            .cast::<u8>()
+            .sub(mem::offset_of!(Self, work))
+            .cast::<Self>();
+        let this = Arc::from_raw(ptr);
+        Pin::new_unchecked(this)
+    }
+
+    /// Access the inner action.
+    pub fn action(&self) -> &T {
+        &self.action
     }
 }
