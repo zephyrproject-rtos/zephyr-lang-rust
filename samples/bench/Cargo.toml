@@ -23,3 +23,10 @@ zephyr-build = "0.1.0"
 debug-assertions = true
 overflow-checks = true
 debug = true
+opt-level = "z"
+lto = true
+
+[profile.dev]
+debug = 2
+lto = true
+opt-level = "z"
