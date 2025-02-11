@@ -178,7 +178,14 @@
 extern crate alloc;
 
 use core::{
-    cell::UnsafeCell, convert::Infallible, ffi::{c_int, c_uint, CStr}, future::Future, mem, pin::Pin, ptr, task::Poll
+    cell::UnsafeCell,
+    convert::Infallible,
+    ffi::{c_int, c_uint, CStr},
+    future::Future,
+    mem,
+    pin::Pin,
+    ptr,
+    task::Poll,
 };
 
 use zephyr_sys::{
@@ -188,8 +195,7 @@ use zephyr_sys::{
 };
 
 use crate::{
-    error::to_result_void, kio::ContextExt, object::Fixed, simpletls::StaticTls,
-    sync::Arc,
+    error::to_result_void, kio::ContextExt, object::Fixed, simpletls::StaticTls, sync::Arc,
     sys::thread::ThreadStack, time::Timeout,
 };
 
@@ -615,10 +621,7 @@ impl<T: SimpleAction + Send> Work<T> {
     /// Submit this work to a specified work queue.
     ///
     /// TODO: Change when we have better wrappers for work queues.
-    pub fn submit_to_queue(
-        this: Pin<Arc<Self>>,
-        queue: &WorkQueue,
-    ) -> crate::Result<SubmitResult> {
+    pub fn submit_to_queue(this: Pin<Arc<Self>>, queue: &WorkQueue) -> crate::Result<SubmitResult> {
         let work = this.work.get();
 
         // "leak" the arc to give to C.  We'll reconstruct it in the handler.
