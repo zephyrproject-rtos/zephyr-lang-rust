@@ -87,7 +87,6 @@ extern "C" fn rust_main() {
         num = num * 13 / 10;
     }
 
-
     printkln!("Done with all tests\n");
 }
 
@@ -835,7 +834,13 @@ impl Simple {
             0.0
         };
 
-        printkln!("    {:8.3} us, {} of {} workers {} times", time, total, workers, iterations);
+        printkln!(
+            "    {:8.3} us, {} of {} workers {} times",
+            time,
+            total,
+            workers,
+            iterations
+        );
     }
 }
 
@@ -848,7 +853,11 @@ struct SimpleWorker {
 
 impl SimpleWorker {
     fn new(main: Pin<Arc<Work<SimpleMain>>>, workq: Arc<WorkQueue>, id: usize) -> Self {
-        Self { main, workq, _id: id }
+        Self {
+            main,
+            workq,
+            _id: id,
+        }
     }
 }
 
@@ -983,7 +992,8 @@ impl<'a> BenchTimer<'a> {
 
     pub fn stop(self) {
         let stop = now();
-        let time = (stop - self.start) as f64 / (CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC as f64) * 1000.0;
+        let time =
+            (stop - self.start) as f64 / (CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC as f64) * 1000.0;
         let time = if self.count > 0 {
             time / (self.count as f64) * 1000.0
         } else {
