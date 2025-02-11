@@ -25,6 +25,7 @@ use core::task::{Context, Poll};
 #[cfg(CONFIG_RUST_ALLOC)]
 use zephyr_sys::ETIMEDOUT;
 
+#[cfg(CONFIG_RUST_ALLOC)]
 use crate::kio::ContextExt;
 #[cfg(CONFIG_RUST_ALLOC)]
 use crate::time::NoWait;
