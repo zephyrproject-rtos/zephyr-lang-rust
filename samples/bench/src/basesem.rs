@@ -28,8 +28,13 @@
 
 use core::{cell::UnsafeCell, ffi::c_uint, mem, sync::atomic::Ordering};
 
-use zephyr::{error::to_result_void, raw::{k_sem, k_sem_give, k_sem_init, k_sem_take}, sync::atomic::AtomicUsize, time::Timeout};
 use zephyr::Result;
+use zephyr::{
+    error::to_result_void,
+    raw::{k_sem, k_sem_give, k_sem_init, k_sem_take},
+    sync::atomic::AtomicUsize,
+    time::Timeout,
+};
 
 pub struct Semaphore {
     state: AtomicUsize,
@@ -38,8 +43,8 @@ pub struct Semaphore {
 
 // SAFETY: These are both Send and Sync. The semaphore itself is safe, and the atomic+critical
 // section protects the state.
-unsafe impl Send for Semaphore { }
-unsafe impl Sync for Semaphore { }
+unsafe impl Send for Semaphore {}
+unsafe impl Sync for Semaphore {}
 
 impl Semaphore {
     /// Construct a new semaphore, with the given initial_count and limit.  There is a bit of
@@ -91,7 +96,8 @@ impl Semaphore {
                 k_sem_init(ptr, initial_count, limit);
             }
 
-            self.state.store(self as *const Self as usize, Ordering::Release);
+            self.state
+                .store(self as *const Self as usize, Ordering::Release);
             self.item.get()
         })
     }
