@@ -33,6 +33,8 @@ use zephyr::{
     work::{WorkQueue, WorkQueueBuilder},
 };
 
+mod basesem;
+
 /// How many threads to run in the tests.
 const NUM_THREADS: usize = 6;
 
@@ -59,6 +61,7 @@ extern "C" fn rust_main() {
     }
 
     tester.run(Command::Empty);
+    tester.run(Command::BaseSemPingPong(NUM_THREADS, 10_000));
     tester.run(Command::SimpleSem(10_000));
     tester.run(Command::SimpleSemAsync(10_000));
     tester.run(Command::SimpleSemYield(10_000));
@@ -119,6 +122,10 @@ struct ThreadTests {
     /// The test also all return their result to the main.  The threads Send, the main running
     /// receives.
     results: ChanPair<Result>,
+
+    /// For the base sem test, just use these, which are just shared by reference.
+    forward: basesem::Semaphore,
+    reverse: basesem::Semaphore,
 }
 
 impl ThreadTests {
@@ -149,6 +156,8 @@ impl ThreadTests {
             low_command: low_send,
             high_command: high_send,
             workq,
+            forward: basesem::Semaphore::new(0, 1),
+            reverse: basesem::Semaphore::new(0, 1),
         };
 
         let mut thread_commands = Vec::new();
@@ -441,6 +450,11 @@ impl ThreadTests {
                         continue;
                     }
                 }
+
+                Command::BaseSemPingPong(_nthread, count) => {
+                    this.base_worker(count);
+                    total = count;
+                }
             }
 
             this.results
@@ -626,6 +640,23 @@ impl ThreadTests {
         let _ = this;
     }
 
+    fn base_worker(&self, count: usize) {
+        for _ in 0..count {
+            self.forward.take(Forever).unwrap();
+            self.reverse.give();
+        }
+    }
+
+    // In the low runner, does the ping-pong with each.
+    fn base_replier(&self, nthread: usize, count: usize) {
+        for _ in 0..count {
+            for _ in 0..nthread {
+                self.forward.give();
+                self.reverse.take(Forever).unwrap();
+            }
+        }
+    }
+
     /// And the low priority worker.
     fn low_runner(this: Arc<Self>, command: Receiver<Command>) {
         let _ = this;
@@ -655,6 +686,9 @@ impl ThreadTests {
                 }
                 Command::SemPingPongAsync(_) => (),
                 Command::SemOnePingPongAsync(_, _) => (),
+                Command::BaseSemPingPong(nthread, count) => {
+                    this.base_replier(nthread, count);
+                }
             }
             // printkln!("low command: {:?}", cmd);
 
@@ -687,6 +721,7 @@ impl ThreadTests {
                 }
                 Command::SemPingPongAsync(_) => (),
                 Command::SemOnePingPongAsync(_, _) => (),
+                Command::BaseSemPingPong(_, _) => (),
             }
             // printkln!("high command: {:?}", cmd);
 
@@ -745,6 +780,7 @@ enum Command {
     SemOnePingPong(usize),
     /// Same as SemOnePingPong, but async.  The first parameter is the number of async tasks.
     SemOnePingPongAsync(usize, usize),
+    BaseSemPingPong(usize, usize),
 }
 
 enum Result {
