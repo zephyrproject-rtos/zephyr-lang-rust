@@ -56,7 +56,6 @@ pub struct MutexGuard<'a, T: ?Sized + 'a> {
     _nosend: PhantomData<UnsafeCell<()>>,
 }
 
-// unsafe impl<T: ?Sized + Sync> Sync for MutexGuard<'_, T> {}
 unsafe impl<T: ?Sized + Sync> Sync for MutexGuard<'_, T> {}
 
 impl<T> Mutex<T> {
