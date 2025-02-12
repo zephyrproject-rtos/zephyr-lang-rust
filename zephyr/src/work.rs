@@ -179,7 +179,6 @@ extern crate alloc;
 
 use core::{
     cell::UnsafeCell,
-    convert::Infallible,
     ffi::{c_int, c_uint, CStr},
     future::Future,
     mem,
@@ -393,13 +392,13 @@ impl Signal {
     /// Create a new `Signal`.
     ///
     /// The Signal will be in the non-signaled state.
-    pub fn new() -> Result<Signal, Infallible> {
+    pub fn new() -> Signal {
         // SAFETY: The memory is zero initialized, and Fixed ensure that it never changes address.
         let item: Fixed<k_poll_signal> = Fixed::new(unsafe { mem::zeroed() });
         unsafe {
             k_poll_signal_init(item.get());
         }
-        Ok(Signal { item })
+        Signal { item }
     }
 
     /// Reset the Signal
@@ -469,7 +468,7 @@ impl Signal {
 
 impl Default for Signal {
     fn default() -> Self {
-        Signal::new().unwrap()
+        Signal::new()
     }
 }
 
