@@ -42,8 +42,15 @@ where
 /// Arrange to have the given future run on the current worker thread.  The resulting `JoinHandle`
 /// has `join` and `join_async` methods that can be used to wait for the given thread.
 ///
-/// The main use for this is to allow work threads to use `Rc` and `Rc<RefCell<T>>` within async
-/// tasks.  The main constraint is that references inside cannot be held across an `.await`.
+/// By constraining the spawn to the current worker, this function is able to remove the Send
+/// constraint from the future (and its return type), allowing tasks to share data using
+/// lighter-weight mechanimsms, such as `Rc` and `Rc<RefCell<T>>`, or `&'static RefCell<T>`.
+///
+/// To be able to use tasks running on different workers, sharing must be done with types such as
+/// `Arc`, and `Arc<Mutex<T>>`, or `&'static Mutex<T>`.
+///
+/// It is important, when using RefCell, that a borrow from the cell not be carried across an await
+/// boundary, or RefCell's runtime multi-borrow check can cause a panic.
 ///
 /// # Panics
 /// If this is called other than from a worker task running on a work thread, it will panic.
@@ -56,7 +63,7 @@ where
 }
 
 /// Yield the current thread, returning it to the work queue to be run after other work on that
-/// queue.  (This has to be called `yield_now` in Rust, because `yield` is a keyword.
+/// queue.  (This has to be called `yield_now` in Rust, because `yield` is a keyword.)
 pub fn yield_now() -> impl Future<Output = ()> {
     YieldNow { waited: false }
 }

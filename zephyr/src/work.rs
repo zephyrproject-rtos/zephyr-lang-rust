@@ -133,7 +133,7 @@
 //!   WORKER_STACK: ThreadStack<2048>;
 //! }
 //! // ...
-//! let main_worker = Box::new(j
+//! let main_worker = Box::new(
 //!     WorkQueueBuilder::new()
 //!         .set_priority(2).
 //!         .set_name(c"mainloop")
@@ -309,7 +309,7 @@ impl WorkQueueBuilder {
 /// // Leak a work queue in a Box.
 /// let wq = Box::new(WorkQueueBuilder::new().start(...));
 /// let _ = Box::leak(wq);
-///
+/// ```
 pub struct WorkQueue {
     #[allow(dead_code)]
     item: Fixed<k_work_q>,
@@ -335,7 +335,7 @@ impl Drop for WorkQueue {
 /// The work queue is protected with a sync Mutex (which uses an underlying Zephyr mutex).  It is,
 /// in general, not a good idea to use a mutex in a work queue, as deadlock can happen.  So it is
 /// important to both never .await while holding the lock, as well as to make sure operations within
-/// it are relatively fast.  In this case, `jnsert` and `get` on the SimpleTls are reasonably fast.
+/// it are relatively fast.  In this case, `insert` and `get` on the SimpleTls are reasonably fast.
 /// `insert` is usually done just at startup as well.
 ///
 /// This is a little bit messy as we don't have a lazy mechanism, so we have to handle this a bit
