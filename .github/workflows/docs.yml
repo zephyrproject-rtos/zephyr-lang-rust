@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: zephyr-lang-rust
+          fetch-depth: 0   # Ensure full history is available
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -47,7 +48,6 @@ jobs:
           west build -t rustdoc -b qemu_cortex_m3 docgen
           mkdir rustdocs
           mv build/rust/target/thumbv7m-none-eabi/doc rustdocs/nostd
-          cp docs/top-index.html rustdocs/index.html
 
       - name: Build build documentation
         working-directory: zephyr-lang-rust
@@ -56,10 +56,23 @@ jobs:
           cargo doc
           mv target/doc ../rustdocs/std
 
+      - name: Inject commit details into top-level commit.
+        working-directory: zephyr-lang-rust
+        env:
+          COMMIT_SHA: "${{ github.event.pull_request.head.sha || github.sha }}"
+        run: python3 etc/add-hash.py
+
       - name: Upload docs artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: rustdocs
+          path: zephyr-lang-rust/rustdocs
+
+      - name: Upload pages artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
           path: zephyr-lang-rust/rustdocs
 
   doc-publish:
@@ -71,20 +84,10 @@ jobs:
       github.repository == 'zephyrproject-rtos/zephyr-lang-rust'
 
     steps:
-      # - name: Show github context
-      #   env:
-      #     GITHUB_CONTEXT: ${{ toJson(github) }}
-      #   run: |
-      #     echo "$GITHUB_CONTEXT" | jq .
-
       - name: Download documentation artifact
         uses: actions/download-artifact@v4
         with:
           name: rustdocs
-
-      # - name: Show our tree
-      #   run: |
-      #     find . -ls
 
       - name: Publish to S3
         env:
@@ -94,3 +97,20 @@ jobs:
         run: |
           PR_NUM=${{ github.event.number || 'not-a-pr' }}
           aws s3 sync  --only-show-errors . s3://builds.zephyrproject.org/zephyr-lang-rust/pr/$PR_NUM/
+
+  gh-publish:
+    name: Publish main to gh-pages
+    needs: generate-docs
+    permissions:
+      pages: write
+      id-token: write
+
+    runs-on: ubuntu-24.04
+    if: |
+      github.event_name == 'push' &&
+      github.repository == 'zephyrproject-rtos/zephyr-lang-rust'
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
