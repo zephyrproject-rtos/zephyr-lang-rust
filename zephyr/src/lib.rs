@@ -4,7 +4,73 @@
 //! Zephyr application support for Rust
 //!
 //! This crates provides the core functionality for applications written in Rust that run on top of
-//! Zephyr.
+//! Zephyr.  The goal is to bridge the two worlds.  The functionality provided here shouldn't be too
+//! distant from how Zephyr does things.  But, it should be "rusty" enough that Rust developers feel
+//! comfortable using it.
+//!
+//! Some functionality:
+//!
+//! - [`time`]: The time module provides a [`Instant`] and [`Duration`] type that are similar to those
+//!   in `std`, but are tailored for embedded systems.  These are bridged through traits, so that most
+//!   API calls that offer a timeout will accept either an `Instant` or a `Duration`.
+//! - [`sync`]: This crate provides various synchronization primitives that can be used to coordinate
+//!   between threads.  These include
+//!   - [`sync::atomic`]: Provides the same functionality as [`std::sync::atomic`], but on targets
+//!     with limited synchronization primtives, re-exports features from the 'portable-atomic'
+//!     crate, which can emulate atomics using critical sections.
+//!   - [`sync::channel`]: Channel based synchronization built around the `k_queue` channels
+//!     provided by Zephyr.  This provides both `alloc`-based unbounded channels, and bounded
+//!     channels that pre-allocate.
+//!   - [`sync::Mutex`]/[`sync::Condvar`]: `std`-style Mutexes and condition variables, where the
+//!     Mutex protects some piece of data using Rust's features.
+//!   - [`sync::SpinMutex`]: A Mutex that protects a piece of data, but does so using a spinlock.
+//!     This is useful where data needs to be used exclusively, but without other types of
+//!     synchronization.
+//!   - [`sync::Arc`]: Atomic reference counted pointers.  Mostly like [`std::sync::Arc`] but supports
+//!     all targets that support Rust on Zephyr.
+//! - [`sys`]: More direct interfaces to Zephyr's primitives.  Most of the operations in `sync` are
+//!   built on these.  These interfaces are 'safe', as in they can be used without the `unsafe`
+//!   keyword, but the interfaces in `sync` are much more useful from Rust programs.  Although most
+//!   things here won\t typically be needed, two standout:
+//!   - [`sys::thread`]: A fairly direct, but safe, interface to create Zephyr threads.  At this
+//!     point, this is the primary way to create threads in Rust code (see also [`work`] which
+//!     supports multiple contexts using Zephyr's work queues.
+//!   - [`sys::sync::Semaphore`]: The primitive Semaphore type from Zephyr.  This is the one lower
+//!     level operation that is still quite useful in regular code.
+//! - [`timer`]: Rust interfaces to Zephyr timers.  These timers can be used either by registering a
+//!   callback, or polled or waited for for an elapsed time.
+//! - [`work`]: Zephyr work queues for Rust.  The [`work::WorkQueueBuilder`] and resulting
+//!   [`work::WorkQueue`] allow creation of Zephyr work queues to be used from Rust.  The
+//!   [`work::Work`] item had an action that will be invoked by the work queue, and can be manually
+//!   submitted when needed.
+//! - [`kio`]: An implementation of an async executor built around triggerable work queues in
+//!   Zephyr.  Although there is a bit more overhead to this executor, it is compatible with many of
+//!   the Zephyr synchronization types, and many of these [`sys::sync::Semaphore`], and
+//!   [`sync::channel`] will provide `_async` variants of most of the blocking operations.  These
+//!   will return a `Future`, and can be used from async code started by the [`spawn`] function.
+//!   In addition, because Zephyr's work queues do not work well with Zephyr's Mutex type, this is
+//!   also a [`kio::sync::Mutex`] type that works with async.
+//! - [`logging`]: A logging backend for Rust on Zephyr.  This will log to either `printk` or
+//!   through Zephyr's logging framework.
+//!
+//! [`Instant`]: time::Instant
+//! [`Duration`]: time::Duration
+//! [`std::sync::atomic`]: https://doc.rust-lang.org/std/sync/atomic/
+//! [`std::sync::Arc`]: https://doc.rust-lang.org/std/sync/struct.Arc.html
+//! [`spawn`]: kio::spawn
+//!
+//! In addition to the above, the [`kconfig`] and [`devicetree`] provide a reflection of the kconfig
+//! settings and device tree that were used for a specific build.  As such, the documentation
+//! provided online is not likely to be that useful, and for these, it is best to generate the
+//! documentation for a specific build:
+//! ```bash
+//! $ west rustdoc
+//! ```
+//!
+//! Note, however, that the `kconfig` module only provides Kconfig **values**, and doesn't provide a
+//! mechanmism to base conditional compilation.  For that, please see the
+//! [zephyr-build](../../std/zephyr_build/index.html) crate, which provides routines that can be
+//! called from a `build.rs` file to make these settings available.
 
 #![no_std]
 #![allow(unexpected_cfgs)]
