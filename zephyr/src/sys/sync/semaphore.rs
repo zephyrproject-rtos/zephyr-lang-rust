@@ -16,8 +16,6 @@ use core::fmt;
 #[cfg(CONFIG_RUST_ALLOC)]
 use core::future::Future;
 #[cfg(CONFIG_RUST_ALLOC)]
-use core::mem;
-#[cfg(CONFIG_RUST_ALLOC)]
 use core::pin::Pin;
 #[cfg(CONFIG_RUST_ALLOC)]
 use core::task::{Context, Poll};
@@ -27,22 +25,19 @@ use zephyr_sys::ETIMEDOUT;
 
 #[cfg(CONFIG_RUST_ALLOC)]
 use crate::kio::ContextExt;
+use crate::object::{ObjectInit, ZephyrObject};
 #[cfg(CONFIG_RUST_ALLOC)]
 use crate::time::NoWait;
 use crate::{
     error::{to_result_void, Result},
-    object::{Fixed, StaticKernelObject, Wrapped},
     raw::{k_sem, k_sem_count_get, k_sem_give, k_sem_init, k_sem_reset, k_sem_take},
     time::Timeout,
 };
 
 pub use crate::raw::K_SEM_MAX_LIMIT;
 
-/// A zephyr `k_sem` usable from safe Rust code.
-pub struct Semaphore {
-    /// The raw Zephyr `k_sem`.
-    pub(crate) item: Fixed<k_sem>,
-}
+/// General Zephyr Semaphores
+pub struct Semaphore(pub(crate) ZephyrObject<k_sem>);
 
 /// By nature, Semaphores are both Sync and Send.  Safety is handled by the underlying Zephyr
 /// implementation (which is why Clone is also implemented).
@@ -55,13 +50,27 @@ impl Semaphore {
     /// Create a new dynamically allocated Semaphore.  This semaphore can only be used from system
     /// threads.  The arguments are as described in [the
     /// docs](https://docs.zephyrproject.org/latest/kernel/services/synchronization/semaphores.html).
+    ///
+    /// Note that this API has changed, and it now doesn't return a Result, since the Result time
+    /// generally doesn't work (in stable rust) with const.
     #[cfg(CONFIG_RUST_ALLOC)]
-    pub fn new(initial_count: c_uint, limit: c_uint) -> Result<Semaphore> {
-        let item: Fixed<k_sem> = Fixed::new(unsafe { mem::zeroed() });
-        unsafe {
-            to_result_void(k_sem_init(item.get(), initial_count, limit))?;
+    pub const fn new(initial_count: c_uint, limit: c_uint) -> Semaphore {
+        // Due to delayed init, we need to replicate the object checks in the C `k_sem_init`.
+
+        if limit == 0 || initial_count > limit {
+            panic!("Invalid semaphore initialization");
         }
-        Ok(Semaphore { item })
+
+        let this = <ZephyrObject<k_sem>>::new_raw();
+
+        unsafe {
+            let addr = this.get_uninit();
+            (*addr).count = initial_count;
+            (*addr).limit = limit;
+        }
+
+        // to_result_void(k_sem_init(item.get(), initial_count, limit))?;
+        Semaphore(this)
     }
 
     /// Take a semaphore.
@@ -74,7 +83,7 @@ impl Semaphore {
         T: Into<Timeout>,
     {
         let timeout: Timeout = timeout.into();
-        let ret = unsafe { k_sem_take(self.item.get(), timeout.0) };
+        let ret = unsafe { k_sem_take(self.0.get(), timeout.0) };
         to_result_void(ret)
     }
 
@@ -98,7 +107,7 @@ impl Semaphore {
     /// This routine gives to the semaphore, unless the semaphore is already at its maximum
     /// permitted count.
     pub fn give(&self) {
-        unsafe { k_sem_give(self.item.get()) }
+        unsafe { k_sem_give(self.0.get()) }
     }
 
     /// Resets a semaphor's count to zero.
@@ -108,14 +117,32 @@ impl Semaphore {
     ///
     /// [`take`]: Self::take
     pub fn reset(&self) {
-        unsafe { k_sem_reset(self.item.get()) }
+        unsafe { k_sem_reset(self.0.get()) }
     }
 
     /// Get a semaphore's count.
     ///
     /// Returns the current count.
     pub fn count_get(&self) -> usize {
-        unsafe { k_sem_count_get(self.item.get()) as usize }
+        unsafe { k_sem_count_get(self.0.get()) as usize }
+    }
+}
+
+impl ObjectInit<k_sem> for ZephyrObject<k_sem> {
+    fn init(item: *mut k_sem) {
+        // SAFEFY: Get the initial values used in new.  The address may have changed, but only due
+        // to a move.
+        unsafe {
+            let count = (*item).count;
+            let limit = (*item).limit;
+
+            if k_sem_init(item, count, limit) != 0 {
+                // Note that with delayed init, we cannot do anything with invalid values.  We're
+                // replicated the check in `new` above, so would only catch semantic changes in the
+                // implementation of `k_sem_init`.
+                unreachable!();
+            }
+        }
     }
 }
 
@@ -150,36 +177,6 @@ impl<'a> Future for SemTake<'a> {
         self.ran = true;
 
         Poll::Pending
-    }
-}
-
-/// A static Zephyr `k_sem`.
-///
-/// This is intended to be used from within the `kobj_define!` macro.  It declares a static ksem
-/// that will be properly registered with the Zephyr kernel object system.  Call [`init_once`] to
-/// get the [`Semaphore`] that is represents.
-///
-/// [`init_once`]: StaticKernelObject::init_once
-pub type StaticSemaphore = StaticKernelObject<k_sem>;
-
-unsafe impl Sync for StaticSemaphore {}
-
-impl Wrapped for StaticKernelObject<k_sem> {
-    type T = Semaphore;
-
-    /// The initializer for Semaphores is the initial count, and the count limit (which can be
-    /// K_SEM_MAX_LIMIT, re-exported here.
-    type I = (c_uint, c_uint);
-
-    // TODO: Thoughts about how to give parameters to the initialzation.
-    fn get_wrapped(&self, arg: Self::I) -> Semaphore {
-        let ptr = self.value.get();
-        unsafe {
-            k_sem_init(ptr, arg.0, arg.1);
-        }
-        Semaphore {
-            item: Fixed::Static(ptr),
-        }
     }
 }
 

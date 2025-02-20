@@ -43,7 +43,7 @@ async fn local_phil() -> Stats {
 
     // One fork for each philospher.
     let forks: Vec<_> = (0..NUM_PHIL)
-        .map(|_| Rc::new(Semaphore::new(1, 1).unwrap()))
+        .map(|_| Rc::new(Semaphore::new(1, 1)))
         .collect();
 
     // Create all of the philosphers
