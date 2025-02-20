@@ -2,14 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Documentation Index</title>
+    <title>Rust for Zephyr Documentation Index</title>
 </head>
 <body>
     <h1>Documentation Index</h1>
+    <p>
+    The documentation for the Rust documentation for Rust on Zephyr is divided into two parts.
     <ul>
-        <li><a href="nostd/zephyr/index.html">zephyr crate Documentation</a></li>
-        <li><a href="std/zephyr_build/index.html">zephyr_build support Documentation</a></li>
+        <li><a href="nostd/zephyr/index.html">zephyr crate Documentation</a>
+	    The main documentation for interfacing with Zephyr from Rust code.
+	</li>
+        <li><a href="std/zephyr_build/index.html">zephyr_build support Documentation</a>
+	    Documentation for build-time utilities, available from <code>build.rs</code>, primarily
+	    for allowing compile-time determination of the Zephyr configuration (e.g. conditional
+	    compilation based on Kconfig or DeviceTree values).
+	</li>
     </ul>
+    <h2>Git reference</h2>
+    <p>
+    This documentation has been generated from the zephyr-lang-rust repo as of the following commit:
     <pre>
 {{COMMIT}}
     </pre>
