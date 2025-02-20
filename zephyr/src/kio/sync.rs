@@ -62,7 +62,7 @@ impl<T> Mutex<T> {
     /// Construct a new Mutex.
     pub fn new(t: T) -> Mutex<T> {
         Mutex {
-            inner: Semaphore::new(1, 1).unwrap(),
+            inner: Semaphore::new(1, 1),
             data: UnsafeCell::new(t),
         }
     }

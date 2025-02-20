@@ -10,7 +10,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-use zephyr::{kobj_define, sync::Arc, sys::sync::Semaphore, time::Forever};
+use zephyr::{sync::Arc, sys::sync::Semaphore, time::Forever};
 
 use crate::{ForkSync, NUM_PHIL};
 
@@ -18,7 +18,7 @@ use crate::{ForkSync, NUM_PHIL};
 pub struct SemSync {
     /// The forks for this philosopher.  This is a big excessive, as we really don't need all of
     /// them, but the ForSync code uses the index here.
-    forks: [Arc<Semaphore>; NUM_PHIL],
+    forks: &'static [Semaphore; NUM_PHIL],
 }
 
 impl ForkSync for SemSync {
@@ -33,22 +33,15 @@ impl ForkSync for SemSync {
 
 #[allow(dead_code)]
 pub fn semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
-    let forks = SEMS.each_ref().map(|m| {
-        // Each fork starts as taken.
-        Arc::new(m.init_once((1, 1)).unwrap())
-    });
-
     (0..NUM_PHIL)
         .map(|_| {
-            let syncer = SemSync {
-                forks: forks.clone(),
-            };
+            let syncer = SemSync { forks: &SEMS };
             let item = Box::new(syncer) as Box<dyn ForkSync>;
             Arc::from(item)
         })
         .collect()
 }
 
-kobj_define! {
-    static SEMS: [StaticSemaphore; NUM_PHIL];
-}
+// The state of const array initialization in rust as dreadful.  There is array-init, which isn't
+// const, and there is array-const-fn-init, which, for some reason is a proc macro.
+static SEMS: [Semaphore; NUM_PHIL] = [const { Semaphore::new(1, 1) }; NUM_PHIL];

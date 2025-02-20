@@ -68,7 +68,7 @@ impl<T> Answer<T> {
     pub fn new() -> Self {
         Self {
             item: Mutex::new(None),
-            wake: Semaphore::new(0, 1).expect("Initialize semaphore"),
+            wake: Semaphore::new(0, 1),
         }
     }
 
@@ -307,7 +307,7 @@ impl WakeInfo {
                 ev.get(),
                 ZR_POLL_TYPE_SEM_AVAILABLE,
                 k_poll_modes_K_POLL_MODE_NOTIFY_ONLY as i32,
-                sem.item.get() as *mut c_void,
+                sem.0.get() as *mut c_void,
             );
         }
     }
