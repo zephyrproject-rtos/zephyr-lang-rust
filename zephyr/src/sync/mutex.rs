@@ -98,9 +98,8 @@ impl<T> Mutex<T> {
     }
 
     /// Construct a new Mutex, dynamically allocating the underlying sys Mutex.
-    #[cfg(CONFIG_RUST_ALLOC)]
-    pub fn new(t: T) -> Mutex<T> {
-        Mutex::new_from(t, sys::Mutex::new().unwrap())
+    pub const fn new(t: T) -> Mutex<T> {
+        Mutex::new_from(t, sys::Mutex::new())
     }
 }
 
@@ -164,7 +163,9 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        self.lock.inner.unlock().unwrap();
+        if let Err(e) = self.lock.inner.unlock() {
+            panic!("Problem unlocking MutexGuard in drop: {:?}", e);
+        }
     }
 }
 
@@ -195,7 +196,7 @@ impl Condvar {
     /// Construct a new Condvar, dynamically allocating the underlying Zephyr `k_condvar`.
     #[cfg(CONFIG_RUST_ALLOC)]
     pub fn new() -> Condvar {
-        Condvar::new_from(sys::Condvar::new().unwrap())
+        Condvar::new_from(sys::Condvar::new())
     }
 
     /// Blocks the current thread until this conditional variable receives a notification.
