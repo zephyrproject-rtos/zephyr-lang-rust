@@ -162,10 +162,10 @@ impl ThreadTests {
         let mut thread_commands = Vec::new();
 
         for _ in 0..count {
-            let sem = Arc::new(Semaphore::new(0, u32::MAX).unwrap());
+            let sem = Arc::new(Semaphore::new(0, u32::MAX));
             result.sems.push(sem.clone());
 
-            let sem = Arc::new(Semaphore::new(0, u32::MAX).unwrap());
+            let sem = Arc::new(Semaphore::new(0, u32::MAX));
             result.back_sems.push(sem);
 
             let chans = ChanPair::new_bounded(1);
@@ -902,7 +902,7 @@ impl SimpleMain {
     fn new(count: usize, workq: Arc<WorkQueue>) -> Self {
         Self {
             locked: SpinMutex::new(Locked::new(count)),
-            done: Semaphore::new(0, 1).unwrap(),
+            done: Semaphore::new(0, 1),
             workq,
         }
     }
@@ -953,7 +953,7 @@ fn spin_bench() {
 #[no_mangle]
 fn sem_bench() {
     let iters = 10_000;
-    let sem = Semaphore::new(iters as u32, iters as u32).unwrap();
+    let sem = Semaphore::new(iters as u32, iters as u32);
     let timer = BenchTimer::new("Semaphore take", iters);
     for _ in 0..iters {
         sem.take(Forever).unwrap();
