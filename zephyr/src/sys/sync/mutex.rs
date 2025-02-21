@@ -8,7 +8,7 @@
 //!
 //! [`object`]: crate::object
 
-use crate::object::{Fixed, StaticKernelObject, Wrapped};
+use crate::object::{ObjectInit, StaticKernelObject, ZephyrObject};
 use crate::sys::K_FOREVER;
 use crate::{
     error::{to_result_void, Result},
@@ -19,8 +19,6 @@ use crate::{
     time::Timeout,
 };
 use core::fmt;
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::mem;
 
 /// A Zephyr `k_mutux` usable from safe Rust code.
 ///
@@ -46,20 +44,15 @@ use core::mem;
 /// [`sync::Mutex`]: http://example.com/TODO
 pub struct Mutex {
     /// The raw Zephyr mutex.
-    item: Fixed<k_mutex>,
+    item: ZephyrObject<k_mutex>,
 }
 
 impl Mutex {
     /// Create a new Mutex in an unlocked state.
     ///
     /// Create a new dynamically allocated Mutex.  The Mutex can only be used from system threads.
-    #[cfg(CONFIG_RUST_ALLOC)]
-    pub fn new() -> Result<Mutex> {
-        let item: Fixed<k_mutex> = Fixed::new(unsafe { mem::zeroed() });
-        unsafe {
-            to_result_void(k_mutex_init(item.get()))?;
-        }
-        Ok(Mutex { item })
+    pub const fn new() -> Mutex {
+        Mutex { item: <ZephyrObject<k_mutex>>::new_raw() }
     }
 
     /// Lock a Zephyr Mutex.
@@ -84,6 +77,15 @@ impl Mutex {
     }
 }
 
+impl ObjectInit<k_mutex> for ZephyrObject<k_mutex> {
+    fn init(item: *mut k_mutex) {
+        // SAFETY: ZephyrObject handles initialization and move prevention.
+        unsafe {
+            k_mutex_init(item);
+        }
+    }
+}
+
 /// A static Zephyr `k_mutex`
 ///
 /// This is intended to be used from within the `kobj_define!` macro.  It declares a static
@@ -101,26 +103,10 @@ unsafe impl Send for Mutex {}
 unsafe impl Sync for StaticMutex {}
 unsafe impl Send for StaticMutex {}
 
-impl Wrapped for StaticKernelObject<k_mutex> {
-    type T = Mutex;
-
-    /// Mutex initializers take no argument.
-    type I = ();
-
-    fn get_wrapped(&self, _arg: Self::I) -> Mutex {
-        let ptr = self.value.get();
-        unsafe {
-            k_mutex_init(ptr);
-        }
-        Mutex {
-            item: Fixed::Static(ptr),
-        }
-    }
-}
-
 impl fmt::Debug for Mutex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sys::Mutex {:?}", self.item.get())
+        // SAFETY: Address is just gotten to print for diagnostics.
+        write!(f, "sys::Mutex {:?}", unsafe { self.item.get() })
     }
 }
 
@@ -128,8 +114,7 @@ impl fmt::Debug for Mutex {
 ///
 /// Lightweight wrappers for Zephyr's `k_condvar`.
 pub struct Condvar {
-    /// The underlying `k_condvar`.
-    item: Fixed<k_condvar>,
+    item: ZephyrObject<k_condvar>,
 }
 
 #[doc(hidden)]
@@ -144,13 +129,8 @@ impl Condvar {
     /// Create a new Condvar.
     ///
     /// Create a new dynamically allocated Condvar.  The Condvar can only be used from system threads.
-    #[cfg(CONFIG_RUST_ALLOC)]
-    pub fn new() -> Result<Condvar> {
-        let item: Fixed<k_condvar> = Fixed::new(unsafe { mem::zeroed() });
-        unsafe {
-            to_result_void(k_condvar_init(item.get()))?;
-        }
-        Ok(Condvar { item })
+    pub const fn new() -> Condvar {
+        Condvar { item: <ZephyrObject<k_condvar>>::new_raw() }
     }
 
     /// Wait for someone else using this mutex/condvar pair to notify.
@@ -184,25 +164,18 @@ impl Condvar {
     }
 }
 
-impl fmt::Debug for Condvar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sys::Condvar {:?}", self.item.get())
+impl ObjectInit<k_condvar> for ZephyrObject<k_condvar> {
+    fn init(item: *mut k_condvar) {
+        // SAFETY: ZephyrObject handles initialization and move prevention.
+        unsafe {
+            k_condvar_init(item);
+        }
     }
 }
 
-impl Wrapped for StaticCondvar {
-    type T = Condvar;
-
-    /// Condvar initializers take no argument.
-    type I = ();
-
-    fn get_wrapped(&self, _arg: Self::I) -> Condvar {
-        let ptr = self.value.get();
-        unsafe {
-            k_condvar_init(ptr);
-        }
-        Condvar {
-            item: Fixed::Static(ptr),
-        }
+impl fmt::Debug for Condvar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // SAFETY: Just getting the address to print.
+        write!(f, "sys::Condvar {:?}", unsafe { self.item.get() })
     }
 }
