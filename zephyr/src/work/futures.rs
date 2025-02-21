@@ -339,7 +339,7 @@ impl WakeInfo {
                 ev.get(),
                 ZR_POLL_TYPE_DATA_AVAILABLE,
                 k_poll_modes_K_POLL_MODE_NOTIFY_ONLY as i32,
-                queue.item.get() as *mut c_void,
+                queue.0.get() as *mut c_void,
             );
         }
     }

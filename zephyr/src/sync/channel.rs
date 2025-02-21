@@ -93,7 +93,7 @@ pub fn unbounded_from<T>(queue: Queue) -> (Sender<T>, Receiver<T>) {
 /// receivers will likely be blocked forever.  Any data that has been queued and not received will
 /// be leaked when all receivers have been droped.
 pub fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
-    unbounded_from(Queue::new().unwrap())
+    unbounded_from(Queue::new())
 }
 
 /// Create a multi-producer multi-consumer channel with bounded capacity.
@@ -582,8 +582,8 @@ impl<T> Bounded<T> {
             .collect();
         let slots = Box::into_pin(slots);
 
-        let free = Queue::new().unwrap();
-        let chan = Queue::new().unwrap();
+        let free = Queue::new();
+        let chan = Queue::new();
 
         // Add each of the boxes to the free list.
         for slot in slots.as_ref().iter() {
