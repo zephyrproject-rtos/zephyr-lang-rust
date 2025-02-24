@@ -161,8 +161,10 @@ impl ThreadTests {
 
         let mut thread_commands = Vec::new();
 
-        static SEMS: [StaticCell<Semaphore>; NUM_THREADS] = [const { StaticCell::new() }; NUM_THREADS];
-        static BACK_SEMS: [StaticCell<Semaphore>; NUM_THREADS] = [const { StaticCell::new() }; NUM_THREADS];
+        static SEMS: [StaticCell<Semaphore>; NUM_THREADS] =
+            [const { StaticCell::new() }; NUM_THREADS];
+        static BACK_SEMS: [StaticCell<Semaphore>; NUM_THREADS] =
+            [const { StaticCell::new() }; NUM_THREADS];
 
         for i in 0..count {
             let sem = SEMS[i].init(Semaphore::new(0, u32::MAX));
@@ -364,12 +366,7 @@ impl ThreadTests {
 
                 Command::SimpleSemYieldAsync(count) => {
                     spawn(
-                        Self::simple_sem_yield_async(
-                            this.clone(),
-                            id,
-                            this.sems[id],
-                            count,
-                        ),
+                        Self::simple_sem_yield_async(this.clone(), id, this.sems[id], count),
                         &this.workq,
                         c"worker",
                     );
@@ -484,7 +481,12 @@ impl ThreadTests {
             .unwrap();
     }
 
-    async fn simple_sem_yield_async(this: Arc<Self>, id: usize, sem: &'static Semaphore, count: usize) {
+    async fn simple_sem_yield_async(
+        this: Arc<Self>,
+        id: usize,
+        sem: &'static Semaphore,
+        count: usize,
+    ) {
         for _ in 0..count {
             sem.give();
             sem.take_async(NoWait).await.unwrap();
