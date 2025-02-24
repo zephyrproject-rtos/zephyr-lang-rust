@@ -42,6 +42,11 @@ const THREAD_STACK_SIZE: usize = 2048;
 /// Stack size to use for the work queue.
 const WORK_STACK_SIZE: usize = 2048;
 
+/// This is a global iteration.  Small numbers still test functionality within CI, and large numbers
+/// give more meaningful benchmark results.
+const TOTAL_ITERS: usize = 1_000;
+// const TOTAL_ITERS: usize = 10_000;
+
 #[no_mangle]
 extern "C" fn rust_main() {
     let tester = ThreadTests::new(NUM_THREADS);
@@ -54,33 +59,33 @@ extern "C" fn rust_main() {
     let simple = Simple::new(tester.workq.clone());
     let mut num = 6;
     while num < 500 {
-        simple.run(num, 10_000 / num);
+        simple.run(num, TOTAL_ITERS / num);
         num = num * 13 / 10;
     }
 
     tester.run(Command::Empty);
-    tester.run(Command::SimpleSem(10_000));
-    tester.run(Command::SimpleSemAsync(10_000));
-    tester.run(Command::SimpleSemYield(10_000));
-    tester.run(Command::SimpleSemYieldAsync(10_000));
-    tester.run(Command::SemWait(10_000));
-    tester.run(Command::SemWaitAsync(10_000));
-    tester.run(Command::SemWaitSameAsync(10_000));
-    tester.run(Command::SemHigh(10_000));
-    tester.run(Command::SemPingPong(10_000));
-    tester.run(Command::SemPingPongAsync(10_000));
-    tester.run(Command::SemOnePingPong(10_000));
+    tester.run(Command::SimpleSem(TOTAL_ITERS));
+    tester.run(Command::SimpleSemAsync(TOTAL_ITERS));
+    tester.run(Command::SimpleSemYield(TOTAL_ITERS));
+    tester.run(Command::SimpleSemYieldAsync(TOTAL_ITERS));
+    tester.run(Command::SemWait(TOTAL_ITERS));
+    tester.run(Command::SemWaitAsync(TOTAL_ITERS));
+    tester.run(Command::SemWaitSameAsync(TOTAL_ITERS));
+    tester.run(Command::SemHigh(TOTAL_ITERS));
+    tester.run(Command::SemPingPong(TOTAL_ITERS));
+    tester.run(Command::SemPingPongAsync(TOTAL_ITERS));
+    tester.run(Command::SemOnePingPong(TOTAL_ITERS));
     /*
-    tester.run(Command::SemOnePingPongAsync(NUM_THREADS, 10_000 / 6));
-    tester.run(Command::SemOnePingPongAsync(20, 10_000 / 20));
-    tester.run(Command::SemOnePingPongAsync(50, 10_000 / 50));
-    tester.run(Command::SemOnePingPongAsync(100, 10_000 / 100));
-    tester.run(Command::SemOnePingPongAsync(500, 10_000 / 500));
+    tester.run(Command::SemOnePingPongAsync(NUM_THREADS, TOTAL_ITERS / 6));
+    tester.run(Command::SemOnePingPongAsync(20, TOTAL_ITERS / 20));
+    tester.run(Command::SemOnePingPongAsync(50, TOTAL_ITERS / 50));
+    tester.run(Command::SemOnePingPongAsync(100, TOTAL_ITERS / 100));
+    tester.run(Command::SemOnePingPongAsync(500, TOTAL_ITERS / 500));
     tester.run(Command::Empty);
     */
     let mut num = 6;
-    while num < 500 {
-        tester.run(Command::SemOnePingPongAsync(num, 10_000 / num));
+    while num < 100 {
+        tester.run(Command::SemOnePingPongAsync(num, TOTAL_ITERS / num));
         num = num * 13 / 10;
     }
 
@@ -889,8 +894,8 @@ impl Locked {
 /// Benchmark the performance of Arc.
 fn arc_bench() {
     let thing = Arc::new(123);
-    let timer = BenchTimer::new("Arc clone+drop", 10_000);
-    for _ in 0..10_000 {
+    let timer = BenchTimer::new("Arc clone+drop", TOTAL_ITERS);
+    for _ in 0..TOTAL_ITERS {
         let _ = thing.clone();
     }
     timer.stop();
@@ -900,7 +905,7 @@ fn arc_bench() {
 #[inline(never)]
 #[no_mangle]
 fn spin_bench() {
-    let iters = 10_000;
+    let iters = TOTAL_ITERS;
     let thing = SpinMutex::new(123);
     let timer = BenchTimer::new("SpinMutex lock", iters);
     for _ in 0..iters {
@@ -916,7 +921,7 @@ fn spin_bench() {
 #[inline(never)]
 #[no_mangle]
 fn sem_bench() {
-    let iters = 10_000;
+    let iters = TOTAL_ITERS;
     let sem = Semaphore::new(iters as u32, iters as u32);
     let timer = BenchTimer::new("Semaphore take", iters);
     for _ in 0..iters {
