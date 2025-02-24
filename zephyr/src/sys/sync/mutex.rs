@@ -52,7 +52,9 @@ impl Mutex {
     ///
     /// Create a new dynamically allocated Mutex.  The Mutex can only be used from system threads.
     pub const fn new() -> Mutex {
-        Mutex { item: <ZephyrObject<k_mutex>>::new_raw() }
+        Mutex {
+            item: <ZephyrObject<k_mutex>>::new_raw(),
+        }
     }
 
     /// Lock a Zephyr Mutex.
@@ -130,7 +132,9 @@ impl Condvar {
     ///
     /// Create a new dynamically allocated Condvar.  The Condvar can only be used from system threads.
     pub const fn new() -> Condvar {
-        Condvar { item: <ZephyrObject<k_condvar>>::new_raw() }
+        Condvar {
+            item: <ZephyrObject<k_condvar>>::new_raw(),
+        }
     }
 
     /// Wait for someone else using this mutex/condvar pair to notify.
