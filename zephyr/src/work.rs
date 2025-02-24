@@ -194,8 +194,13 @@ use zephyr_sys::{
 };
 
 use crate::{
-    error::to_result_void, kio::ContextExt, object::Fixed, simpletls::SimpleTls, sync::{Arc, Mutex},
-    sys::thread::ThreadStack, time::Timeout,
+    error::to_result_void,
+    kio::ContextExt,
+    object::Fixed,
+    simpletls::SimpleTls,
+    sync::{Arc, Mutex},
+    sys::thread::ThreadStack,
+    time::Timeout,
 };
 
 pub mod futures;
@@ -275,7 +280,10 @@ impl WorkQueueBuilder {
             // SAFETY: This associates the workqueue with the thread ID that runs it.  The thread is
             // a pointer into this work item, which will not move, because of the Fixed.
             let this = &mut *item.get();
-            WORK_QUEUES.lock().unwrap().insert(&this.thread, WorkQueueRef(item.get()));
+            WORK_QUEUES
+                .lock()
+                .unwrap()
+                .insert(&this.thread, WorkQueueRef(item.get()));
 
             // SAFETY: Start work queue thread.  The main issue here is that the work queue cannot
             // be deallocated once the thread has started.  We enforce this by making Drop panic.
