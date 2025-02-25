@@ -5,7 +5,10 @@
 //!
 //! This uses the `k_str_out` syscall, which is part of printk to output to the console.
 
-use core::fmt::{write, Arguments, Result, Write};
+use core::{
+    ffi::c_char,
+    fmt::{write, Arguments, Result, Write},
+};
 
 /// Print to Zephyr's console, without a newline.
 ///
@@ -92,7 +95,7 @@ impl Context {
     fn flush(&mut self) {
         if self.count > 0 {
             unsafe {
-                zephyr_sys::k_str_out(self.buf.as_mut_ptr() as *mut i8, self.count);
+                zephyr_sys::k_str_out(self.buf.as_mut_ptr() as *mut c_char, self.count);
             }
             self.count = 0;
         }
