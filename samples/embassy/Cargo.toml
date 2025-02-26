@@ -1,0 +1,51 @@
+# Copyright (c) 2024 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+# This must be rustapp for now.
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "A sample hello world application in Rust"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = { version = "0.1.0", features = ["time-driver"] }
+log = "0.4.22"
+static_cell = "2.1"
+
+[dependencies.embassy-executor]
+version = "0.7.0"
+# path = "../../embassy/embassy-executor"
+features = [
+  "log",
+  "task-arena-size-1024",
+  "arch-cortex-m",
+  "executor-thread",
+]
+
+[dependencies.embassy-futures]
+version = "0.1.1"
+# path = "../../embassy/embassy-futures"
+
+[dependencies.embassy-sync]
+version = "0.6.2"
+# path = "../../embassy/embassy-sync"
+
+[dependencies.embassy-time]
+version = "0.4.0"
+# path = "../../embassy/embassy-time"
+# This is board specific.
+features = ["tick-hz-10_000"]
+
+[dependencies.critical-section]
+version = "1.2"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+debug = true
