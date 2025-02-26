@@ -45,8 +45,30 @@ version = "0.2.2"
 # should be safe to build the crate even if the Rust code doesn't use it because of configs.
 features = ["alloc"]
 
+[dependencies.embassy-time-driver]
+version = "0.2"
+# Someone needs to tell embassy what our clock frequency is.  Until we have support from cmake for
+# this, we'll have to leave this up to the app to provide, since it is heavily board specific.
+optional = true
+
+[dependencies.embassy-time-queue-utils]
+version = "0.1"
+optional = true
+
+[dependencies.embassy-sync]
+version = "0.6.2"
+optional = true
+
 # These are needed at build time.
 # Whether these need to be vendored is an open question.  They are not
 # used by the core Zephyr tree, but are needed by zephyr applications.
 [build-dependencies]
 zephyr-build = { version = "0.1.0", path = "../zephyr-build" }
+
+[features]
+# Provide an implementation of embassy-time-driver.
+time-driver = [
+  "dep:embassy-time-driver",
+  "dep:embassy-time-queue-utils",
+  "dep:embassy-sync",
+]
