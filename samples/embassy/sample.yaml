@@ -1,0 +1,20 @@
+sample:
+  description: Embassy Hello
+  name: hello and basics from Embassy
+common:
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Hello world from Rust on (.*)"
+  tags: rust
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m0
+    - qemu_cortex_m3
+    - qemu_riscv32
+    - qemu_riscv64
+    - nrf52840dk/nrf52840
+tests:
+  sample.rust.helloworld:
+    tags: introduction
