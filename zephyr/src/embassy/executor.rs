@@ -41,7 +41,7 @@ impl Executor {
                 // itself is actually run. This means, specifically, that if the polled execution
                 // causes this, or other threads to enqueue, this will return without running them.
                 // `__pender` _will_ be called, but it isn't "sticky" like `wfe/sev` are.  To
-                // simulate this, we will use the 'pend' atomic to count 
+                // simulate this, we will use the 'pend' atomic to count
                 inner.poll();
                 if !self.pend.swap(false, Ordering::SeqCst) {
                     // printkln!("_suspend");
