@@ -59,6 +59,10 @@ optional = true
 version = "0.6.2"
 optional = true
 
+[dependencies.embassy-executor]
+version = "0.7.0"
+optional = true
+
 # These are needed at build time.
 # Whether these need to be vendored is an open question.  They are not
 # used by the core Zephyr tree, but are needed by zephyr applications.
@@ -71,4 +75,9 @@ time-driver = [
   "dep:embassy-time-driver",
   "dep:embassy-time-queue-utils",
   "dep:embassy-sync",
+]
+
+# Provide an embassy-based executor that runs on individual Zephyr threads.
+executor-zephyr = [
+  "dep:embassy-executor",
 ]

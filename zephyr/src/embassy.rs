@@ -86,3 +86,8 @@
 
 #[cfg(feature = "time-driver")]
 mod time_driver;
+
+#[cfg(feature = "executor-zephyr")]
+pub use executor::Executor;
+#[cfg(feature = "executor-zephyr")]
+mod executor;
