@@ -18,8 +18,10 @@ use embassy_executor::{SendSpawner, Spawner};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use log::info;
 use static_cell::StaticCell;
-use zephyr::{kconfig::CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC, kobj_define, printkln, raw::k_cycle_get_64};
 use zephyr::raw;
+use zephyr::{
+    kconfig::CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC, kobj_define, printkln, raw::k_cycle_get_64,
+};
 
 /// Maximum number of threads to spawn. As this is async, these do not each need a stack.
 const NUM_THREADS: usize = 6;
@@ -29,7 +31,7 @@ const THREAD_STACK_SIZE: usize = 2048;
 static EXECUTOR_LOW: StaticCell<Executor> = StaticCell::new();
 static EXECUTOR_MAIN: StaticCell<Executor> = StaticCell::new();
 
-static LOW_SPAWNER: Channel<CriticalSectionRawMutex, SendSpawner, 1> = Channel::new() ;
+static LOW_SPAWNER: Channel<CriticalSectionRawMutex, SendSpawner, 1> = Channel::new();
 
 // The main thread priority.
 const MAIN_PRIO: c_int = 2;
@@ -55,7 +57,10 @@ extern "C" fn rust_main() {
         low_executor();
     });
 
-    info!("Starting Embassy executor on {}", zephyr::kconfig::CONFIG_BOARD);
+    info!(
+        "Starting Embassy executor on {}",
+        zephyr::kconfig::CONFIG_BOARD
+    );
 
     let executor = EXECUTOR_MAIN.init(Executor::new());
     executor.run(|spawner| {
@@ -81,7 +86,9 @@ async fn main(spawner: Spawner) {
 
     tester.run(spawner, low_spawner, Command::Empty).await;
     tester.run(spawner, low_spawner, Command::Empty).await;
-    tester.run(spawner, low_spawner, Command::PingPong(10_000)).await;
+    tester
+        .run(spawner, low_spawner, Command::PingPong(10_000))
+        .await;
 }
 
 /// Async task tests.
