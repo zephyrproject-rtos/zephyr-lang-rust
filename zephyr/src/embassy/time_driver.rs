@@ -2,18 +2,16 @@
 //!
 //! Implements the time driver for Embassy using a `k_timer` in Zephyr.
 
-use core::{cell::{RefCell, UnsafeCell}, mem};
+use core::{
+    cell::{RefCell, UnsafeCell},
+    mem,
+};
 
 use embassy_sync::blocking_mutex::{raw::CriticalSectionRawMutex, Mutex};
 use embassy_time_driver::Driver;
 use embassy_time_queue_utils::Queue;
 
-use crate::raw::{
-    k_timer,
-    k_timer_init,
-    k_timer_start,
-    k_timeout_t,
-};
+use crate::raw::{k_timeout_t, k_timer, k_timer_init, k_timer_start};
 use crate::sys::K_FOREVER;
 
 embassy_time_driver::time_driver_impl!(static DRIVER: ZephyrTimeDriver = ZephyrTimeDriver {
@@ -41,15 +39,21 @@ impl ZTimer {
 
         // Otherwise, initialize our timer, and handle it.
         if !self.initialized {
-            unsafe { k_timer_init(self.item.get(), Some(Self::timer_tick), None); }
+            unsafe {
+                k_timer_init(self.item.get(), Some(Self::timer_tick), None);
+            }
             self.initialized = true;
         }
 
         // There is a +1 here as the `k_timer_start()` for historical reasons, subtracts one from
         // the time, effectively rounding down, whereas we want to wait at least long enough.
-        let delta = k_timeout_t { ticks: (next - now + 1) as i64 };
+        let delta = k_timeout_t {
+            ticks: (next - now + 1) as i64,
+        };
         let period = K_FOREVER;
-        unsafe { k_timer_start(self.item.get(), delta, period); }
+        unsafe {
+            k_timer_start(self.item.get(), delta, period);
+        }
 
         true
     }
@@ -94,4 +98,4 @@ impl ZephyrTimeDriver {
 }
 
 // SAFETY: The timer access is always coordinated through a critical section.
-unsafe impl Send for ZTimer { }
+unsafe impl Send for ZTimer {}
