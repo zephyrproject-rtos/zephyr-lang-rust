@@ -16,6 +16,7 @@ crate-type = ["staticlib"]
 zephyr = { version = "0.1.0", features = ["time-driver"] }
 log = "0.4.22"
 static_cell = "2.1"
+heapless = "0.8"
 
 [dependencies.embassy-executor]
 version = "0.7.0"
@@ -23,8 +24,6 @@ version = "0.7.0"
 features = [
   "log",
   "task-arena-size-1024",
-  "arch-cortex-m",
-  "executor-thread",
 ]
 
 [dependencies.embassy-futures]
@@ -43,6 +42,19 @@ features = ["tick-hz-10_000"]
 
 [dependencies.critical-section]
 version = "1.2"
+
+[features]
+# default = ["executor-thread"]
+default = ["executor-zephyr"]
+
+executor-thread = [
+  "embassy-executor/arch-cortex-m",
+  "embassy-executor/executor-thread",
+]
+
+executor-zephyr = [
+  "zephyr/executor-zephyr",
+]
 
 [profile.dev]
 opt-level = 1
