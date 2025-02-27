@@ -15,6 +15,7 @@ use core::pin::Pin;
 use alloc::collections::vec_deque::VecDeque;
 use alloc::vec;
 use alloc::vec::Vec;
+use static_cell::StaticCell;
 use zephyr::sync::SpinMutex;
 use zephyr::time::NoWait;
 use zephyr::work::futures::work_size;
@@ -33,8 +34,6 @@ use zephyr::{
     work::{WorkQueue, WorkQueueBuilder},
 };
 
-mod basesem;
-
 /// How many threads to run in the tests.
 const NUM_THREADS: usize = 6;
 
@@ -43,6 +42,14 @@ const THREAD_STACK_SIZE: usize = 2048;
 
 /// Stack size to use for the work queue.
 const WORK_STACK_SIZE: usize = 2048;
+
+/// This is a global iteration.  Small numbers still test functionality within CI, and large numbers
+/// give more meaningful benchmark results.
+const TOTAL_ITERS: usize = 1_000;
+// const TOTAL_ITERS: usize = 10_000;
+
+/// A heapless::Vec, with a maximum size of the number of threads chosen above.
+type HeaplessVec<T> = heapless::Vec<T, NUM_THREADS>;
 
 #[no_mangle]
 extern "C" fn rust_main() {
@@ -56,34 +63,33 @@ extern "C" fn rust_main() {
     let simple = Simple::new(tester.workq.clone());
     let mut num = 6;
     while num < 500 {
-        simple.run(num, 10_000 / num);
+        simple.run(num, TOTAL_ITERS / num);
         num = num * 13 / 10;
     }
 
     tester.run(Command::Empty);
-    tester.run(Command::BaseSemPingPong(NUM_THREADS, 10_000));
-    tester.run(Command::SimpleSem(10_000));
-    tester.run(Command::SimpleSemAsync(10_000));
-    tester.run(Command::SimpleSemYield(10_000));
-    tester.run(Command::SimpleSemYieldAsync(10_000));
-    tester.run(Command::SemWait(10_000));
-    tester.run(Command::SemWaitAsync(10_000));
-    tester.run(Command::SemWaitSameAsync(10_000));
-    tester.run(Command::SemHigh(10_000));
-    tester.run(Command::SemPingPong(10_000));
-    tester.run(Command::SemPingPongAsync(10_000));
-    tester.run(Command::SemOnePingPong(10_000));
+    tester.run(Command::SimpleSem(TOTAL_ITERS));
+    tester.run(Command::SimpleSemAsync(TOTAL_ITERS));
+    tester.run(Command::SimpleSemYield(TOTAL_ITERS));
+    tester.run(Command::SimpleSemYieldAsync(TOTAL_ITERS));
+    tester.run(Command::SemWait(TOTAL_ITERS));
+    tester.run(Command::SemWaitAsync(TOTAL_ITERS));
+    tester.run(Command::SemWaitSameAsync(TOTAL_ITERS));
+    tester.run(Command::SemHigh(TOTAL_ITERS));
+    tester.run(Command::SemPingPong(TOTAL_ITERS));
+    tester.run(Command::SemPingPongAsync(TOTAL_ITERS));
+    tester.run(Command::SemOnePingPong(TOTAL_ITERS));
     /*
-    tester.run(Command::SemOnePingPongAsync(NUM_THREADS, 10_000 / 6));
-    tester.run(Command::SemOnePingPongAsync(20, 10_000 / 20));
-    tester.run(Command::SemOnePingPongAsync(50, 10_000 / 50));
-    tester.run(Command::SemOnePingPongAsync(100, 10_000 / 100));
-    tester.run(Command::SemOnePingPongAsync(500, 10_000 / 500));
+    tester.run(Command::SemOnePingPongAsync(NUM_THREADS, TOTAL_ITERS / 6));
+    tester.run(Command::SemOnePingPongAsync(20, TOTAL_ITERS / 20));
+    tester.run(Command::SemOnePingPongAsync(50, TOTAL_ITERS / 50));
+    tester.run(Command::SemOnePingPongAsync(100, TOTAL_ITERS / 100));
+    tester.run(Command::SemOnePingPongAsync(500, TOTAL_ITERS / 500));
     tester.run(Command::Empty);
     */
     let mut num = 6;
-    while num < 500 {
-        tester.run(Command::SemOnePingPongAsync(num, 10_000 / num));
+    while num < 100 {
+        tester.run(Command::SemOnePingPongAsync(num, TOTAL_ITERS / num));
         num = num * 13 / 10;
     }
 
@@ -99,17 +105,17 @@ extern "C" fn rust_main() {
 /// low priority task is providing the data.
 struct ThreadTests {
     /// Each test thread gets a semaphore, to use as appropriate for that test.
-    sems: Vec<Arc<Semaphore>>,
+    sems: HeaplessVec<&'static Semaphore>,
 
     /// This semaphore is used to ping-ping back to another thread.
-    back_sems: Vec<Arc<Semaphore>>,
+    back_sems: HeaplessVec<&'static Semaphore>,
 
     /// Each test also has a message queue, for testing, that it has sender and receiver for.
-    chans: Vec<ChanPair<u32>>,
+    chans: HeaplessVec<ChanPair<u32>>,
 
     /// In addition, each test has a channel it owns the receiver for that listens for commands
     /// about what test to run.
-    commands: Vec<Sender<Command>>,
+    commands: HeaplessVec<Sender<Command>>,
 
     /// Low and high also take commands.
     low_command: Sender<Command>,
@@ -121,10 +127,6 @@ struct ThreadTests {
     /// The test also all return their result to the main.  The threads Send, the main running
     /// receives.
     results: ChanPair<Result>,
-
-    /// For the base sem test, just use these, which are just shared by reference.
-    forward: basesem::Semaphore,
-    reverse: basesem::Semaphore,
 }
 
 impl ThreadTests {
@@ -147,32 +149,35 @@ impl ThreadTests {
         let _ = Arc::into_raw(workq.clone());
 
         let mut result = Self {
-            sems: Vec::new(),
-            back_sems: Vec::new(),
-            chans: Vec::new(),
-            commands: Vec::new(),
+            sems: HeaplessVec::new(),
+            back_sems: HeaplessVec::new(),
+            chans: HeaplessVec::new(),
+            commands: HeaplessVec::new(),
             results: ChanPair::new_unbounded(),
             low_command: low_send,
             high_command: high_send,
             workq,
-            forward: basesem::Semaphore::new(0, 1),
-            reverse: basesem::Semaphore::new(0, 1),
         };
 
         let mut thread_commands = Vec::new();
 
-        for _ in 0..count {
-            let sem = Arc::new(Semaphore::new(0, u32::MAX).unwrap());
-            result.sems.push(sem.clone());
+        static SEMS: [StaticCell<Semaphore>; NUM_THREADS] =
+            [const { StaticCell::new() }; NUM_THREADS];
+        static BACK_SEMS: [StaticCell<Semaphore>; NUM_THREADS] =
+            [const { StaticCell::new() }; NUM_THREADS];
 
-            let sem = Arc::new(Semaphore::new(0, u32::MAX).unwrap());
-            result.back_sems.push(sem);
+        for i in 0..count {
+            let sem = SEMS[i].init(Semaphore::new(0, u32::MAX));
+            result.sems.push(sem).unwrap();
+
+            let sem = BACK_SEMS[i].init(Semaphore::new(0, u32::MAX));
+            result.back_sems.push(sem).unwrap();
 
             let chans = ChanPair::new_bounded(1);
-            result.chans.push(chans.clone());
+            result.chans.push(chans.clone()).unwrap();
 
             let (csend, crecv) = bounded(1);
-            result.commands.push(csend);
+            result.commands.push(csend).unwrap();
             thread_commands.push(crecv);
         }
 
@@ -217,8 +222,8 @@ impl ThreadTests {
             work_size(Self::ping_pong_worker_async(
                 result.clone(),
                 0,
-                result.sems[0].clone(),
-                result.back_sems[0].clone(),
+                result.sems[0],
+                result.back_sems[0],
                 6
             ))
         );
@@ -352,7 +357,7 @@ impl ThreadTests {
                 // ourselves.
                 Command::SimpleSemAsync(count) => {
                     spawn(
-                        Self::simple_sem_async(this.clone(), id, this.sems[id].clone(), count),
+                        Self::simple_sem_async(this.clone(), id, this.sems[id], count),
                         &this.workq,
                         c"worker",
                     );
@@ -361,12 +366,7 @@ impl ThreadTests {
 
                 Command::SimpleSemYieldAsync(count) => {
                     spawn(
-                        Self::simple_sem_yield_async(
-                            this.clone(),
-                            id,
-                            this.sems[id].clone(),
-                            count,
-                        ),
+                        Self::simple_sem_yield_async(this.clone(), id, this.sems[id], count),
                         &this.workq,
                         c"worker",
                     );
@@ -375,7 +375,7 @@ impl ThreadTests {
 
                 Command::SemWaitAsync(count) => {
                     spawn(
-                        Self::sem_take_async(this.clone(), id, this.sems[id].clone(), count),
+                        Self::sem_take_async(this.clone(), id, this.sems[id], count),
                         &this.workq,
                         c"worker",
                     );
@@ -384,7 +384,7 @@ impl ThreadTests {
 
                 Command::SemWaitSameAsync(count) => {
                     spawn(
-                        Self::sem_take_async(this.clone(), id, this.sems[id].clone(), count),
+                        Self::sem_take_async(this.clone(), id, this.sems[id], count),
                         &this.workq,
                         c"worker",
                     );
@@ -403,8 +403,8 @@ impl ThreadTests {
                         Self::ping_pong_worker_async(
                             this.clone(),
                             id,
-                            this.sems[id].clone(),
-                            this.back_sems[id].clone(),
+                            this.sems[id],
+                            this.back_sems[id],
                             count,
                         ),
                         &this.workq,
@@ -428,8 +428,8 @@ impl ThreadTests {
                                 Self::ping_pong_worker_async(
                                     this.clone(),
                                     th,
-                                    this.sems[0].clone(),
-                                    this.back_sems[0].clone(),
+                                    this.sems[0],
+                                    this.back_sems[0],
                                     count,
                                 ),
                                 &this.workq,
@@ -448,11 +448,6 @@ impl ThreadTests {
                     if id < this.sems.len() {
                         continue;
                     }
-                }
-
-                Command::BaseSemPingPong(_nthread, count) => {
-                    this.base_worker(count);
-                    total = count;
                 }
             }
 
@@ -473,7 +468,7 @@ impl ThreadTests {
         }
     }
 
-    async fn simple_sem_async(this: Arc<Self>, id: usize, sem: Arc<Semaphore>, count: usize) {
+    async fn simple_sem_async(this: Arc<Self>, id: usize, sem: &'static Semaphore, count: usize) {
         for _ in 0..count {
             sem.give();
             sem.take_async(NoWait).await.unwrap();
@@ -486,7 +481,12 @@ impl ThreadTests {
             .unwrap();
     }
 
-    async fn simple_sem_yield_async(this: Arc<Self>, id: usize, sem: Arc<Semaphore>, count: usize) {
+    async fn simple_sem_yield_async(
+        this: Arc<Self>,
+        id: usize,
+        sem: &'static Semaphore,
+        count: usize,
+    ) {
         for _ in 0..count {
             sem.give();
             sem.take_async(NoWait).await.unwrap();
@@ -518,7 +518,7 @@ impl ThreadTests {
         }
     }
 
-    async fn sem_take_async(this: Arc<Self>, id: usize, sem: Arc<Semaphore>, count: usize) {
+    async fn sem_take_async(this: Arc<Self>, id: usize, sem: &'static Semaphore, count: usize) {
         for _ in 0..count {
             // Enable this to verify that we are actually blocking.
             if false {
@@ -560,8 +560,8 @@ impl ThreadTests {
     async fn ping_pong_worker_async(
         this: Arc<Self>,
         id: usize,
-        sem: Arc<Semaphore>,
-        back_sem: Arc<Semaphore>,
+        sem: &'static Semaphore,
+        back_sem: &'static Semaphore,
         count: usize,
     ) {
         for i in 0..count {
@@ -624,7 +624,7 @@ impl ThreadTests {
         // No reply.
     }
 
-    async fn sem_giver_async(this: Arc<Self>, sems: Vec<Arc<Semaphore>>, count: usize) {
+    async fn sem_giver_async(this: Arc<Self>, sems: HeaplessVec<&'static Semaphore>, count: usize) {
         for _ in 0..count {
             for sem in &sems {
                 sem.give();
@@ -637,23 +637,6 @@ impl ThreadTests {
 
         // No report.
         let _ = this;
-    }
-
-    fn base_worker(&self, count: usize) {
-        for _ in 0..count {
-            self.forward.take(Forever).unwrap();
-            self.reverse.give();
-        }
-    }
-
-    // In the low runner, does the ping-pong with each.
-    fn base_replier(&self, nthread: usize, count: usize) {
-        for _ in 0..count {
-            for _ in 0..nthread {
-                self.forward.give();
-                self.reverse.take(Forever).unwrap();
-            }
-        }
     }
 
     /// And the low priority worker.
@@ -685,9 +668,6 @@ impl ThreadTests {
                 }
                 Command::SemPingPongAsync(_) => (),
                 Command::SemOnePingPongAsync(_, _) => (),
-                Command::BaseSemPingPong(nthread, count) => {
-                    this.base_replier(nthread, count);
-                }
             }
             // printkln!("low command: {:?}", cmd);
 
@@ -720,7 +700,6 @@ impl ThreadTests {
                 }
                 Command::SemPingPongAsync(_) => (),
                 Command::SemOnePingPongAsync(_, _) => (),
-                Command::BaseSemPingPong(_, _) => (),
             }
             // printkln!("high command: {:?}", cmd);
 
@@ -729,7 +708,7 @@ impl ThreadTests {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ChanPair<T> {
     sender: Sender<T>,
     receiver: Receiver<T>,
@@ -779,7 +758,6 @@ enum Command {
     SemOnePingPong(usize),
     /// Same as SemOnePingPong, but async.  The first parameter is the number of async tasks.
     SemOnePingPongAsync(usize, usize),
-    BaseSemPingPong(usize, usize),
 }
 
 enum Result {
@@ -902,7 +880,7 @@ impl SimpleMain {
     fn new(count: usize, workq: Arc<WorkQueue>) -> Self {
         Self {
             locked: SpinMutex::new(Locked::new(count)),
-            done: Semaphore::new(0, 1).unwrap(),
+            done: Semaphore::new(0, 1),
             workq,
         }
     }
@@ -925,8 +903,8 @@ impl Locked {
 /// Benchmark the performance of Arc.
 fn arc_bench() {
     let thing = Arc::new(123);
-    let timer = BenchTimer::new("Arc clone+drop", 10_000);
-    for _ in 0..10_000 {
+    let timer = BenchTimer::new("Arc clone+drop", TOTAL_ITERS);
+    for _ in 0..TOTAL_ITERS {
         let _ = thing.clone();
     }
     timer.stop();
@@ -936,7 +914,7 @@ fn arc_bench() {
 #[inline(never)]
 #[no_mangle]
 fn spin_bench() {
-    let iters = 10_000;
+    let iters = TOTAL_ITERS;
     let thing = SpinMutex::new(123);
     let timer = BenchTimer::new("SpinMutex lock", iters);
     for _ in 0..iters {
@@ -952,8 +930,8 @@ fn spin_bench() {
 #[inline(never)]
 #[no_mangle]
 fn sem_bench() {
-    let iters = 10_000;
-    let sem = Semaphore::new(iters as u32, iters as u32).unwrap();
+    let iters = TOTAL_ITERS;
+    let sem = Semaphore::new(iters as u32, iters as u32);
     let timer = BenchTimer::new("Semaphore take", iters);
     for _ in 0..iters {
         sem.take(Forever).unwrap();
