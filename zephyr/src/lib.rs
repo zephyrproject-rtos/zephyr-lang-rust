@@ -78,6 +78,7 @@
 
 pub mod align;
 pub mod device;
+pub mod embassy;
 pub mod error;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod kio;
