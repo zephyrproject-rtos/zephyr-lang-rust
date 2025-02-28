@@ -16,5 +16,5 @@ common:
     - qemu_riscv64
     - nrf52840dk/nrf52840
 tests:
-  sample.rust.helloworld:
+  sample.rust.embassyhello:
     tags: introduction
