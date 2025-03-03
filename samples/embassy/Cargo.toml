@@ -23,7 +23,7 @@ version = "0.7.0"
 # path = "../../embassy/embassy-executor"
 features = [
   "log",
-  "task-arena-size-1024",
+  "task-arena-size-2048",
 ]
 
 [dependencies.embassy-futures]
