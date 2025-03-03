@@ -1,0 +1,13 @@
+/ {
+	gpio-leds {
+		compatible = "gpio-leds";
+		col0: col0 {
+			gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+			label = "Column 0";
+		};
+		row0: row0 {
+			gpios = <&gpio0 0 (GPIO_PULL_DOWN | GPIO_ACTIVE_HIGH)>;
+			label = "Row 0";
+		};
+	};
+};
