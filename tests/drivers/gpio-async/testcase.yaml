@@ -1,0 +1,13 @@
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - rpi_pico
+tests:
+  test.gpio-async:
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        # This doesn't actually happen, as this test requires specific hardware and buttons to be
+        # pressed.
+        - "All tests passed"
