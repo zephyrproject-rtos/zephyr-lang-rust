@@ -89,6 +89,8 @@ async fn main(spawner: Spawner) {
     tester
         .run(spawner, low_spawner, Command::PingPong(10_000))
         .await;
+
+    info!("Embassy tests passed");
 }
 
 /// Async task tests.

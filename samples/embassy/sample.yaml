@@ -6,7 +6,7 @@ common:
   harness_config:
     type: one_line
     regex:
-      - "Hello world from Rust on (.*)"
+      - "Embassy tests passed"
   tags: rust
   filter: CONFIG_RUST_SUPPORTED
   platform_allow:
