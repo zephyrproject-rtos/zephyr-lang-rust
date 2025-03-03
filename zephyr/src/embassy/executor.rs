@@ -5,7 +5,7 @@ use core::{marker::PhantomData, sync::atomic::Ordering};
 use embassy_executor::{raw, Spawner};
 use zephyr_sys::{k_current_get, k_thread_resume, k_thread_suspend, k_tid_t};
 
-use crate::{printkln, sync::atomic::AtomicBool};
+use crate::sync::atomic::AtomicBool;
 
 /// Zephyr-thread based executor.
 pub struct Executor {
