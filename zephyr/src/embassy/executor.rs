@@ -52,6 +52,12 @@ impl Executor {
     }
 }
 
+impl Default for Executor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[export_name = "__pender"]
 fn __pender(context: *mut ()) {
     unsafe {
