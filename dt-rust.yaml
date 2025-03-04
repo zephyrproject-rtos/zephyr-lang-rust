@@ -15,6 +15,7 @@
       raw:
         type: myself
       device: crate::device::gpio::Gpio
+      static_type: crate::device::gpio::GpioStatic
 
 # The gpio-leds node will have #children nodes describing each led.  We'll match on the parent
 # having this compatible property.  The nodes themselves are built out of the properties associated

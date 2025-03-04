@@ -41,3 +41,13 @@ impl Unique {
         !self.0.fetch_or(true, Ordering::AcqRel)
     }
 }
+
+/// For devices that don't need any associated static data, This NoStatic type will take no space
+/// and generate no code, and has the const constructor needed for the type.
+pub(crate) struct NoStatic;
+
+impl NoStatic {
+    pub(crate) const fn new() -> Self {
+        Self
+    }
+}
