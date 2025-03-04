@@ -3,7 +3,7 @@
 // Note that currently, the flash partition shares the controller, so the underlying operations
 // are not actually safe.  Need to rethink how to manage this.
 
-use super::Unique;
+use super::{NoStatic, Unique};
 use crate::raw;
 
 /// A flash controller
@@ -22,6 +22,7 @@ impl FlashController {
     #[allow(dead_code)]
     pub(crate) unsafe fn new(
         unique: &Unique,
+        _static: &NoStatic,
         device: *const raw::device,
     ) -> Option<FlashController> {
         if !unique.once() {
@@ -50,6 +51,7 @@ impl FlashPartition {
     #[allow(dead_code)]
     pub(crate) unsafe fn new(
         unique: &Unique,
+        _static: &NoStatic,
         device: *const raw::device,
         offset: u32,
         size: u32,

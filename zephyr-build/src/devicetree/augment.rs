@@ -130,6 +130,8 @@ pub enum Action {
         /// The name of the full path (within the zephyr-sys crate) for the wrapper node for this
         /// device.
         device: String,
+        /// Full path to a type if this node needs a static associated with each instance.
+        static_type: Option<String>,
     },
     /// Generate all of the labels as its own node.
     Labels,
@@ -138,7 +140,11 @@ pub enum Action {
 impl Action {
     fn generate(&self, _name: &Ident, node: &Node, tree: &DeviceTree) -> TokenStream {
         match self {
-            Action::Instance { raw, device } => raw.generate(node, device),
+            Action::Instance {
+                raw,
+                device,
+                static_type,
+            } => raw.generate(node, device, static_type.as_deref()),
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
                     let name = dt_to_lower_id(k);
@@ -181,8 +187,9 @@ pub enum RawInfo {
 }
 
 impl RawInfo {
-    fn generate(&self, node: &Node, device: &str) -> TokenStream {
+    fn generate(&self, node: &Node, device: &str, static_type: Option<&str>) -> TokenStream {
         let device_id = str_to_path(device);
+        let static_type = str_to_path(static_type.unwrap_or("crate::device::NoStatic"));
         match self {
             Self::Myself => {
                 let ord = node.ord;
@@ -192,12 +199,17 @@ impl RawInfo {
                     pub unsafe fn get_instance_raw() -> *const crate::raw::device {
                         &crate::raw::#rawdev
                     }
+                    #[allow(dead_code)]
+                    pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
+                        &STATIC
+                    }
 
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    static STATIC: #static_type = #static_type::new();
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = get_instance_raw();
-                            #device_id::new(&UNIQUE, device)
+                            #device_id::new(&UNIQUE, &STATIC, device)
                         }
                     }
                 }
@@ -220,10 +232,12 @@ impl RawInfo {
 
                 quote! {
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    static STATIC: #static_type = #static_type::new();
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #target_route :: get_instance_raw();
-                            #device_id::new(&UNIQUE, device, #(#args),*)
+                            let device_static = #target_route :: get_static_raw();
+                            #device_id::new(&UNIQUE, &STATIC, device, device_static, #(#args),*)
                         }
                     }
                 }
@@ -239,10 +253,11 @@ impl RawInfo {
 
                 quote! {
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    static STATIC: #static_type = #static_type::new();
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #path :: get_instance_raw();
-                            #device_id::new(&UNIQUE, device, #(#get_args),*)
+                            #device_id::new(&UNIQUE, &STATIC, device, #(#get_args),*)
                         }
                     }
                 }
