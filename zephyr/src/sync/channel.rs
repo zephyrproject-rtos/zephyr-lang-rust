@@ -215,6 +215,7 @@ impl<T: Unpin> Sender<T> {
     /// This has the same behavior as [`send_timeout`], but as an Async function.
     ///
     /// [`send_timeout`]: Sender::send_timeout
+    #[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
     pub fn send_timeout_async<'a>(
         &'a self,
         msg: T,
@@ -229,6 +230,8 @@ impl<T: Unpin> Sender<T> {
     }
 
     /// Sends a message over the given channel, waiting if necessary. Async version.
+    #[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
+    #[allow(deprecated)]
     pub async fn send_async(&self, msg: T) -> Result<(), SendError<T>> {
         self.send_timeout_async(msg, Forever).await
     }
@@ -424,6 +427,7 @@ impl<T> Receiver<T> {
 }
 
 // Note that receive doesn't need the Unpin constraint, as we aren't storing any message.
+#[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
 impl<T> Receiver<T> {
     /// Waits for a message to be received from the channel, but only for a limited time.
     /// Async version.
@@ -526,6 +530,7 @@ impl<'a, T> Future for RecvFuture<'a, T> {
         }
 
         // Otherwise, schedule to wakeup on receipt or timeout.
+        #[allow(deprecated)]
         cx.add_queue(self.receiver.as_queue(), self.timeout);
         self.waited = true;
 
@@ -662,6 +667,7 @@ where
     // Start with a deadline 'period' out in the future.
     let mut next = crate::time::now() + period;
     loop {
+        #[allow(deprecated)]
         if let Ok(ev) = events.recv_timeout_async(next).await {
             handle(Some(ev)).await;
             continue;

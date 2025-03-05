@@ -82,6 +82,7 @@ impl Semaphore {
     ///
     /// Returns a future that either waits for the semaphore, or returns status.
     #[cfg(CONFIG_RUST_ALLOC)]
+    #[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
     pub fn take_async<'a>(
         &'a self,
         timeout: impl Into<Timeout>,

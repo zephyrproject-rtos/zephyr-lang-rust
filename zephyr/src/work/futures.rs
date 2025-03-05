@@ -104,6 +104,7 @@ impl<T> Answer<T> {
 
     /// Asynchronously wait for an answer.
     pub async fn take_async(&self) -> T {
+        #[allow(deprecated)]
         self.wake
             .take_async(Forever)
             .await
@@ -587,6 +588,7 @@ unsafe fn void_drop(_: *const ()) {}
 type EventArray = ArrayVec<UnsafeCell<k_poll_event>, 1>;
 
 /// Async sleep.
+#[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
 pub fn sleep(duration: Duration) -> Sleep {
     Sleep {
         ticks_left: duration.ticks(),
