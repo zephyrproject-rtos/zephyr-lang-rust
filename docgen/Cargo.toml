@@ -13,4 +13,4 @@ license = "Apache-2.0 or MIT"
 crate-type = ["staticlib"]
 
 [dependencies]
-zephyr = { version = "0.1.0", features = ["executor-zephyr", "async-drivers"] }
+zephyr = { version = "0.2.0", features = ["executor-zephyr", "async-drivers"] }
