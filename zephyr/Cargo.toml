@@ -81,3 +81,8 @@ time-driver = [
 executor-zephyr = [
   "dep:embassy-executor",
 ]
+
+# Enables async support in various drivers.
+async-drivers = [
+  "dep:embassy-sync",
+]
