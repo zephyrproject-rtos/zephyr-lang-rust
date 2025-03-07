@@ -20,12 +20,14 @@ use crate::work::{futures::JoinHandle, futures::WorkBuilder, WorkQueue};
 
 pub mod sync;
 
+#[allow(deprecated)]
 pub use crate::work::futures::sleep;
 
 /// Run an async future on the given worker thread.
 ///
 /// Arrange to have the given future run on the given worker thread.  The resulting `JoinHandle` has
 /// `join` and `join_async` methods that can be used to wait for the given thread.
+#[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
 pub fn spawn<F>(future: F, worker: &WorkQueue, name: &'static CStr) -> JoinHandle<F>
 where
     F: Future + Send + 'static,
@@ -54,6 +56,7 @@ where
 ///
 /// # Panics
 /// If this is called other than from a worker task running on a work thread, it will panic.
+#[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
 pub fn spawn_local<F>(future: F, name: &'static CStr) -> JoinHandle<F>
 where
     F: Future + 'static,
@@ -64,6 +67,7 @@ where
 
 /// Yield the current thread, returning it to the work queue to be run after other work on that
 /// queue.  (This has to be called `yield_now` in Rust, because `yield` is a keyword.)
+#[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
 pub fn yield_now() -> impl Future<Output = ()> {
     YieldNow { waited: false }
 }

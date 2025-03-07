@@ -6,6 +6,8 @@
 // uses a large number of Kconfigs and there is no easy way to know which ones might conceivably be
 // valid.  This prevents a warning about each cfg that is used.
 #![allow(unexpected_cfgs)]
+// While in the process of deprecating the "kio" async code, allow the deprecation warnings.
+#![allow(deprecated)]
 
 extern crate alloc;
 

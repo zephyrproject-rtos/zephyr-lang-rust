@@ -31,6 +31,7 @@ use crate::{
 /// A mutual exclusion primitive useful for protecting shared data.  Async version.
 ///
 /// This mutex will block a task waiting for the lock to become available.
+#[deprecated(since = "0.1.0", note = "Prefer the executor-zephyr")]
 pub struct Mutex<T: ?Sized> {
     /// The semaphore indicating ownership of the data.  When it is "0" the task that did the 'take'
     /// on it owns the data, and will use `give` when it is unlocked.  This mechanism works for
@@ -40,9 +41,12 @@ pub struct Mutex<T: ?Sized> {
 }
 
 // SAFETY: The semaphore, with the semantics provided here, provide Send and Sync.
+#[allow(deprecated)]
 unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
+#[allow(deprecated)]
 unsafe impl<T: ?Sized + Send> Sync for Mutex<T> {}
 
+#[allow(deprecated)]
 impl<T> fmt::Debug for Mutex<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Mutex {:?}", self.inner)
@@ -50,6 +54,7 @@ impl<T> fmt::Debug for Mutex<T> {
 }
 
 /// An RAII implementation of a held lock.
+#[allow(deprecated)]
 pub struct MutexGuard<'a, T: ?Sized + 'a> {
     lock: &'a Mutex<T>,
     // Mark !Send explicitly until support is added to Rust for this.
@@ -58,6 +63,7 @@ pub struct MutexGuard<'a, T: ?Sized + 'a> {
 
 unsafe impl<T: ?Sized + Sync> Sync for MutexGuard<'_, T> {}
 
+#[allow(deprecated)]
 impl<T> Mutex<T> {
     /// Construct a new Mutex.
     pub fn new(t: T) -> Mutex<T> {
@@ -68,6 +74,7 @@ impl<T> Mutex<T> {
     }
 }
 
+#[allow(deprecated)]
 impl<T: ?Sized> Mutex<T> {
     /// Acquire the mutex, blocking the current thread until it is able to do so.
     ///
@@ -94,6 +101,7 @@ impl<T: ?Sized> Mutex<T> {
     }
 }
 
+#[allow(deprecated)]
 impl<'mutex, T: ?Sized> MutexGuard<'mutex, T> {
     unsafe fn new(lock: &'mutex Mutex<T>) -> MutexGuard<'mutex, T> {
         MutexGuard {
@@ -103,6 +111,7 @@ impl<'mutex, T: ?Sized> MutexGuard<'mutex, T> {
     }
 }
 
+#[allow(deprecated)]
 impl<T: ?Sized> Deref for MutexGuard<'_, T> {
     type Target = T;
 
@@ -111,12 +120,14 @@ impl<T: ?Sized> Deref for MutexGuard<'_, T> {
     }
 }
 
+#[allow(deprecated)]
 impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.lock.data.get() }
     }
 }
 
+#[allow(deprecated)]
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
