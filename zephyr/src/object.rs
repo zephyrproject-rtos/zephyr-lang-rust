@@ -340,6 +340,20 @@ macro_rules! _kobj_rule {
             unsafe { ::core::mem::zeroed() };
     };
 
+    // static TIMER: staticTimer;
+    ($v:vis, $name:ident, StaticTimer) => {
+        #[link_section = concat!("._k_timer.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: $crate::sys::timer::StaticTimer =
+            unsafe { ::core::mem::zeroed() };
+    };
+
+    // static TIMERS: [staticTimer; COUNT];
+    ($v:vis, $name:ident, [StaticTimer; $size:expr]) => {
+        #[link_section = concat!("._k_timer.static.", stringify!($name), ".", file!(), line!())]
+        $v static $name: [$crate::sys::timer::StaticTimer; $size] =
+            unsafe { ::core::mem::zeroed() };
+    };
+
     // Use indirection on stack initializers to handle some different cases in the Rust syntax.
         ($v:vis, $name:ident, ThreadStack<$size:literal>) => {
         $crate::_kobj_stack!($v, $name, $size);
