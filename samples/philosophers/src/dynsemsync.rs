@@ -35,7 +35,7 @@ impl ForkSync for SemSync {
 pub fn dyn_semaphore_sync() -> Vec<Arc<dyn ForkSync>> {
     let forks = [(); NUM_PHIL]
         .each_ref()
-        .map(|()| Arc::new(Semaphore::new(1, 1).unwrap()));
+        .map(|()| Arc::new(Semaphore::new(1, 1)));
 
     (0..NUM_PHIL)
         .map(|_| {
