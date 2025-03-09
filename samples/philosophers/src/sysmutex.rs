@@ -23,7 +23,7 @@ pub struct SysMutexSync {
 impl SysMutexSync {
     #[allow(dead_code)]
     pub fn new() -> SysMutexSync {
-        let locks = [(); NUM_PHIL].each_ref().map(|()| Mutex::new().unwrap());
+        let locks = [(); NUM_PHIL].each_ref().map(|()| Mutex::new());
         SysMutexSync { locks }
     }
 }
