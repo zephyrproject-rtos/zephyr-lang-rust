@@ -93,7 +93,7 @@ pub fn unbounded_from<T>(queue: Queue) -> (Sender<T>, Receiver<T>) {
 /// receivers will likely be blocked forever.  Any data that has been queued and not received will
 /// be leaked when all receivers have been droped.
 pub fn unbounded<T>() -> (Sender<T>, Receiver<T>) {
-    unbounded_from(Queue::new().unwrap())
+    unbounded_from(Queue::new())
 }
 
 /// Create a multi-producer multi-consumer channel with bounded capacity.
@@ -569,8 +569,11 @@ struct Bounded<T> {
     /// The UnsafeCell is needed to indicate that this data is handled outside of what Rust is aware
     /// of.  MaybeUninit allows us to create this without allocation.
     _slots: Pin<Box<[Slot<T>]>>,
-    /// The free queue, holds messages that aren't be used.
-    free: Queue,
+    /// The free queue, holds messages that aren't be used.  The free queue has to be in a box,
+    /// because it cannot move after the constructor runs.  The chan is fine to wait until first
+    /// use, when the object has settled.  As we are also boxing the messages, this isn't really
+    /// that costly.
+    free: Box<Queue>,
     /// The channel queue.  These are messages that have been sent and are waiting to be received.
     chan: Queue,
 }
@@ -582,8 +585,8 @@ impl<T> Bounded<T> {
             .collect();
         let slots = Box::into_pin(slots);
 
-        let free = Queue::new().unwrap();
-        let chan = Queue::new().unwrap();
+        let free = Box::new(Queue::new());
+        let chan = Queue::new();
 
         // Add each of the boxes to the free list.
         for slot in slots.as_ref().iter() {

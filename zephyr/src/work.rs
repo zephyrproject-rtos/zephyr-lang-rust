@@ -194,8 +194,13 @@ use zephyr_sys::{
 };
 
 use crate::{
-    error::to_result_void, kio::ContextExt, object::Fixed, simpletls::StaticTls, sync::Arc,
-    sys::thread::ThreadStack, time::Timeout,
+    error::to_result_void,
+    kio::ContextExt,
+    object::Fixed,
+    simpletls::SimpleTls,
+    sync::{Arc, Mutex},
+    sys::thread::ThreadStack,
+    time::Timeout,
 };
 
 pub mod futures;
@@ -275,7 +280,10 @@ impl WorkQueueBuilder {
             // SAFETY: This associates the workqueue with the thread ID that runs it.  The thread is
             // a pointer into this work item, which will not move, because of the Fixed.
             let this = &mut *item.get();
-            WORK_QUEUES.insert(&this.thread, WorkQueueRef(item.get()));
+            WORK_QUEUES
+                .lock()
+                .unwrap()
+                .insert(&this.thread, WorkQueueRef(item.get()));
 
             // SAFETY: Start work queue thread.  The main issue here is that the work queue cannot
             // be deallocated once the thread has started.  We enforce this by making Drop panic.
@@ -340,7 +348,7 @@ impl Drop for WorkQueue {
 ///
 /// This is a little bit messy as we don't have a lazy mechanism, so we have to handle this a bit
 /// manually right now.
-static WORK_QUEUES: StaticTls<WorkQueueRef> = StaticTls::new();
+static WORK_QUEUES: Mutex<SimpleTls<WorkQueueRef>> = Mutex::new(SimpleTls::new());
 
 /// For the queue mapping, we need a simple wrapper around the underlying pointer, one that doesn't
 /// implement stop.
@@ -353,7 +361,7 @@ unsafe impl Sync for WorkQueueRef {}
 
 /// Retrieve the current work queue, if we are running within one.
 pub fn get_current_workq() -> Option<*mut k_work_q> {
-    WORK_QUEUES.get().map(|wq| wq.0)
+    WORK_QUEUES.lock().unwrap().get().map(|wq| wq.0)
 }
 
 /// A Rust wrapper for `k_poll_signal`.
