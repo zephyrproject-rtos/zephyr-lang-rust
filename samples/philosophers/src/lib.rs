@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use zephyr::time::{sleep, Duration, Tick};
 use zephyr::{
-    kobj_define, printkln,
+    printkln,
     sync::{Arc, Mutex},
     sys::uptime_get,
 };
@@ -68,23 +68,14 @@ extern "C" fn rust_main() {
     printkln!("Hello world from Rust on {}", zephyr::kconfig::CONFIG_BOARD);
     printkln!("Time tick: {}", zephyr::time::SYS_FREQUENCY);
 
-    let stats = Arc::new(Mutex::new_from(
-        Stats::default(),
-        STAT_MUTEX.init_once(()).unwrap(),
-    ));
+    let stats = &STAT_MUTEX;
 
     let syncers = get_syncer();
 
     printkln!("Pre fork");
 
     for (i, syncer) in (0..NUM_PHIL).zip(syncers.into_iter()) {
-        let child_stat = stats.clone();
-        let thread = PHIL_THREADS[i]
-            .init_once(PHIL_STACKS[i].init_once(()).unwrap())
-            .unwrap();
-        thread.spawn(move || {
-            phil_thread(i, syncer, child_stat);
-        });
+        phil_thread(i, syncer, stats).start();
     }
 
     let delay = Duration::secs_at_least(10);
@@ -133,7 +124,8 @@ fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
     get_channel_syncer()
 }
 
-fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>, stats: Arc<Mutex<Stats>>) {
+#[zephyr::thread(stack_size = PHIL_STACK_SIZE, pool_size = NUM_PHIL)]
+fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>, stats: &'static Mutex<Stats>) {
     printkln!("Child {} started: {:?}", n, syncer);
 
     // Determine our two forks.
@@ -192,6 +184,17 @@ struct Stats {
 }
 
 impl Stats {
+    /// Const constructor to allow for static initializaion.
+    pub const fn new() -> Self {
+        Self {
+            count: [0; NUM_PHIL],
+            eating: [0; NUM_PHIL],
+            thinking: [0; NUM_PHIL],
+        }
+    }
+}
+
+impl Stats {
     fn record_eat(&mut self, index: usize, time: Duration) {
         self.eating[index] += time.to_millis();
     }
@@ -211,9 +214,4 @@ impl Stats {
     }
 }
 
-kobj_define! {
-    static PHIL_THREADS: [StaticThread; NUM_PHIL];
-    static PHIL_STACKS: [ThreadStack<PHIL_STACK_SIZE>; NUM_PHIL];
-
-    static STAT_MUTEX: StaticMutex;
-}
+static STAT_MUTEX: Mutex<Stats> = Mutex::new(Stats::new());
