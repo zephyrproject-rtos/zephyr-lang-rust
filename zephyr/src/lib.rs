@@ -80,8 +80,6 @@ pub mod align;
 pub mod device;
 pub mod embassy;
 pub mod error;
-#[cfg(CONFIG_RUST_ALLOC)]
-pub mod kio;
 pub mod logging;
 pub mod object;
 #[cfg(CONFIG_RUST_ALLOC)]
