@@ -47,11 +47,6 @@ pub fn uptime_get() -> i64 {
 #[cfg(CONFIG_USERSPACE)]
 compile_error!("Critical-section implementation does not work with CONFIG_USERSPACE");
 
-
-// For now, assert we are not SMP.  Once this can be verified, this can be removed.
-#[cfg(CONFIG_SMP)]
-compile_error!("TODO: Critical-section implementation not SMP verified");
-
 pub mod critical {
     //! Zephyr implementation of critical sections.
     //!
