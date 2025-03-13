@@ -9,17 +9,24 @@
 //! tasks run on the same worker do not need Send.  It is just important that write operations on
 //! the RefCell do not `.await` or a panic is likely.
 
-use core::cell::RefCell;
-
-use alloc::{rc::Rc, vec::Vec};
-use zephyr::{
-    kio::{sleep, spawn_local},
-    printkln,
-    sys::sync::Semaphore,
-    time::Forever,
+use embassy_executor::Spawner;
+use embassy_sync::{
+    blocking_mutex::raw::CriticalSectionRawMutex,
+    mutex::Mutex,
+    semaphore::{FairSemaphore, Semaphore},
 };
+use embassy_time::Timer;
+use zephyr::{printkln, sync::Arc};
 
-use crate::{get_random_delay, Stats, NUM_PHIL};
+use crate::{get_random_delay, ResultSignal, Stats, NUM_PHIL};
+
+type ESemaphore = FairSemaphore<CriticalSectionRawMutex, NUM_PHIL>;
+
+/// The semaphores for the forks.
+static FORKS: [ESemaphore; NUM_PHIL] = [const { ESemaphore::new(1) }; NUM_PHIL];
+
+/// The semaphore to wait for them all to finish.
+static DONE_SEM: ESemaphore = ESemaphore::new(0);
 
 /// Number of iterations of each philospher.
 ///
@@ -28,56 +35,27 @@ use crate::{get_random_delay, Stats, NUM_PHIL};
 /// there are two waits, so typically, each "eat" will take about a second.
 const EAT_COUNT: usize = 10;
 
-pub async fn phil() -> Stats {
-    // It is a little tricky to be able to use local workers.  We have to have this nested thread
-    // that waits.  This is because the Future from `local_phil()` does not implement Send, since it
-    // waits for the philosophers, which are not Send.  However, this outer async function does not
-    // hold onto any data that is not send, and therefore will be Send.  Fortunately, this extra
-    // Future is very lightweight.
-    spawn_local(local_phil(), c"phil_wrap").join_async().await
-}
-
-async fn local_phil() -> Stats {
+#[embassy_executor::task]
+pub async fn phil(spawner: Spawner, stats_sig: &'static ResultSignal) {
     // Our overall stats.
-    let stats = Rc::new(RefCell::new(Stats::default()));
+    let stats = Arc::new(Mutex::new(Stats::default()));
 
-    // One fork for each philospher.
-    let forks: Vec<_> = (0..NUM_PHIL)
-        .map(|_| Rc::new(Semaphore::new(1, 1)))
-        .collect();
+    // Spawn off each philosopher.
+    for i in 0..NUM_PHIL {
+        let forks = if i == NUM_PHIL - 1 {
+            [&FORKS[0], &FORKS[i]]
+        } else {
+            [&FORKS[i], &FORKS[i + 1]]
+        };
 
-    // Create all of the philosphers
-    let phils: Vec<_> = (0..NUM_PHIL)
-        .map(|i| {
-            // Determine the two forks.  The forks are paired with each philosopher taking the fork of
-            // their number, and the next on, module the size of the ring.  However, for the last case,
-            // we need to swap the forks used, it is necessary to obey a strict ordering of the locks to
-            // avoid deadlocks.
-            let forks = if i == NUM_PHIL - 1 {
-                [forks[0].clone(), forks[i].clone()]
-            } else {
-                [forks[i].clone(), forks[i + 1].clone()]
-            };
-
-            spawn_local(one_phil(forks, i, stats.clone()), c"phil")
-        })
-        .collect();
-
-    // Wait for them all to finish.
-    for p in phils {
-        p.join_async().await;
+        spawner.spawn(one_phil(forks, i, stats.clone())).unwrap();
     }
 
-    // Leak the stats as a test.
-    // Uncomment this to test that the expect below does truly detect a missed drop.
-    // let _ = Rc::into_raw(stats.clone());
+    // Wait for them all to finish.
+    DONE_SEM.acquire(NUM_PHIL).await.unwrap();
 
-    // At this point, all of the philosphers should have dropped their stats ref, and we should be
-    // able to turn stats back into it's value.
-    // This tests that completed work does drop the future.
-    Rc::into_inner(stats)
-        .expect("Failure: a philospher didn't drop it's future")
-        .into_inner()
+    // Send the stats back.
+    stats_sig.signal(stats);
 }
 
 /// Simulate a single philospher.
@@ -86,28 +64,35 @@ async fn local_phil() -> Stats {
 /// likely deadlock.
 ///
 /// This will run for EAT_COUNT times, and then return.
-async fn one_phil(forks: [Rc<Semaphore>; 2], n: usize, stats: Rc<RefCell<Stats>>) {
+#[embassy_executor::task(pool_size = NUM_PHIL)]
+async fn one_phil(
+    forks: [&'static ESemaphore; 2],
+    n: usize,
+    stats: Arc<Mutex<CriticalSectionRawMutex, Stats>>,
+) {
     for i in 0..EAT_COUNT {
         // Acquire the forks.
         // printkln!("Child {n} take left fork");
-        forks[0].take_async(Forever).await.unwrap();
+        forks[0].acquire(1).await.unwrap().disarm();
         // printkln!("Child {n} take right fork");
-        forks[1].take_async(Forever).await.unwrap();
+        forks[1].acquire(1).await.unwrap().disarm();
 
         // printkln!("Child {n} eating");
         let delay = get_random_delay(n, 25);
-        sleep(delay).await;
-        stats.borrow_mut().record_eat(n, delay);
+        Timer::after(delay).await;
+        stats.lock().await.record_eat(n, delay);
 
         // Release the forks.
         // printkln!("Child {n} giving up forks");
-        forks[1].give();
-        forks[0].give();
+        forks[1].release(1);
+        forks[0].release(1);
 
         let delay = get_random_delay(n, 25);
-        sleep(delay).await;
-        stats.borrow_mut().record_think(n, delay);
+        Timer::after(delay).await;
+        stats.lock().await.record_think(n, delay);
 
         printkln!("Philospher {n} finished eating time {i}");
     }
+
+    DONE_SEM.release(1);
 }
