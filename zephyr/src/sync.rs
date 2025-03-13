@@ -48,13 +48,15 @@ impl<T> PinWeak<T> {
     /// This would be easier to use if it could be added to Arc.
     pub fn downgrade(this: Pin<Arc<T>>) -> Self {
         // SAFETY: we will never return anything other than a Pin<Arc<T>>.
-        Self(Arc::downgrade(& unsafe { Pin::into_inner_unchecked(this) }))
+        Self(Arc::downgrade(&unsafe { Pin::into_inner_unchecked(this) }))
     }
 
     /// Upgrade back to a `Pin<Arc<T>>`.
     pub fn upgrade(&self) -> Option<Pin<Arc<T>>> {
         // SAFETY: The weak was only constructed from a `Pin<Arc<T>>`.
-        self.0.upgrade().map(|arc| unsafe { Pin::new_unchecked(arc) })
+        self.0
+            .upgrade()
+            .map(|arc| unsafe { Pin::new_unchecked(arc) })
     }
 }
 

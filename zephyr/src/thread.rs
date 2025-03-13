@@ -19,12 +19,12 @@ use core::{
 use portable_atomic::AtomicU8;
 use zephyr_sys::{
     k_thread, k_thread_create, k_thread_entry_t, k_thread_join, k_thread_name_set,
-    k_thread_priority_set, k_wakeup,
-    z_thread_stack_element, ZR_STACK_ALIGN, ZR_STACK_RESERVED,
+    k_thread_priority_set, k_wakeup, z_thread_stack_element, ZR_STACK_ALIGN, ZR_STACK_RESERVED,
 };
 
 use crate::{
-    align::AlignAs, sys::{K_FOREVER, K_NO_WAIT}
+    align::AlignAs,
+    sys::{K_FOREVER, K_NO_WAIT},
 };
 
 /// Adjust a given requested stack size up for the alignment.  This is just the stack, and the

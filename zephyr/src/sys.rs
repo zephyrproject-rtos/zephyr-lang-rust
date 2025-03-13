@@ -54,7 +54,10 @@ pub mod critical {
     //! Unfortunately, Zephyr spinlocks cannot be nested.  It is possible to nest different ones,
     //! but the critical-section implementation API doesn't give access to the stack.
 
-    use core::{ffi::c_int, sync::atomic::{fence, Ordering}};
+    use core::{
+        ffi::c_int,
+        sync::atomic::{fence, Ordering},
+    };
 
     use critical_section::RawRestoreState;
     use zephyr_sys::{zr_irq_lock, zr_irq_unlock};
