@@ -10,7 +10,7 @@
 
 use core::{
     cell::UnsafeCell,
-    ffi::{c_int, c_void},
+    ffi::{c_int, c_void, CStr},
     mem,
     ptr::null_mut,
     sync::atomic::Ordering,
@@ -18,8 +18,8 @@ use core::{
 
 use portable_atomic::AtomicU8;
 use zephyr_sys::{
-    k_thread, k_thread_create, k_thread_entry_t, k_thread_join, k_thread_priority_set, k_wakeup,
-    z_thread_stack_element, ZR_STACK_ALIGN, ZR_STACK_RESERVED,
+    k_thread, k_thread_create, k_thread_entry_t, k_thread_join, k_thread_name_set,
+    k_thread_priority_set, k_wakeup, z_thread_stack_element, ZR_STACK_ALIGN, ZR_STACK_RESERVED,
 };
 
 use crate::{
@@ -133,6 +133,7 @@ impl<T: Send> ThreadData<T> {
         args: T,
         entry: k_thread_entry_t,
         priority: c_int,
+        name: &'static CStr,
     ) -> ReadyThread {
         let id = Self::find_thread(pool);
 
@@ -156,6 +157,11 @@ impl<T: Send> ThreadData<T> {
                 K_FOREVER,
             )
         };
+
+        // Set the name.
+        unsafe {
+            k_thread_name_set(tid, name.as_ptr());
+        }
 
         ReadyThread { id: tid }
     }
