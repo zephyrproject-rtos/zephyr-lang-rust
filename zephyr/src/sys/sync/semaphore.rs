@@ -13,21 +13,9 @@
 
 use core::ffi::c_uint;
 use core::fmt;
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::future::Future;
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::pin::Pin;
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::task::{Context, Poll};
 
-#[cfg(CONFIG_RUST_ALLOC)]
-use zephyr_sys::ETIMEDOUT;
-
-#[cfg(CONFIG_RUST_ALLOC)]
-use crate::kio::ContextExt;
 use crate::object::{ObjectInit, ZephyrObject};
 #[cfg(CONFIG_RUST_ALLOC)]
-use crate::time::NoWait;
 use crate::{
     error::{to_result_void, Result},
     raw::{k_sem, k_sem_count_get, k_sem_give, k_sem_init, k_sem_reset, k_sem_take},
@@ -87,21 +75,6 @@ impl Semaphore {
         to_result_void(ret)
     }
 
-    /// Take a semaphore, async version.
-    ///
-    /// Returns a future that either waits for the semaphore, or returns status.
-    #[cfg(CONFIG_RUST_ALLOC)]
-    pub fn take_async<'a>(
-        &'a self,
-        timeout: impl Into<Timeout>,
-    ) -> impl Future<Output = Result<()>> + 'a {
-        SemTake {
-            sem: self,
-            timeout: timeout.into(),
-            ran: false,
-        }
-    }
-
     /// Give a semaphore.
     ///
     /// This routine gives to the semaphore, unless the semaphore is already at its maximum
@@ -143,40 +116,6 @@ impl ObjectInit<k_sem> for ZephyrObject<k_sem> {
                 unreachable!();
             }
         }
-    }
-}
-
-/// The async 'take' Future
-#[cfg(CONFIG_RUST_ALLOC)]
-struct SemTake<'a> {
-    /// The semaphore we're waiting on.
-    sem: &'a Semaphore,
-    /// The timeout to use.
-    timeout: Timeout,
-    /// Set after we've waited once.
-    ran: bool,
-}
-
-#[cfg(CONFIG_RUST_ALLOC)]
-impl<'a> Future for SemTake<'a> {
-    type Output = Result<()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Always check if data is available.
-        if let Ok(()) = self.sem.take(NoWait) {
-            return Poll::Ready(Ok(()));
-        }
-
-        if self.ran {
-            // If we ran once, and still don't have any data, indicate this as a timeout.
-            return Poll::Ready(Err(crate::Error(ETIMEDOUT)));
-        }
-
-        // TODO: Clean this up.
-        cx.add_semaphore(self.sem, self.timeout);
-        self.ran = true;
-
-        Poll::Pending
     }
 }
 
