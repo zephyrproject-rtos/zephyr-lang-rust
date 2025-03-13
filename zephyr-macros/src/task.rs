@@ -1,10 +1,10 @@
 //! Expansion of `#[zephyr::task(...)]`.
 
-use std::fmt::Display;
+use std::{ffi::CString, fmt::Display};
 
 use darling::FromMeta;
 use darling::export::NestedMeta;
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Literal, Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::{
     Expr, ExprLit, ItemFn, Lit, LitInt, ReturnType, Type,
@@ -149,6 +149,8 @@ pub fn run(args: TokenStream, item: TokenStream) -> TokenStream {
         });
     }
 
+    let thread_name = Literal::c_string(&CString::new(thread_ident.to_string()).unwrap());
+
     let mut thread_outer_body = quote! {
         const _ZEPHYR_INTERNAL_STACK_SIZE: usize = zephyr::thread::stack_len(#stack_size);
         const _ZEPHYR_INTERNAL_POOL_SIZE: usize = #pool_size;
@@ -187,6 +189,7 @@ pub fn run(args: TokenStream, item: TokenStream) -> TokenStream {
             _ZephyrInternalArgs { #(#inner_args)* },
             Some(startup),
             0,
+            #thread_name,
         )
     };
 
