@@ -19,8 +19,12 @@ static_cell = "2.1"
 embassy-executor = { version = "0.7.0", features = ["log", "task-arena-size-2048"] }
 embassy-sync = "0.6.2"
 
-# TODO: Don't hardcode the tickrate.
-embassy-time = { version = "0.4.0", features = ["tick-hz-10_000"] }
+# For real builds, you should figure out your target's tick rate and set the appropriate feature,
+# like in these examples.  Without this, embassy-time will assume a 1Mhz tick rate, and every time
+# operation will involve a conversion.
+embassy-time = "0.4.0"
+# embassy-time = { version = "0.4.0", features = ["tick-hz-10_000"] }
+# embassy-time = { version = "0.4.0", features = ["tick-hz-100"] }
 
 # Dependencies that are used by build.rs.
 [build-dependencies]
