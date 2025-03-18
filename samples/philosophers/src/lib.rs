@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use zephyr::time::{sleep, Duration, Tick};
 use zephyr::{
-    kobj_define, printkln,
+    printkln,
     sync::{Arc, Mutex},
     sys::uptime_get,
 };
@@ -75,12 +75,7 @@ extern "C" fn rust_main() {
     printkln!("Pre fork");
 
     for (i, syncer) in (0..NUM_PHIL).zip(syncers.into_iter()) {
-        let thread = PHIL_THREADS[i]
-            .init_once(PHIL_STACKS[i].init_once(()).unwrap())
-            .unwrap();
-        thread.spawn(move || {
-            phil_thread(i, syncer, stats);
-        });
+        phil_thread(i, syncer, stats).start();
     }
 
     let delay = Duration::secs_at_least(10);
@@ -129,6 +124,7 @@ fn get_syncer() -> Vec<Arc<dyn ForkSync>> {
     get_channel_syncer()
 }
 
+#[zephyr::thread(stack_size = PHIL_STACK_SIZE, pool_size = NUM_PHIL)]
 fn phil_thread(n: usize, syncer: Arc<dyn ForkSync>, stats: &'static Mutex<Stats>) {
     printkln!("Child {} started: {:?}", n, syncer);
 
@@ -219,8 +215,3 @@ impl Stats {
 }
 
 static STAT_MUTEX: Mutex<Stats> = Mutex::new(Stats::new());
-
-kobj_define! {
-    static PHIL_THREADS: [StaticThread; NUM_PHIL];
-    static PHIL_STACKS: [ThreadStack<PHIL_STACK_SIZE>; NUM_PHIL];
-}

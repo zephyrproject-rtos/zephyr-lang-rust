@@ -44,7 +44,6 @@ impl Executor {
                 // simulate this, we will use the 'pend' atomic to count
                 inner.poll();
                 if !self.pend.swap(false, Ordering::SeqCst) {
-                    // printkln!("_suspend");
                     k_thread_suspend(k_current_get());
                 }
             }
@@ -66,15 +65,16 @@ fn __pender(context: *mut ()) {
         let this = context as *const Executor;
         let other = (*this).id;
 
+        // The atomic is our equivalent to causing an event (wfe) or pending an IRQ.  We need to do
+        // this before waking the other thread in case that thread runs early.  This is needed for
+        // both the case of another thread, to prevent a race between the `inner.poll()` above, and
+        // new items being added to the queue, as well as running entirely locally, also to prevent
+        // the same race.
+        (*this).pend.store(true, Ordering::SeqCst);
+
         // If the other is a different thread, resume it.
         if other != myself {
-            // printkln!("_resume");
             k_thread_resume(other);
         }
-        // Otherwise, we need to make sure our own next suspend doesn't happen.
-        // We need to also prevent a suspend from happening in the case where the only running
-        // thread causes other work to become pending.  The resume below will do nothing, as we
-        // are just running.
-        (*this).pend.store(true, Ordering::SeqCst);
     }
 }
