@@ -16,10 +16,11 @@ use alloc::collections::vec_deque::VecDeque;
 use alloc::vec;
 use executor::AsyncTests;
 use static_cell::StaticCell;
+use zephyr::define_work_queue;
 use zephyr::raw::k_yield;
 use zephyr::sync::{PinWeak, SpinMutex};
 use zephyr::time::NoWait;
-use zephyr::work::{SimpleAction, Work, WorkQueueDecl};
+use zephyr::work::{SimpleAction, Work};
 use zephyr::{
     kconfig::CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
     printkln,
@@ -40,7 +41,7 @@ const NUM_THREADS: usize = 6;
 
 /// Stack size to use for the threads.
 #[cfg(target_pointer_width = "32")]
-const THREAD_STACK_SIZE: usize = 4*1024;
+const THREAD_STACK_SIZE: usize = 4 * 1024;
 
 /// Stack size to use for the threads.
 #[cfg(target_pointer_width = "64")]
@@ -803,21 +804,7 @@ impl<'a> BenchTimer<'a> {
     }
 }
 
-/// Static declaration of work queue.  This is a working template for how this will be generated
-/// through the macro.
-static WORKQ: WorkQueueDecl<WORK_STACK_SIZE> = WorkQueueDecl::new(
-    &WORKQ_STACK,
-    zephyr::raw::k_work_queue_config {
-        name: c"WORKQ".as_ptr(),
-        no_yield: true,
-        essential: false,
-    },
-    5,
-);
-
-#[unsafe(link_section = ".noinit.WORKQ_STACK")]
-static WORKQ_STACK: zephyr::thread::ThreadStack<WORK_STACK_SIZE> =
-    zephyr::thread::ThreadStack::new();
+define_work_queue!(WORKQ, WORK_STACK_SIZE, priority = 5, no_yield = true);
 
 static SEMS: [Semaphore; NUM_THREADS] = [const { Semaphore::new(0, u32::MAX) }; NUM_THREADS];
 static BACK_SEMS: [Semaphore; NUM_THREADS] = [const { Semaphore::new(0, u32::MAX) }; NUM_THREADS];

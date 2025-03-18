@@ -8,14 +8,12 @@ use core::{ffi::c_int, sync::atomic::Ordering};
 use alloc::format;
 use embassy_executor::SendSpawner;
 use embassy_futures::yield_now;
+#[allow(unused_imports)]
+use embassy_sync::semaphore::{FairSemaphore, GreedySemaphore};
 use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex,
-    channel::Channel,
-    semaphore::Semaphore,
+    blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, semaphore::Semaphore,
     signal::Signal,
 };
-#[allow(unused_imports)]
-use embassy_sync::semaphore::{GreedySemaphore, FairSemaphore};
 use static_cell::StaticCell;
 use zephyr::{embassy::Executor, sync::atomic::AtomicBool};
 
@@ -24,7 +22,7 @@ use crate::{BenchTimer, Command, TestResult, NUM_THREADS, THREAD_STACK_SIZE};
 /// As the tests do exercise different executors at different priorities, use the critical section
 /// variant.
 // type ASemaphore = GreedySemaphore<CriticalSectionRawMutex>;
-type ASemaphore = FairSemaphore<CriticalSectionRawMutex, {NUM_THREADS + 2}>;
+type ASemaphore = FairSemaphore<CriticalSectionRawMutex, { NUM_THREADS + 2 }>;
 
 /// A Signal for reporting back spawners.
 type SpawnerSignal = Signal<CriticalSectionRawMutex, SendSpawner>;
@@ -281,7 +279,6 @@ async fn main_run(this: &'static AsyncTests) {
             } else {
                 this.spawners[0].spawn(low_worker(this, command)).unwrap();
             }
-
         } else {
             this.spawners[1].spawn(high_worker(this, command)).unwrap();
             this.spawners[1].spawn(low_worker(this, command)).unwrap();
@@ -349,5 +346,4 @@ fn executor_thread(exec: &'static StaticCell<Executor>, spawner_sig: &'static Sp
 
 // For debugging
 #[unsafe(no_mangle)]
-extern "C" fn invalid_spinlock(_l: *mut zephyr::raw::k_spinlock, _thread: u32, _id: u32) {
-}
+extern "C" fn invalid_spinlock(_l: *mut zephyr::raw::k_spinlock, _thread: u32, _id: u32) {}
