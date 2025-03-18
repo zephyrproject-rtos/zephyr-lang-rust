@@ -126,60 +126,26 @@
 //!
 //! ## The work queues themselves
 //!
-//! Workqueues themselves are built using [`WorkQueueBuilder`].  This needs a statically defined
-//! stack.  Typical usage will be along the lines of:
+//! Work Queues should be declared with the `define_work_queue!` macro, this macro requires the name
+//! of the symbol for the work queue, the stack size, and then zero or more optional arguments,
+//! defined by the fields in the [`WorkQueueDeclArgs`] struct.  For example:
+//!
 //! ```rust
-//! kobj_define! {
-//!   WORKER_STACK: ThreadStack<2048>;
-//! }
-//! // ...
-//! let main_worker = Box::new(
-//!     WorkQueueBuilder::new()
-//!         .set_priority(2).
-//!         .set_name(c"mainloop")
-//!         .set_no_yield(true)
-//!         .start(MAIN_LOOP_STACK.init_once(()).unwrap())
-//!     );
-//!
-//! let _ = zephyr::kio::spawn(
-//!     mainloop(), // Async or function returning Future.
-//!     &main_worker,
-//!     c"w:mainloop",
-//! );
-//!
-//! ...
-//!
-//! // Leak the Box so that the worker is never freed.
-//! let _ = Box::leak(main_worker);
+//! define_work_queue!(MY_WORKQ, 2048, no_yield = true, priority = 2);
 //! ```
 //!
-//! It is important that WorkQueues never be dropped.  It has a Drop implementation that invokes
-//! panic.  Zephyr provides no mechanism to stop work queue threads, so dropping would result in
-//! undefined behavior.
-//!
-//! # Current Status
-//!
-//! Although Zephyr has 3 types of work queues, the `k_work_poll` is sufficient to implement all of
-//! the behavior, and this implementation only implements this type.  Non Future work could be built
-//! around the other work types.
-//!
-//! As such, this means that manually constructed work is still built using `Future`.  The `_async`
-//! primitives throughout this crate can be used just as readily by hand-written Futures as by async
-//! code.  Notable, the use of [`Signal`] will likely be common, along with possible timeouts.
-//!
-//! [`sys::sync::Semaphore`]: crate::sys::sync::Semaphore
-//! [`sync::channel`]: crate::sync::channel
-//! [`sync::Mutex`]: crate::sync::Mutex
-//! [`kio::sync::Mutex`]: crate::kio::sync::Mutex
-//! [`kio::spawn`]: crate::kio::spawn
-//! [`join`]: futures::JoinHandle::join
-//! [`join_async`]: futures::JoinHandle::join_async
+//! Then, in code, the work queue can be started, and used to issue work.
+//! ```rust
+//! let my_workq = MY_WORKQ.start();
+//! let action = Work::new(action_item);
+//! action.submit(my_workq);
+//! ```
 
 extern crate alloc;
 
 use core::{
     cell::{RefCell, UnsafeCell},
-    ffi::{c_int, c_uint},
+    ffi::{c_char, c_int, c_uint},
     mem,
     pin::Pin,
     sync::atomic::Ordering,
@@ -195,6 +161,30 @@ use zephyr_sys::{
 };
 
 use crate::{error::to_result_void, object::Fixed, simpletls::SimpleTls};
+
+/// The WorkQueue decl args as a struct, so we can have a default, and the macro can fill in those
+/// specified by the user.
+pub struct WorkQueueDeclArgs {
+    /// Should this work queue call yield after each queued item.
+    pub no_yield: bool,
+    /// Is this work queue thread "essential".
+    ///
+    /// Threads marked essential will panic if they stop running.
+    pub essential: bool,
+    /// Zephyr thread priority for the work queue thread.
+    pub priority: c_int,
+}
+
+impl WorkQueueDeclArgs {
+    /// Like `Default::default`, but const.
+    pub const fn default_values() -> Self {
+        Self {
+            no_yield: false,
+            essential: false,
+            priority: 0,
+        }
+    }
+}
 
 /// A static declaration of a work-queue.  This associates a work queue, with a stack, and an atomic
 /// to determine if it has been initialized.
@@ -215,14 +205,18 @@ impl<const SIZE: usize> WorkQueueDecl<SIZE> {
     /// Static constructor.  Mostly for use by the macro.
     pub const fn new(
         stack: &'static crate::thread::ThreadStack<SIZE>,
-        config: k_work_queue_config,
-        priority: c_int,
+        name: *const c_char,
+        args: WorkQueueDeclArgs,
     ) -> Self {
         Self {
             queue: unsafe { mem::zeroed() },
             stack,
-            config,
-            priority,
+            config: k_work_queue_config {
+                name,
+                no_yield: args.no_yield,
+                essential: args.essential,
+            },
+            priority: args.priority,
             started: AtomicBool::new(false),
         }
     }
@@ -442,6 +436,24 @@ impl SubmitResult {
     }
 }
 
+/*
+pub trait Queueable: Send + Sync {
+    fn as_ptr(&self) -> *const ();
+}
+
+impl<T: Send + Sync> Queueable for Arc<T> {
+    fn as_ptr(&self) -> *const () {
+        todo!()
+    }
+}
+
+impl<T: Send + Sync> Queueable for &'static T {
+    fn as_ptr(&self) -> *const () {
+        todo!()
+    }
+}
+*/
+
 /// A simple action that just does something with its data.
 ///
 /// This is similar to a Future, except there is no concept of it completing.  It manages its
@@ -582,4 +594,33 @@ impl<T: SimpleAction + Send> Work<T> {
     pub fn action(&self) -> &T {
         &self.action
     }
+}
+
+/// Declare a static work queue.
+///
+/// This declares a static work queue (of type [`WorkQueueDecl`]).  This will have a single method
+/// `.start()` which can be used to start the work queue, as well as return the persistent handle
+/// that can be used to enqueue to it.
+#[macro_export]
+macro_rules! define_work_queue {
+    ($name:ident, $stack_size:expr) => {
+        $crate::define_work_queue!($name, $stack_size,);
+    };
+    ($name:ident, $stack_size:expr, $($key:ident = $value:expr),* $(,)?) => {
+        static $name: $crate::work::WorkQueueDecl<$stack_size> = {
+            #[link_section = concat!(".noinit.workq.", stringify!($name))]
+            static _ZEPHYR_STACK: $crate::thread::ThreadStack<$stack_size> =
+                $crate::thread::ThreadStack::new();
+            const _ZEPHYR_C_NAME: &[u8] = concat!(stringify!($name), "\0").as_bytes();
+            const _ZEPHYR_ARGS: $crate::work::WorkQueueDeclArgs = $crate::work::WorkQueueDeclArgs {
+                $($key: $value,)*
+                ..$crate::work::WorkQueueDeclArgs::default_values()
+            };
+            $crate::work::WorkQueueDecl::new(
+                &_ZEPHYR_STACK,
+                _ZEPHYR_C_NAME.as_ptr() as *const ::core::ffi::c_char,
+                _ZEPHYR_ARGS,
+            )
+        };
+    };
 }
