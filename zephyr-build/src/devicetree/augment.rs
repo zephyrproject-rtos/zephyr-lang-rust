@@ -28,6 +28,12 @@ pub trait Augment {
     /// The default implementation checks if this node matches and calls a generator if it does, or
     /// does nothing if not.
     fn augment(&self, node: &Node, tree: &DeviceTree) -> TokenStream {
+        // If there is a status field present, and it is not set to "okay", don't augment this node.
+        if let Some(status) = node.get_single_string("status") {
+            if status != "okay" {
+                return TokenStream::new();
+            }
+        }
         if self.is_compatible(node) {
             self.generate(node, tree)
         } else {
