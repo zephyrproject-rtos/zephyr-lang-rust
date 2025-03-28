@@ -43,6 +43,7 @@ extern int errno;
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
 #include <zephyr/irq.h>
+#include <zephyr/net/socket.h>
 
 /*
  * bindgen will only output #defined constants that resolve to simple numbers.  These are some
