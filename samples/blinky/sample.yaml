@@ -9,8 +9,9 @@ common:
     - qemu_riscv32
     - qemu_riscv64
     - nrf52840dk/nrf52840
+    - frdm_k64f
 tests:
-  sample.basic.blinky:
+  sample.rust.basic.blinky:
     tags:
       - LED
       - gpio
