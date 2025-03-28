@@ -3,7 +3,7 @@ common:
   platform_allow:
     - rpi_pico
 tests:
-  test.gpio-async:
+  test.rust.drivers.gpio-async:
     harness: console
     harness_config:
       type: one_line
