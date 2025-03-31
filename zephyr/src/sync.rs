@@ -25,10 +25,40 @@ pub mod atomic {
     pub use portable_atomic::*;
 }
 
+use core::pin::Pin;
+
 #[cfg(CONFIG_RUST_ALLOC)]
 pub use portable_atomic_util::Arc;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub use portable_atomic_util::Weak;
+
+/// Safe Pinned Weak references.
+///
+/// Pin<Arc<T>> can't be converted to/from Weak safely, because there is know way to know if a given
+/// weak reference came from a pinned Arc.  This wraps the weak reference in a new type so we know
+/// that it came from a pinned Arc.
+///
+/// There is a pin-weak crate that provides this for `std::sync::Arc`, but not for the one in the
+/// portable-atomic-utils crate.
+pub struct PinWeak<T>(Weak<T>);
+
+impl<T> PinWeak<T> {
+    /// Downgrade an `Pin<Arc<T>>` into a `PinWeak`.
+    ///
+    /// This would be easier to use if it could be added to Arc.
+    pub fn downgrade(this: Pin<Arc<T>>) -> Self {
+        // SAFETY: we will never return anything other than a Pin<Arc<T>>.
+        Self(Arc::downgrade(&unsafe { Pin::into_inner_unchecked(this) }))
+    }
+
+    /// Upgrade back to a `Pin<Arc<T>>`.
+    pub fn upgrade(&self) -> Option<Pin<Arc<T>>> {
+        // SAFETY: The weak was only constructed from a `Pin<Arc<T>>`.
+        self.0
+            .upgrade()
+            .map(|arc| unsafe { Pin::new_unchecked(arc) })
+    }
+}
 
 mod mutex;
 

@@ -1,6 +1,6 @@
 sample:
-  description: Philosphers, in Rust
-  name: workq philosophers rust
+  description: Async Philosphers, in Rust
+  name: async philosophers rust
 common:
   harness: console
   harness_config:
@@ -13,7 +13,9 @@ common:
     - qemu_cortex_m0
     - qemu_cortex_m3
     - qemu_riscv32
+    - qemu_riscv32/qemu_virt_riscv32/smp
     - qemu_riscv64
+    - qemu_riscv64/qemu_virt_riscv64/smp
     - nrf52840dk/nrf52840
 tests:
   sample.rust.work-philosopher:
