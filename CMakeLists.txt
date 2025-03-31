@@ -49,6 +49,15 @@ function(_rust_map_target)
     else()
       message(FATAL_ERROR "Rust: Unsupported riscv ISA")
     endif()
+  elseif(CONFIG_CPU_CORTEX_R52)
+    set(RUST_TARGET "armv8r-none-eabihf" PARENT_SCOPE)
+
+    # build core (and maybe also alloc) from source for tier 3 target
+    if(CONFIG_RUST_ALLOC)
+      set(CARGO_EXTRA_FLAGS -Z build-std=core,alloc PARENT_SCOPE)
+    else()
+      set(CARGO_EXTRA_FLAGS -Z build-std=core PARENT_SCOPE)
+    endif()
   else()
     message(FATAL_ERROR "Rust: Add support for other target")
   endif()
@@ -80,12 +89,13 @@ function(rust_cargo_application)
 
   # TODO: Make sure RUSTFLAGS is not set.
 
-  if(CONFIG_DEBUG)
-    set(RUST_BUILD_TYPE "debug")
-    set(rust_build_type_arg "")
+  # choose debug/release build based on Kconfig choice
+  if(CONFIG_RUST_CARGO_PROFILE_RELEASE)
+    message(STATUS "Cargo build profile: release")
+    set(RUST_BUILD_TYPE release)
   else()
-    set(RUST_BUILD_TYPE "release")
-    set(rust_build_type_arg "--release")
+    message(STATUS "Cargo build profile: dev")
+    set(RUST_BUILD_TYPE debug)
   endif()
   set(BUILD_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE}")
 
@@ -169,7 +179,7 @@ ${config_paths}
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
       cargo build
-      ${rust_build_type_arg}
+      --profile $<IF:$<BOOL:${CONFIG_RUST_CARGO_PROFILE_RELEASE}>,release,dev>
 
       # Override the features according to the shield given. For a general case,
       # this will need to come from a variable or argument.
@@ -182,8 +192,10 @@ ${config_paths}
       ${command_paths}
       --target ${RUST_TARGET}
       --target-dir ${CARGO_TARGET_DIR}
+      ${CARGO_EXTRA_FLAGS}
     COMMENT "Building Rust application"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    USES_TERMINAL
   )
 
   # Be sure we don't try building this until all of the generated headers have been generated.
@@ -250,4 +262,119 @@ ${config_paths}
   # Presumably, Rust applications will have no C source files, but cmake will require them.
   # Add an empty file so that this will build.  The main will come from the rust library.
   target_sources(app PRIVATE $CACHE{RUST_MODULE_DIR}/main.c ${WRAPPER_FILE})
+endfunction()
+
+# Function to build a Rust library using cargo, to be integrated into a C-based
+# Zephyr application.
+#
+# In contrast to the rust_cargo_application function, which builds an entire
+# Zephyr application from primarily Rust source files, this function is designed
+# to build a standalone Rust crate into a library that can be integrated into a
+# Zephyr application whose source code base is primarily written in C.
+#
+# A library built with this function will typically provide a C API through a
+# Foreign Function Interface (FFI) whose C header files will be automatically
+# generated from the Rust source code by the cbindgen tool, therefore use of
+# this function requires the cbindgen tool to be installed on the build host.
+#
+# The caller must specify the following arguments:
+#
+#   LIBRARY_NAME <library-name> - the name of the library
+#   CRATE_PATH <crate-path>     - path to the root of the Rust crate to build
+#
+# The caller may optionally specify the following argument:
+#
+#   MEMORY_PARTITION <memory-partition-name>
+#
+# which, if specified, will place any static global symbols built from the Rust
+# sources into the specified memory partition, which can allow the symbols to be
+# used from user mode threads.
+#
+# The function will add the specified library name into the build environment as
+# a symbol that can be linked into the target Zephyr application using e.g.
+# target_link_libraries.
+#
+# Usage:
+#   rust_cargo_library(LIBRARY_NAME <library-name>
+#                      CRATE_PATH <crate-path>
+#                      |MEMORY_PARTITION <memory-partition-name>|
+#   )
+#
+function(rust_cargo_library)
+  # parse function arguments
+  set(flags)
+  set(args LIBRARY_NAME CRATE_PATH MEMORY_PARTITION)
+  set(listArgs)
+  cmake_parse_arguments(arg "${flags}" "${args}" "${listArgs}" ${ARGN})
+
+  # verify required arguments
+  if (NOT arg_LIBRARY_NAME)
+    message(FATAL_ERROR "[rust_cargo_library]: LIBRARY_NAME is a required argument")
+  endif()
+  if (NOT arg_CRATE_PATH)
+    message(FATAL_ERROR "[rust_cargo_library]: CRATE_PATH is a required argument")
+  endif()
+
+  # locate cbindgen executable
+  find_program(CBINDGEN_EXE cbindgen REQUIRED)
+
+  _rust_map_target()
+  message(STATUS "Building Rust library ${arg_LIBRARY_NAME} for llvm target ${RUST_TARGET}")
+
+  # choose debug/release build based on Kconfig choice
+  if(CONFIG_RUST_CARGO_PROFILE_RELEASE)
+    message(STATUS "Cargo build profile: release")
+    set(RUST_BUILD_TYPE release)
+  else()
+    message(STATUS "Cargo build profile: dev")
+    set(RUST_BUILD_TYPE debug)
+  endif()
+  set(BUILD_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE})
+
+  # library filename is based on arg_LIBRARY_NAME
+  set(CARGO_TARGET_DIR ${CMAKE_CURRENT_BINARY_DIR}/rust/target)
+  set(RUST_LIBRARY ${CARGO_TARGET_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE}/lib${arg_LIBRARY_NAME}.a)
+
+  # cbindgen header filename is based on arg_LIBRARY_NAME with _ replaced by -
+  string(REPLACE "_" "-" CBINDGEN_FILENAME "${arg_LIBRARY_NAME}-cbindgen.h")
+  set(CBINDGEN_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${CBINDGEN_FILENAME})
+
+  # The library is built by invoking Cargo.
+  add_custom_target(
+    ${arg_LIBRARY_NAME}_builder
+    BYPRODUCTS ${RUST_LIBRARY} ${CBINDGEN_HEADER}
+
+    # build the library
+    COMMAND
+      cargo build
+      --profile $<IF:$<STREQUAL:${CONFIG_RUST_CARGO_PROFILE_RELEASE},y>,release,dev>
+      --target ${RUST_TARGET}
+      --target-dir ${CARGO_TARGET_DIR}
+      ${CARGO_EXTRA_FLAGS}
+
+    # autogenerate the C header file using cbindgen
+    COMMAND
+      ${CMAKE_COMMAND}
+      -E env ${CBINDGEN_EXE}
+      --config cbindgen.toml
+      --output ${CBINDGEN_HEADER}
+      --lang c
+
+    WORKING_DIRECTORY ${arg_CRATE_PATH}
+    USES_TERMINAL
+  )
+
+  # Create a library target and add the location of the generated header file
+  # to its include path.
+  add_library(${arg_LIBRARY_NAME} STATIC IMPORTED GLOBAL)
+  add_dependencies(${arg_LIBRARY_NAME} ${arg_LIBRARY_NAME}_builder)
+  set_target_properties(${arg_LIBRARY_NAME} PROPERTIES IMPORTED_LOCATION ${RUST_LIBRARY})
+  set_target_properties(${arg_LIBRARY_NAME} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR})
+
+  # Place any statics from the rust library into the specified memory partition.
+  if (arg_MEMORY_PARTITION)
+    zephyr_append_cmake_library(${arg_LIBRARY_NAME})
+    set(ZEPHYR_CURRENT_LIBRARY ${arg_LIBRARY_NAME})
+    zephyr_library_app_memory(${arg_MEMORY_PARTITION})
+  endif()
 endfunction()

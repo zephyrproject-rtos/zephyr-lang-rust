@@ -8,6 +8,7 @@ menu "Rust Language Support"
 config RUST_SUPPORTED
 	bool
 	default y if ((CPU_CORTEX_M || \
+		       CPU_CORTEX_R52 || \
 				(RISCV && !RISCV_ISA_RV32E && !RISCV_ISA_RV128I)) && \
 				!TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)
 	help
@@ -29,6 +30,24 @@ config RUST_ALLOC
 	  an allocator.  This allocator will use the currently configured
 	  Zephyr allocator (malloc/free).  This this enabled, Rust
 	  applications can use the `alloc` crate.
+
+choice RUST_CARGO_PROFILE
+	prompt "Cargo profile"
+	default RUST_CARGO_PROFILE_DEV
+	help
+	  Select the profile to use when invoking cargo.
+
+config RUST_CARGO_PROFILE_DEV
+	bool "Development profile"
+	help
+	  Cargo profile suitable for development and debugging builds.
+
+config RUST_CARGO_PROFILE_RELEASE
+	bool "Release profile"
+	help
+	  Cargo profile suitable for release builds.
+
+endchoice # RUST_BUILD_TYPE
 
 endif # RUST
 
