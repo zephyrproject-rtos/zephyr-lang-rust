@@ -6,22 +6,14 @@
 
 use core::ffi::c_void;
 use core::fmt;
-#[cfg(CONFIG_RUST_ALLOC)]
-use core::mem;
 
 use zephyr_sys::{k_queue, k_queue_append, k_queue_get, k_queue_init};
 
-#[cfg(CONFIG_RUST_ALLOC)]
-use crate::error::Result;
-use crate::object::{Fixed, StaticKernelObject, Wrapped};
+use crate::object::{ObjectInit, ZephyrObject};
 use crate::time::Timeout;
 
 /// A wrapper around a Zephyr `k_queue` object.
-pub struct Queue {
-    pub(crate) item: Fixed<k_queue>,
-}
-
-unsafe impl Sync for StaticKernelObject<k_queue> {}
+pub struct Queue(pub(crate) ZephyrObject<k_queue>);
 
 unsafe impl Sync for Queue {}
 unsafe impl Send for Queue {}
@@ -33,13 +25,8 @@ impl Queue {
     ///
     /// **Note**: When a Queue is dropped, any messages that have been added to the queue will be
     /// leaked.
-    #[cfg(CONFIG_RUST_ALLOC)]
-    pub fn new() -> Result<Queue> {
-        let item: Fixed<k_queue> = Fixed::new(unsafe { mem::zeroed() });
-        unsafe {
-            k_queue_init(item.get());
-        }
-        Ok(Queue { item })
+    pub const fn new() -> Queue {
+        Queue(<ZephyrObject<k_queue>>::new_raw())
     }
 
     /// Append an element to the end of a queue.
@@ -61,7 +48,7 @@ impl Queue {
     /// These are easiest to satisfy by ensuring the message is Boxed, and owned by the queue
     /// system.
     pub unsafe fn send(&self, data: *mut c_void) {
-        k_queue_append(self.item.get(), data)
+        k_queue_append(self.0.get(), data)
     }
 
     /// Get an element from a queue.
@@ -84,42 +71,22 @@ impl Queue {
         T: Into<Timeout>,
     {
         let timeout: Timeout = timeout.into();
-        k_queue_get(self.item.get(), timeout.0)
+        k_queue_get(self.0.get(), timeout.0)
     }
 }
 
-impl Wrapped for StaticKernelObject<k_queue> {
-    type T = Queue;
-
-    type I = ();
-
-    fn get_wrapped(&self, _arg: Self::I) -> Queue {
-        let ptr = self.value.get();
+impl ObjectInit<k_queue> for ZephyrObject<k_queue> {
+    fn init(item: *mut k_queue) {
+        // SAFETY: ZephyrObject handles initialization and move prevention.
         unsafe {
-            k_queue_init(ptr);
-        }
-        Queue {
-            item: Fixed::Static(ptr),
+            k_queue_init(item);
         }
     }
 }
-
-/// A statically defined Zephyr `k_queue`.
-///
-/// This should be declared as follows:
-/// ```
-/// kobj_define! {
-///     static MY_QUEUE: StaticQueue;
-/// }
-///
-/// let my_queue = MY_QUEUE.init_once(());
-///
-/// my_queue.send(...);
-/// ```
-pub type StaticQueue = StaticKernelObject<k_queue>;
 
 impl fmt::Debug for Queue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sys::Queue {:?}", self.item.get())
+        // SAFETY: Just getting the address to print.
+        write!(f, "sys::Queue {:?}", unsafe { self.0.get() })
     }
 }

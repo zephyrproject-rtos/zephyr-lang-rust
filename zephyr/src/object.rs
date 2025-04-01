@@ -92,6 +92,151 @@ use alloc::boxed::Box;
 
 use crate::sync::atomic::{AtomicUsize, Ordering};
 
+/// ## Init/move safe objects
+///
+/// In Rust code, many language features are designed around Rust's "move semantics".  Because of
+/// the borrow checker, the Rust compiler has full knowledge of when it is safe to move an object in
+/// memory, as it will know that there are no references to it.
+///
+/// However, most kernel objects in Zephyr contain self-referential pointers to those objects.  The
+/// traditional way to handle this in Rust is to use `Pin`.  However, besides Pin being awkward to
+/// use, it is generally assumed that the underlying objects will be dynamically allocated.  It is
+/// desirable to allow as much functionality of Zephyr to be used without explicitly requiring
+/// alloc.
+///
+/// The original solution (Wrapped), used a type `Fixed` that either referenced a static, or
+/// contained a `Pin<Box<T>>` of the Zephyr kernel object.  This introduces overhead for both the
+/// enum as well as the actual reference itself.
+///
+/// Some simple benchmarking has determined that it is just as efficient, or even slightly more so,
+/// to represent each object instead as a `UnsafeCell` contaning the Zephyr object, and an atomic
+/// pointer that can be used to determine the state of the object.
+///
+/// This type is not intended for general use, but for the implementation of wrappers for Zephyr
+/// types that require non-move semantics.
+///
+/// # Safety
+///
+/// The Zephyr APIs require that once objects have been initialized, they are not moved in memory.
+/// To avoid the inconvenience of managing 'Pin' for most of these, we rely on a run-time detection
+/// both of initialization and non-movement.  It is fairly easy, as a user of an object in Rust to
+/// avoid moving it.  Generally, in an embedded system, objects will either live on the stack of a
+/// single persistent thread, or will be statically allocated.  Both of these cases will result in
+/// objects that don't move.  However, we want initialization to be able to happen on first _use_
+/// not when the constructor runs, because the semantics of most constructors invovles a move (even
+/// if that is often optimized away).
+///
+/// Note that this does not solve the case of objects that must not be moved even after the object
+/// has a single Rust reference (threads, and work queues, notably, or timers with active
+/// callbacks).
+///
+/// To do this, each object is paired with an Atomic pointer.  The pointer can exist in three state:
+/// - null: The object has not been initialized.  It is safe to move the object at this time.
+/// - pointer that equals the addres of the object itself.  Object has been initialized, and can be
+///   used.  It must not be moved.
+/// - pointer that doesn't match the object.  This indicates that the object was moved, and is
+///   invalid.  We treat this as a panic condition.
+pub struct ZephyrObject<T> {
+    state: AtomicUsize,
+    object: UnsafeCell<T>,
+}
+
+impl<T> ZephyrObject<T>
+where
+    ZephyrObject<T>: ObjectInit<T>,
+{
+    /// Construct a new Zephyr Object.
+    ///
+    /// The 'init' function will be given a reference to the object.  For objects that have
+    /// initialization parameters (specifically Semaphores), this can be used to hold those
+    /// parameters until the real init is called upon first use.
+    ///
+    /// The 'setup' function must not assume the address given to it will persist.  The object can
+    /// be freely moved by Rust until the 'init' call has been called, which happens on first use.
+    pub const fn new_raw() -> Self {
+        Self {
+            state: AtomicUsize::new(0),
+            // SAFETY: It is safe to assume Zephyr objects can be zero initialized before calling
+            // their init.  The atomic above will ensure that this is not used by any API other than
+            // the init call until it has been initialized.
+            object: UnsafeCell::new(unsafe { mem::zeroed() }),
+        }
+    }
+
+    /// Get a reference, _without initializing_ the item.
+    ///
+    /// This is useful during a const constructor to be able to stash values in the item.
+    pub const fn get_uninit(&self) -> *mut T {
+        self.object.get()
+    }
+
+    /// Get a reference to the underlying zephyr object, ensuring it has been initialized properly.
+    /// The method is unsafe, because the caller must ensure that the lifetime of `&self` is long
+    /// enough for the use of the raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// If the object has not been initialized, It's 'init' method will be called.  If the object
+    /// has been moved since `init` was called, this will panic.  Otherwise, the caller must ensure
+    /// that the use of the returned pointer does not outlive the `&self`.
+    ///
+    /// The 'init' method will be called within a critical section, so should be careful to not
+    /// block, or take extra time.
+    pub unsafe fn get(&self) -> *mut T {
+        let addr = self.object.get();
+
+        // First, try reading the atomic relaxed.  This makes the common case of the object being
+        // initialized faster, and we can double check after.
+        match self.state.load(Ordering::Relaxed) {
+            // Uninitialized.  Falls through to the slower init case.
+            0 => (),
+            // Initialized, and object has not been moved.
+            ptr if ptr == addr as usize => return addr,
+            _ => {
+                // Object was moved after init.
+                panic!("Object moved after init");
+            }
+        }
+
+        // Perform the possible initialization within a critical section to avoid a race and double
+        // initialization.
+        critical_section::with(|_| {
+            // Reload, with Acquire ordering to see a determined value.
+            let state = self.state.load(Ordering::Acquire);
+
+            // If the address does match, an initialization got in before the critical section.
+            if state == addr as usize {
+                // Note, this returns from the closure, not the function, but this is ok, as the
+                // critical section result is the return result of the whole function.
+                return addr;
+            } else if state != 0 {
+                // Initialization got in, and then it was moved.  This shouldn't happen without
+                // unsafe code, but it is easy to detect.
+                panic!("Object moved after init");
+            }
+
+            // Perform the initialization.
+            <Self as ObjectInit<T>>::init(addr);
+
+            self.state.store(addr as usize, Ordering::Release);
+
+            addr
+        })
+    }
+}
+
+/// All `ZephyrObject`s must implement `ObjectInit` in order for first use to be able to initialize
+/// the object.
+pub trait ObjectInit<T> {
+    /// Initialize the object.
+    ///
+    /// This is called upon first use.  The address given may (and generally will) be different than
+    /// the initial address given to the `setup` call in the [`ZephyrObject::new`] constructor.
+    /// After this is called, all subsequent calls to [`ZephyrObject::get`] will return the same
+    /// address, or panic.
+    fn init(item: *mut T);
+}
+
 // The kernel object itself must be wrapped in `UnsafeCell` in Rust.  This does several thing, but
 // the primary feature that we want to declare to the Rust compiler is that this item has "interior
 // mutability".  One impact will be that the default linker section will be writable, even though
@@ -100,6 +245,10 @@ use crate::sync::atomic::{AtomicUsize, Ordering};
 // the mutations happen from C code, so this is less important than the data being placed in the
 // proper section.  Many will have the link section overridden by the `kobj_define` macro.
 
+/// ## Old Wrapped objects
+///
+/// The wrapped objects was the original approach to managing Zephyr objects.
+///
 /// Define the Wrapping of a kernel object.
 ///
 /// This trait defines the association between a static kernel object and the two associated Rust

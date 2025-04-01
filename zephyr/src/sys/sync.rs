@@ -34,4 +34,4 @@ pub mod mutex;
 pub mod semaphore;
 
 pub use mutex::{Condvar, Mutex, StaticCondvar, StaticMutex};
-pub use semaphore::{Semaphore, StaticSemaphore};
+pub use semaphore::Semaphore;
