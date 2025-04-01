@@ -83,6 +83,7 @@ pub mod error;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod kio;
 pub mod logging;
+pub mod net;
 pub mod object;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod simpletls;
