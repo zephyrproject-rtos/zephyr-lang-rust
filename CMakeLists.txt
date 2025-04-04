@@ -157,6 +157,7 @@ ${config_paths}
   add_custom_command(
     OUTPUT ${DUMMY_FILE}
     BYPRODUCTS ${RUST_LIBRARY} ${WRAPPER_FILE}
+    USES_TERMINAL
     COMMAND
       ${CMAKE_COMMAND} -E
       env BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
@@ -199,6 +200,7 @@ ${config_paths}
   # it is important to keep this in sync with the above.
   add_custom_command(
     OUTPUT generate_rust_docs
+    USES_TERMINAL
     COMMAND
       ${CMAKE_COMMAND} -E
       env BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
