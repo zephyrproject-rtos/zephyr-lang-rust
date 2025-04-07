@@ -10,7 +10,6 @@ mod socket;
 
 use crate::error::Result;
 use crate::net::socket::{Domain, Protocol, SockType, Socket};
-use core::ffi::c_int;
 use core::net::SocketAddr;
 
 /// UDP socket.
