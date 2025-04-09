@@ -52,6 +52,7 @@
 //!   also a [`kio::sync::Mutex`] type that works with async.
 //! - [`logging`]: A logging backend for Rust on Zephyr.  This will log to either `printk` or
 //!   through Zephyr's logging framework.
+//! - [`net`]: Networking support based on top of Zephyr's sockets API.
 //!
 //! [`Instant`]: time::Instant
 //! [`Duration`]: time::Duration
@@ -83,6 +84,7 @@ pub mod error;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod kio;
 pub mod logging;
+pub mod net;
 pub mod object;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod simpletls;
