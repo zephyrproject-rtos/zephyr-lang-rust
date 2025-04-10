@@ -14,6 +14,18 @@ use embassy_time_queue_utils::Queue;
 use crate::raw::{k_timeout_t, k_timer, k_timer_init, k_timer_start};
 use crate::sys::K_FOREVER;
 
+/// The time base configured into Zephyr.
+pub const ZEPHYR_TICK_HZ: u64 = crate::time::SYS_FREQUENCY as u64;
+
+/// The configured Embassy time tick rate.
+pub const EMBASSY_TICK_HZ: u64 = embassy_time_driver::TICK_HZ;
+
+/// When the zephyr and embassy rates differ, use this intermediate type.  This can be selected by
+/// feature.  At the worst case, with Embassy's tick at 1Mhz, and Zephyr's at 50k, it is a little
+/// over 11 years.  Higher of either will reduce that further.  But, 128-bit arithmetic is fairly
+/// inefficient.
+type InterTime = u128;
+
 embassy_time_driver::time_driver_impl!(static DRIVER: ZephyrTimeDriver = ZephyrTimeDriver {
     queue: Mutex::new(RefCell::new(Queue::new())),
     timer: Mutex::new(RefCell::new(unsafe { mem::zeroed() })),
@@ -63,9 +75,40 @@ impl ZTimer {
     }
 }
 
+/// Convert from a zephyr tick count, to an embassy tick count.
+///
+/// This is done using an intermediate type defined above.
+/// This conversion truncates.
+fn zephyr_to_embassy(ticks: u64) -> u64 {
+    if ZEPHYR_TICK_HZ == EMBASSY_TICK_HZ {
+        // This should happen at compile time.
+        return ticks;
+    }
+
+    // Otherwise do the intermediate conversion.
+    let prod = (ticks as InterTime) * (EMBASSY_TICK_HZ as InterTime);
+    (prod / (ZEPHYR_TICK_HZ as InterTime)) as u64
+}
+
+/// Convert from an embassy tick count to a zephyr.
+///
+/// This conversion use ceil so that values are always large enough.
+fn embassy_to_zephyr(ticks: u64) -> u64 {
+    if ZEPHYR_TICK_HZ == EMBASSY_TICK_HZ {
+        return ticks;
+    }
+
+    let prod = (ticks as InterTime) * (ZEPHYR_TICK_HZ as InterTime);
+    prod.div_ceil(EMBASSY_TICK_HZ as InterTime) as u64
+}
+
+fn zephyr_now() -> u64 {
+    crate::time::now().ticks()
+}
+
 impl Driver for ZephyrTimeDriver {
     fn now(&self) -> u64 {
-        crate::time::now().ticks()
+        zephyr_to_embassy(zephyr_now())
     }
 
     fn schedule_wake(&self, at: u64, waker: &core::task::Waker) {
@@ -73,10 +116,13 @@ impl Driver for ZephyrTimeDriver {
             let mut queue = self.queue.borrow(cs).borrow_mut();
             let mut timer = self.timer.borrow(cs).borrow_mut();
 
+            // All times below are in Zephyr units.
+            let at = embassy_to_zephyr(at);
+
             if queue.schedule_wake(at, waker) {
-                let mut next = queue.next_expiration(self.now());
-                while !timer.set_alarm(next, self.now()) {
-                    next = queue.next_expiration(self.now());
+                let mut next = queue.next_expiration(zephyr_now());
+                while !timer.set_alarm(next, zephyr_now()) {
+                    next = queue.next_expiration(zephyr_now());
                 }
             }
         })
@@ -89,9 +135,9 @@ impl ZephyrTimeDriver {
             let mut queue = self.queue.borrow(cs).borrow_mut();
             let mut timer = self.timer.borrow(cs).borrow_mut();
 
-            let mut next = queue.next_expiration(self.now());
-            while !timer.set_alarm(next, self.now()) {
-                next = queue.next_expiration(self.now());
+            let mut next = queue.next_expiration(zephyr_now());
+            while !timer.set_alarm(next, zephyr_now()) {
+                next = queue.next_expiration(zephyr_now());
             }
         })
     }
