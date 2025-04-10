@@ -51,193 +51,145 @@
 //!
 //! ## The work queues themselves
 //!
-//! Workqueues themselves are built using [`WorkQueueBuilder`].  This needs a statically defined
-//! stack.  Typical usage will be along the lines of:
+//! Work Queues should be declared with the `define_work_queue!` macro, this macro requires the name
+//! of the symbol for the work queue, the stack size, and then zero or more optional arguments,
+//! defined by the fields in the [`WorkQueueDeclArgs`] struct.  For example:
+//!
 //! ```rust
-//! kobj_define! {
-//!   WORKER_STACK: ThreadStack<2048>;
-//! }
-//! // ...
-//! let main_worker = Box::new(
-//!     WorkQueueBuilder::new()
-//!         .set_priority(2).
-//!         .set_name(c"mainloop")
-//!         .set_no_yield(true)
-//!         .start(MAIN_LOOP_STACK.init_once(()).unwrap())
-//!     );
-//!
-//! let _ = zephyr::kio::spawn(
-//!     mainloop(), // Async or function returning Future.
-//!     &main_worker,
-//!     c"w:mainloop",
-//! );
-//!
-//! ...
-//!
-//! // Leak the Box so that the worker is never freed.
-//! let _ = Box::leak(main_worker);
+//! define_work_queue!(MY_WORKQ, 2048, no_yield = true, priority = 2);
 //! ```
 //!
-//! It is important that WorkQueues never be dropped.  It has a Drop implementation that invokes
-//! panic.  Zephyr provides no mechanism to stop work queue threads, so dropping would result in
-//! undefined behavior.
-//!
-//! # Current Status
-//!
-//! Although Zephyr has 3 types of work queues, the `k_work_poll` is sufficient to implement all of
-//! the behavior, and this implementation only implements this type.  Non Future work could be built
-//! around the other work types.
-//!
-//! As such, this means that manually constructed work is still built using `Future`.  The `_async`
-//! primitives throughout this crate can be used just as readily by hand-written Futures as by async
-//! code.  Notable, the use of [`Signal`] will likely be common, along with possible timeouts.
-//!
-//! [`sys::sync::Semaphore`]: crate::sys::sync::Semaphore
-//! [`sync::channel`]: crate::sync::channel
-//! [`sync::Mutex`]: crate::sync::Mutex
-//! [`join`]: futures::JoinHandle::join
-//! [`join_async`]: futures::JoinHandle::join_async
+//! Then, in code, the work queue can be started, and used to issue work.
+//! ```rust
+//! let my_workq = MY_WORKQ.start();
+//! let action = Work::new(action_item);
+//! action.submit(my_workq);
+//! ```
 
 extern crate alloc;
 
 use core::{
-    cell::UnsafeCell,
-    ffi::{c_int, c_uint, CStr},
+    cell::{RefCell, UnsafeCell},
+    ffi::{c_char, c_int, c_uint},
     mem,
     pin::Pin,
-    ptr,
+    sync::atomic::Ordering,
 };
 
+use critical_section::Mutex;
+use portable_atomic::AtomicBool;
+use portable_atomic_util::Arc;
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
     k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config, k_work_queue_init,
-    k_work_queue_start, k_work_submit, k_work_submit_to_queue,
+    k_work_queue_start, k_work_submit, k_work_submit_to_queue, z_thread_stack_element,
 };
 
-use crate::{
-    error::to_result_void,
-    object::Fixed,
-    simpletls::SimpleTls,
-    sync::{Arc, Mutex},
-    sys::thread::ThreadStack,
-};
+use crate::{error::to_result_void, object::Fixed, simpletls::SimpleTls};
 
-/// A builder for work queues themselves.
-///
-/// A work queue is a Zephyr thread that instead of directly running a piece of code, manages a work
-/// queue.  Various types of `Work` can be submitted to these queues, along with various types of
-/// triggering conditions.
-pub struct WorkQueueBuilder {
-    /// The "config" value passed in.
-    config: k_work_queue_config,
-    /// Priority for the work queue thread.
-    priority: c_int,
+/// The WorkQueue decl args as a struct, so we can have a default, and the macro can fill in those
+/// specified by the user.
+pub struct WorkQueueDeclArgs {
+    /// Should this work queue call yield after each queued item.
+    pub no_yield: bool,
+    /// Is this work queue thread "essential".
+    ///
+    /// Threads marked essential will panic if they stop running.
+    pub essential: bool,
+    /// Zephyr thread priority for the work queue thread.
+    pub priority: c_int,
 }
 
-impl WorkQueueBuilder {
-    /// Construct a new WorkQueueBuilder with default values.
-    pub fn new() -> Self {
+impl WorkQueueDeclArgs {
+    /// Like `Default::default`, but const.
+    pub const fn default_values() -> Self {
         Self {
-            config: k_work_queue_config {
-                name: ptr::null(),
-                no_yield: false,
-                essential: false,
-            },
+            no_yield: false,
+            essential: false,
             priority: 0,
         }
     }
+}
 
-    /// Set the name for the WorkQueue thread.
-    ///
-    /// This name shows up in debuggers and some analysis tools.
-    pub fn set_name(&mut self, name: &'static CStr) -> &mut Self {
-        self.config.name = name.as_ptr();
-        self
-    }
+/// A static declaration of a work-queue.  This associates a work queue, with a stack, and an atomic
+/// to determine if it has been initialized.
+// TODO: Remove the pub on the fields, and make a constructor.
+pub struct WorkQueueDecl<const SIZE: usize> {
+    queue: WorkQueue,
+    stack: &'static crate::thread::ThreadStack<SIZE>,
+    config: k_work_queue_config,
+    priority: c_int,
+    started: AtomicBool,
+}
 
-    /// Set the "no yield" flag for the created worker.
-    ///
-    /// If this is not set, the work queue will call `k_yield` between each enqueued work item.  For
-    /// non-preemptible threads, this will allow other threads to run.  For preemptible threads,
-    /// this will allow other threads at the same priority to run.
-    ///
-    /// This method has a negative in the name, which goes against typical conventions.  This is
-    /// done to match the field in the Zephyr config.
-    pub fn set_no_yield(&mut self, value: bool) -> &mut Self {
-        self.config.no_yield = value;
-        self
-    }
+// SAFETY: Sync is needed here to make a static declaration, despite the `*const i8` that is burried
+// in the config.
+unsafe impl<const SIZE: usize> Sync for WorkQueueDecl<SIZE> {}
 
-    /// Set the "essential" flag for the created worker.
-    ///
-    /// This sets the essential flag on the running thread.  The system considers the termination of
-    /// an essential thread to be a fatal error.
-    pub fn set_essential(&mut self, value: bool) -> &mut Self {
-        self.config.essential = value;
-        self
-    }
-
-    /// Set the priority for the worker thread.
-    ///
-    /// See the Zephyr docs for the meaning of priority.
-    pub fn set_priority(&mut self, value: c_int) -> &mut Self {
-        self.priority = value;
-        self
-    }
-
-    /// Start the given work queue thread.
-    ///
-    /// TODO: Implement a 'start' that works from a static work queue.
-    pub fn start(&self, stack: ThreadStack) -> WorkQueue {
-        let item: Fixed<k_work_q> = Fixed::new(unsafe { mem::zeroed() });
-        unsafe {
-            // SAFETY: Initialize zeroed memory.
-            k_work_queue_init(item.get());
-
-            // SAFETY: This associates the workqueue with the thread ID that runs it.  The thread is
-            // a pointer into this work item, which will not move, because of the Fixed.
-            let this = &mut *item.get();
-            WORK_QUEUES
-                .lock()
-                .unwrap()
-                .insert(&this.thread, WorkQueueRef(item.get()));
-
-            // SAFETY: Start work queue thread.  The main issue here is that the work queue cannot
-            // be deallocated once the thread has started.  We enforce this by making Drop panic.
-            k_work_queue_start(
-                item.get(),
-                stack.base,
-                stack.size,
-                self.priority,
-                &self.config,
-            );
+impl<const SIZE: usize> WorkQueueDecl<SIZE> {
+    /// Static constructor.  Mostly for use by the macro.
+    pub const fn new(
+        stack: &'static crate::thread::ThreadStack<SIZE>,
+        name: *const c_char,
+        args: WorkQueueDeclArgs,
+    ) -> Self {
+        Self {
+            queue: unsafe { mem::zeroed() },
+            stack,
+            config: k_work_queue_config {
+                name,
+                no_yield: args.no_yield,
+                essential: args.essential,
+            },
+            priority: args.priority,
+            started: AtomicBool::new(false),
         }
+    }
 
-        WorkQueue { item }
+    /// Start the work queue thread, if needed, and return a reference to it.
+    pub fn start(&'static self) -> &'static WorkQueue {
+        critical_section::with(|cs| {
+            if self.started.load(Ordering::Relaxed) {
+                // Already started, just return it.
+                return &self.queue;
+            }
+
+            // SAFETY: Starting is coordinated by the atomic, as well as being protected in a
+            // critical section.
+            unsafe {
+                let this = &mut *self.queue.item.get();
+
+                k_work_queue_init(self.queue.item.get());
+
+                // Add to the WORK_QUEUES data.  That needs to be changed to a critical
+                // section Mutex from a Zephyr Mutex, as that would deadlock if called while in a
+                // critrical section.
+                let mut tls = WORK_QUEUES.borrow_ref_mut(cs);
+                tls.insert(&this.thread, WorkQueueRef(self.queue.item.get()));
+
+                // Start the work queue thread.
+                k_work_queue_start(
+                    self.queue.item.get(),
+                    self.stack.data.get() as *mut z_thread_stack_element,
+                    self.stack.size(),
+                    self.priority,
+                    &self.config,
+                );
+            }
+
+            &self.queue
+        })
     }
 }
 
 /// A running work queue thread.
 ///
-/// # Panic
-///
-/// Allowing a work queue to drop will result in a panic.  There are two ways to handle this,
-/// depending on whether the WorkQueue is in a Box, or an Arc:
-/// ```
-/// // Leak a work queue in an Arc.
-/// let wq = Arc::new(WorkQueueBuilder::new().start(...));
-/// // If the Arc is used after this:
-/// let _ = Arc::into_raw(wq.clone());
-/// // If the Arc is no longer needed:
-/// let _ = Arc::into_raw(wq);
-///
-/// // Leak a work queue in a Box.
-/// let wq = Box::new(WorkQueueBuilder::new().start(...));
-/// let _ = Box::leak(wq);
-/// ```
+/// This must be declared statically, and initialized once.  Please see the macro
+/// [`define_work_queue`] which declares this with a [`StaticWorkQueue`] to help with the
+/// association with a stack, and making sure the queue is only started once.
 pub struct WorkQueue {
     #[allow(dead_code)]
-    item: Fixed<k_work_q>,
+    item: UnsafeCell<k_work_q>,
 }
 
 /// Work queues can be referenced from multiple threads, and thus are Send and Sync.
@@ -265,7 +217,8 @@ impl Drop for WorkQueue {
 ///
 /// This is a little bit messy as we don't have a lazy mechanism, so we have to handle this a bit
 /// manually right now.
-static WORK_QUEUES: Mutex<SimpleTls<WorkQueueRef>> = Mutex::new(SimpleTls::new());
+static WORK_QUEUES: Mutex<RefCell<SimpleTls<WorkQueueRef>>> =
+    Mutex::new(RefCell::new(SimpleTls::new()));
 
 /// For the queue mapping, we need a simple wrapper around the underlying pointer, one that doesn't
 /// implement stop.
@@ -278,7 +231,7 @@ unsafe impl Sync for WorkQueueRef {}
 
 /// Retrieve the current work queue, if we are running within one.
 pub fn get_current_workq() -> Option<*mut k_work_q> {
-    WORK_QUEUES.lock().unwrap().get().map(|wq| wq.0)
+    critical_section::with(|cs| WORK_QUEUES.borrow_ref(cs).get().map(|wq| wq.0))
 }
 
 /// A Rust wrapper for `k_poll_signal`.
@@ -408,6 +361,24 @@ impl SubmitResult {
     }
 }
 
+/*
+pub trait Queueable: Send + Sync {
+    fn as_ptr(&self) -> *const ();
+}
+
+impl<T: Send + Sync> Queueable for Arc<T> {
+    fn as_ptr(&self) -> *const () {
+        todo!()
+    }
+}
+
+impl<T: Send + Sync> Queueable for &'static T {
+    fn as_ptr(&self) -> *const () {
+        todo!()
+    }
+}
+*/
+
 /// A simple action that just does something with its data.
 ///
 /// This is similar to a Future, except there is no concept of it completing.  It manages its
@@ -480,17 +451,24 @@ impl<T: SimpleAction + Send> Work<T> {
         // SAFETY: C the code does not perform moves on the data, and the `from_raw` below puts it
         // back into a Pin when it reconstructs the Arc.
         let this = unsafe { Pin::into_inner_unchecked(this) };
-        let _ = Arc::into_raw(this);
+        let _ = Arc::into_raw(this.clone());
 
         // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
         // work item is no longer queued when the data is dropped.
-        SubmitResult::to_result(unsafe { k_work_submit(work) })
+        let result = SubmitResult::to_result(unsafe { k_work_submit(work) });
+
+        Self::check_drop(work, &result);
+
+        result
     }
 
     /// Submit this work to a specified work queue.
     ///
     /// TODO: Change when we have better wrappers for work queues.
-    pub fn submit_to_queue(this: Pin<Arc<Self>>, queue: &WorkQueue) -> crate::Result<SubmitResult> {
+    pub fn submit_to_queue(
+        this: Pin<Arc<Self>>,
+        queue: &'static WorkQueue,
+    ) -> crate::Result<SubmitResult> {
         let work = this.work.get();
 
         // "leak" the arc to give to C.  We'll reconstruct it in the handler.
@@ -501,7 +479,12 @@ impl<T: SimpleAction + Send> Work<T> {
 
         // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
         // work item is no longer queued when the data is dropped.
-        SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) })
+        let result =
+            SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) });
+
+        Self::check_drop(work, &result);
+
+        result
     }
 
     /// Callback, through C, but bound by a specific type.
@@ -541,8 +524,50 @@ impl<T: SimpleAction + Send> Work<T> {
         Pin::new_unchecked(this)
     }
 
+    /// Determine if this work was submitted, and cause a drop of the Arc to happen if it was not.
+    pub fn check_drop(work: *const k_work, result: &crate::Result<SubmitResult>) {
+        if matches!(result, Ok(SubmitResult::AlreadySubmitted) | Err(_)) {
+            // SAFETY: If the above submit indicates that it was already running, the work will not
+            // be submitted (no additional handle will be called).  "un leak" the work so that it
+            // will be dropped.  Also, any error indicates that the work did not enqueue.
+            unsafe {
+                let this = Self::from_raw(work);
+                drop(this);
+            }
+        }
+    }
+
     /// Access the inner action.
     pub fn action(&self) -> &T {
         &self.action
     }
+}
+
+/// Declare a static work queue.
+///
+/// This declares a static work queue (of type [`WorkQueueDecl`]).  This will have a single method
+/// `.start()` which can be used to start the work queue, as well as return the persistent handle
+/// that can be used to enqueue to it.
+#[macro_export]
+macro_rules! define_work_queue {
+    ($name:ident, $stack_size:expr) => {
+        $crate::define_work_queue!($name, $stack_size,);
+    };
+    ($name:ident, $stack_size:expr, $($key:ident = $value:expr),* $(,)?) => {
+        static $name: $crate::work::WorkQueueDecl<$stack_size> = {
+            #[link_section = concat!(".noinit.workq.", stringify!($name))]
+            static _ZEPHYR_STACK: $crate::thread::ThreadStack<$stack_size> =
+                $crate::thread::ThreadStack::new();
+            const _ZEPHYR_C_NAME: &[u8] = concat!(stringify!($name), "\0").as_bytes();
+            const _ZEPHYR_ARGS: $crate::work::WorkQueueDeclArgs = $crate::work::WorkQueueDeclArgs {
+                $($key: $value,)*
+                ..$crate::work::WorkQueueDeclArgs::default_values()
+            };
+            $crate::work::WorkQueueDecl::new(
+                &_ZEPHYR_STACK,
+                _ZEPHYR_C_NAME.as_ptr() as *const ::core::ffi::c_char,
+                _ZEPHYR_ARGS,
+            )
+        };
+    };
 }
