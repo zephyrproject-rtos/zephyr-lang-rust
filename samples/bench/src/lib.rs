@@ -45,7 +45,7 @@ const THREAD_STACK_SIZE: usize = 4 * 1024;
 
 /// Stack size to use for the threads.
 #[cfg(target_pointer_width = "64")]
-const THREAD_STACK_SIZE: usize = 4096;
+const THREAD_STACK_SIZE: usize = 5120;
 
 /// Stack size to use for the work queue.
 const WORK_STACK_SIZE: usize = 4096;
