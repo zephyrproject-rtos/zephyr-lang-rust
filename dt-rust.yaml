@@ -27,6 +27,22 @@
       raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
+# Hook up the gpio-keys as gpio pins as well
+- name: gpio-keys
+  rules:
+  - type: compatible
+    value:
+      names:
+      - gpio-keys
+      level: 1
+  actions:
+  - type: instance
+    value:
+      raw:
+        type: phandle
+        value: gpios
+      device: crate::device::gpio::GpioPin
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
@@ -36,6 +52,8 @@
         - "nordic,nrf52-flash-controller"
         - "nordic,nrf51-flash-controller"
         - "raspberrypi,pico-flash-controller"
+        - "st,stm32g4-flash-controller"
+        - "st,stm32l5-flash-controller"
         - "zephyr,sim-flash"
       level: 0
   actions:
@@ -63,6 +81,21 @@
         args:
           - !Reg
       device: "crate::device::flash::FlashPartition"
+
+# I2C.
+- name: i2c
+  rules:
+    - type: compatible
+      value:
+        names:
+          - "snps,designware-i2c"
+        level: 0
+  actions:
+    - type: instance
+      value:
+        raw:
+          type: myself
+        device: crate::device::i2c::I2C
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels

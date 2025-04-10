@@ -74,6 +74,8 @@ pub mod embassy;
 pub mod error;
 pub mod logging;
 pub mod object;
+#[cfg(CONFIG_RTIO)]
+pub mod rtio;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod simpletls;
 pub mod sync;
