@@ -16,11 +16,11 @@ use alloc::collections::vec_deque::VecDeque;
 use alloc::vec;
 use executor::AsyncTests;
 use static_cell::StaticCell;
-use zephyr::kobj_define;
+use zephyr::define_work_queue;
 use zephyr::raw::k_yield;
 use zephyr::sync::{PinWeak, SpinMutex};
 use zephyr::time::NoWait;
-use zephyr::work::{SimpleAction, Work, WorkQueueBuilder};
+use zephyr::work::{SimpleAction, Work};
 use zephyr::{
     kconfig::CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
     printkln,
@@ -80,7 +80,7 @@ extern "C" fn rust_main() {
     spin_bench();
     sem_bench();
 
-    let simple = Simple::new(tester.workq.clone());
+    let simple = Simple::new(tester.workq);
     let mut num = 6;
     while num < 250 {
         simple.run(num, TOTAL_ITERS / num);
@@ -147,7 +147,7 @@ struct ThreadTests {
     high_command: Sender<Command>,
 
     /// A work queue for the main runners.
-    workq: Arc<WorkQueue>,
+    workq: &'static WorkQueue,
 
     /// The test also all return their result to the main.  The threads Send, the main running
     /// receives.
@@ -163,15 +163,7 @@ impl ThreadTests {
         let (low_send, low_recv) = bounded(1);
         let (high_send, high_recv) = bounded(1);
 
-        let workq = Arc::new(
-            WorkQueueBuilder::new()
-                .set_priority(5)
-                .set_no_yield(true)
-                .start(WORK_STACK.init_once(()).unwrap()),
-        );
-
-        // Leak the workqueue so it doesn't get dropped.
-        let _ = Arc::into_raw(workq.clone());
+        let workq = WORKQ.start();
 
         let mut result = Self {
             sems: &SEMS,
@@ -581,20 +573,20 @@ enum TestResult {
 
 /// The Simple test just does a ping pong test using manually submitted work.
 struct Simple {
-    workq: Arc<WorkQueue>,
+    workq: &'static WorkQueue,
 }
 
 impl Simple {
-    fn new(workq: Arc<WorkQueue>) -> Self {
+    fn new(workq: &'static WorkQueue) -> Self {
         Self { workq }
     }
 
     fn run(&self, workers: usize, iterations: usize) {
         // printkln!("Running Simple");
-        let main = Work::new(SimpleMain::new(workers * iterations, self.workq.clone()));
+        let main = Work::new(SimpleMain::new(workers * iterations, self.workq));
 
         let children: VecDeque<_> = (0..workers)
-            .map(|n| Work::new(SimpleWorker::new(main.clone(), self.workq.clone(), n)))
+            .map(|n| Work::new(SimpleWorker::new(main.clone(), self.workq, n)))
             .collect();
 
         let mut locked = main.action().locked.lock().unwrap();
@@ -603,7 +595,7 @@ impl Simple {
 
         let start = now();
         // Fire off main, which will run everything.
-        Work::submit_to_queue(main.clone(), &self.workq).unwrap();
+        Work::submit_to_queue(main.clone(), self.workq).unwrap();
 
         // And wait for the completion semaphore.
         main.action().done.take(Forever).unwrap();
@@ -642,12 +634,12 @@ impl Simple {
 /// A simple worker.  When run, it submits the main worker to do the next work.
 struct SimpleWorker {
     main: PinWeak<Work<SimpleMain>>,
-    workq: Arc<WorkQueue>,
+    workq: &'static WorkQueue,
     _id: usize,
 }
 
 impl SimpleWorker {
-    fn new(main: Pin<Arc<Work<SimpleMain>>>, workq: Arc<WorkQueue>, id: usize) -> Self {
+    fn new(main: Pin<Arc<Work<SimpleMain>>>, workq: &'static WorkQueue, id: usize) -> Self {
         Self {
             main: PinWeak::downgrade(main),
             workq,
@@ -660,7 +652,7 @@ impl SimpleAction for SimpleWorker {
     fn act(self: Pin<&Self>) {
         // Each time we are run, fire the main worker back up.
         let main = self.main.upgrade().unwrap();
-        Work::submit_to_queue(main.clone(), &self.workq).unwrap();
+        Work::submit_to_queue(main.clone(), self.workq).unwrap();
     }
 }
 
@@ -670,7 +662,7 @@ impl SimpleAction for SimpleWorker {
 struct SimpleMain {
     /// All of the work items.
     locked: SpinMutex<Locked>,
-    workq: Arc<WorkQueue>,
+    workq: &'static WorkQueue,
     done: Semaphore,
 }
 
@@ -690,12 +682,12 @@ impl SimpleAction for SimpleMain {
         lock.count -= 1;
         drop(lock);
 
-        Work::submit_to_queue(worker.clone(), &self.workq).unwrap();
+        Work::submit_to_queue(worker.clone(), self.workq).unwrap();
     }
 }
 
 impl SimpleMain {
-    fn new(count: usize, workq: Arc<WorkQueue>) -> Self {
+    fn new(count: usize, workq: &'static WorkQueue) -> Self {
         Self {
             locked: SpinMutex::new(Locked::new(count)),
             done: Semaphore::new(0, 1),
@@ -812,9 +804,7 @@ impl<'a> BenchTimer<'a> {
     }
 }
 
-kobj_define! {
-    static WORK_STACK: ThreadStack<WORK_STACK_SIZE>;
-}
+define_work_queue!(WORKQ, WORK_STACK_SIZE, priority = 5, no_yield = true);
 
 static SEMS: [Semaphore; NUM_THREADS] = [const { Semaphore::new(0, u32::MAX) }; NUM_THREADS];
 static BACK_SEMS: [Semaphore; NUM_THREADS] = [const { Semaphore::new(0, u32::MAX) }; NUM_THREADS];

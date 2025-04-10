@@ -39,7 +39,7 @@
 //!     level operation that is still quite useful in regular code.
 //! - [`timer`]: Rust interfaces to Zephyr timers.  These timers can be used either by registering a
 //!   callback, or polled or waited for for an elapsed time.
-//! - [`work`]: Zephyr work queues for Rust.  The [`work::WorkQueueBuilder`] and resulting
+//! - [`work`]: Zephyr work queues for Rust.  The [`define_work_queue`] macro and resulting
 //!   [`work::WorkQueue`] allow creation of Zephyr work queues to be used from Rust.  The
 //!   [`work::Work`] item had an action that will be invoked by the work queue, and can be manually
 //!   submitted when needed.
