@@ -15,7 +15,6 @@ use core::ffi::c_uint;
 use core::fmt;
 
 use crate::object::{ObjectInit, ZephyrObject};
-#[cfg(CONFIG_RUST_ALLOC)]
 use crate::{
     error::{to_result_void, Result},
     raw::{k_sem, k_sem_count_get, k_sem_give, k_sem_init, k_sem_reset, k_sem_take},
@@ -41,7 +40,6 @@ impl Semaphore {
     ///
     /// Note that this API has changed, and it now doesn't return a Result, since the Result time
     /// generally doesn't work (in stable rust) with const.
-    #[cfg(CONFIG_RUST_ALLOC)]
     pub const fn new(initial_count: c_uint, limit: c_uint) -> Semaphore {
         // Due to delayed init, we need to replicate the object checks in the C `k_sem_init`.
 
