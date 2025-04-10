@@ -39,17 +39,10 @@
 //!     level operation that is still quite useful in regular code.
 //! - [`timer`]: Rust interfaces to Zephyr timers.  These timers can be used either by registering a
 //!   callback, or polled or waited for for an elapsed time.
-//! - [`work`]: Zephyr work queues for Rust.  The [`work::WorkQueueBuilder`] and resulting
+//! - [`work`]: Zephyr work queues for Rust.  The [`define_work_queue`] macro and resulting
 //!   [`work::WorkQueue`] allow creation of Zephyr work queues to be used from Rust.  The
 //!   [`work::Work`] item had an action that will be invoked by the work queue, and can be manually
 //!   submitted when needed.
-//! - [`kio`]: An implementation of an async executor built around triggerable work queues in
-//!   Zephyr.  Although there is a bit more overhead to this executor, it is compatible with many of
-//!   the Zephyr synchronization types, and many of these [`sys::sync::Semaphore`], and
-//!   [`sync::channel`] will provide `_async` variants of most of the blocking operations.  These
-//!   will return a `Future`, and can be used from async code started by the [`spawn`] function.
-//!   In addition, because Zephyr's work queues do not work well with Zephyr's Mutex type, this is
-//!   also a [`kio::sync::Mutex`] type that works with async.
 //! - [`logging`]: A logging backend for Rust on Zephyr.  This will log to either `printk` or
 //!   through Zephyr's logging framework.
 //!
