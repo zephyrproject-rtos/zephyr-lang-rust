@@ -48,10 +48,9 @@
 //!
 //! The following features in the `zephyr` crate configure what is supported:
 //!
-//! - **`executor-zephyr`**: This implements an executor that uses Zephyr's thread primitives
-//!   (`k_thread_suspend` and `k_thread_resume`) to suspend the executor thread when there is no work
-//!   to perform.  This feature is incompatible with either `embassy-thread` or `embassy-interrupt`
-//!   in the `embassy-executor` crate.
+//! - **`executor-zephyr`**: This implements an executor that uses a Zephyr semaphore to suspend the
+//!   executor thread when there is no work to perform. This feature is incompatible with either
+//!   `embassy-thread` or `embassy-interrupt` in the `embassy-executor` crate.
 //! - **`embassy-time-driver`**: This feature causes the `zephyr` crate to provide a time driver to
 //!   Embassy.  This driver uses a single `k_timer` in Zephyr to wake async operations that are
 //!   dependent on time.  This enables the `embassy-time` crate's functionality to be used freely
@@ -67,7 +66,7 @@
 //!   because there are no features to enable this, this functions will still be accessible.  Be
 //!   careful.  You should enable `no-kio` in the zephyr crate to hide these functions.
 //! - This executor does not coordinate with the scheduler on Zephyr, but uses an
-//!   architecture-specific mechanmism when there is no work. On Cortex-M, this is the 'wfe'
+//!   architecture-specific mechanism when there is no work. On Cortex-M, this is the 'wfe'
 //!   instruction, on riscv32, the 'wfi' instruction.  This means that no tasks of lower priority
 //!   will ever run, so this should only be started from the lowest priority task on the system.
 //! - Because the 'idle' thread in Zephyr will never run, some platforms will not enter low power
