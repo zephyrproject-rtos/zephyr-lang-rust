@@ -9,7 +9,7 @@ descriptions = "Macros for managing tasks and work queues in Zephyr"
 proc-macro = true
 
 [dependencies]
-syn = { version = "2.0.85", features = ["full", "visit"] }
+syn = { version = "2.0.79", features = ["full", "visit"] }
 quote = "1.0.37"
 proc-macro2 = "1.0.86"
 darling = "0.20.1"
