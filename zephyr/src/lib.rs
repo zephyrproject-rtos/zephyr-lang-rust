@@ -129,6 +129,9 @@ pub mod devicetree {
 
     // Don't enforce doc comments on the generated device tree.
     #![allow(missing_docs)]
+    // Allow nodes to have non-snake-case names.  This comes from addresses in the node names, which
+    // usually use uppercase.
+    #![allow(non_snake_case)]
 
     include!(concat!(env!("OUT_DIR"), "/devicetree.rs"));
 }
