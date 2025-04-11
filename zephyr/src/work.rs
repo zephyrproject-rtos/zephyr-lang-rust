@@ -180,30 +180,24 @@ extern crate alloc;
 use core::{
     cell::UnsafeCell,
     ffi::{c_int, c_uint, CStr},
-    future::Future,
     mem,
     pin::Pin,
     ptr,
-    task::Poll,
 };
 
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
     k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config, k_work_queue_init,
-    k_work_queue_start, k_work_submit, k_work_submit_to_queue, ETIMEDOUT,
+    k_work_queue_start, k_work_submit, k_work_submit_to_queue,
 };
 
 use crate::{
     error::to_result_void,
-    kio::ContextExt,
     object::Fixed,
     simpletls::SimpleTls,
     sync::{Arc, Mutex},
     sys::thread::ThreadStack,
-    time::Timeout,
 };
-
-pub mod futures;
 
 /// A builder for work queues themselves.
 ///
@@ -454,66 +448,11 @@ impl Signal {
     pub fn raise(&self, result: c_int) -> crate::Result<()> {
         to_result_void(unsafe { k_poll_signal_raise(self.item.get(), result) })
     }
-
-    /// Asynchronously wait for a signal to be signaled.
-    ///
-    /// If the signal has not been raised, will wait until it has been.  If the signal has been
-    /// raised, the Future will immediately return that value without waiting.
-    ///
-    /// **Note**: there is no sync wait, as Zephyr does not provide a convenient mechanmism for
-    /// this.  It could be implemented with `k_poll` if needed.
-    pub fn wait_async<'a>(
-        &'a self,
-        timeout: impl Into<Timeout>,
-    ) -> impl Future<Output = crate::Result<c_int>> + 'a {
-        SignalWait {
-            signal: self,
-            timeout: timeout.into(),
-            ran: false,
-        }
-    }
 }
 
 impl Default for Signal {
     fn default() -> Self {
         Signal::new()
-    }
-}
-
-/// The Future for Signal::wait_async.
-struct SignalWait<'a> {
-    /// The signal we are waiting on.
-    signal: &'a Signal,
-    /// The timeout to use.
-    timeout: Timeout,
-    /// Set after we've waited once,
-    ran: bool,
-}
-
-impl<'a> Future for SignalWait<'a> {
-    type Output = crate::Result<c_int>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> core::task::Poll<Self::Output> {
-        // We can check if the even happened immediately, and avoid blocking if we were already
-        // signaled.
-        if let Some(result) = self.signal.check() {
-            return Poll::Ready(Ok(result));
-        }
-
-        if self.ran {
-            // If it is not ready, assuming a timeout.  Note that if a thread other than this work
-            // thread resets the signal, it is possible to see a timeout even if `Forever` was given
-            // as the timeout.
-            return Poll::Ready(Err(crate::Error(ETIMEDOUT)));
-        }
-
-        cx.add_signal(self.signal, self.timeout);
-        self.ran = true;
-
-        Poll::Pending
     }
 }
 
