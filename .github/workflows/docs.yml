@@ -45,7 +45,8 @@ jobs:
         working-directory: zephyr-lang-rust
         run: |
           # Note that the above build doesn't set Zephyrbase, so we'll need to do that here.
-          west build -t rustdoc -b qemu_cortex_m3 docgen
+          west build -b qemu_cortex_m3 docgen
+          west build -t rustdoc
           mkdir rustdocs
           mv build/rust/target/thumbv7m-none-eabi/doc rustdocs/nostd
 
