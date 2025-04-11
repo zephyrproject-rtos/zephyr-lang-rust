@@ -39,42 +39,42 @@ pub fn uptime_get() -> i64 {
     unsafe { crate::raw::k_uptime_get() }
 }
 
+// The below implementation, based on interrupt locking has only been tested on single CPU.  The
+// implementation suggests it should work on SMP, and can be tested.  The docs for irq_lock()
+// explicitly state that it cannot be used from userspace. Unfortunately, spinlocks have
+// incompatible semantics with critical sections, so to work with userspace we'd need probably a
+// syscall.
+#[cfg(CONFIG_USERSPACE)]
+compile_error!("Critical-section implementation does not work with CONFIG_USERSPACE");
+
 pub mod critical {
     //! Zephyr implementation of critical sections.
     //!
-    //! Critical sections from Rust are handled with a single Zephyr spinlock.  This doesn't allow
-    //! any nesting, but neither does the `critical-section` crate.
-    //!
-    //! This provides the underlying critical section crate, which is useful for external crates
-    //! that want this interface.  However, it isn't a particularly hygienic interface to use.  For
-    //! something a bit nicer, please see [`sync::SpinMutex`].
-    //!
-    //! [`sync::SpinMutex`]: crate::sync::SpinMutex
+    //! The critical-section crate explicitly states that critical sections can be nested.
+    //! Unfortunately, Zephyr spinlocks cannot be nested.  It is possible to nest different ones,
+    //! but the critical-section implementation API doesn't give access to the stack.
 
-    use core::{ffi::c_int, ptr::addr_of_mut};
+    use core::{
+        ffi::c_int,
+        sync::atomic::{fence, Ordering},
+    };
 
     use critical_section::RawRestoreState;
-    use zephyr_sys::{k_spin_lock, k_spin_unlock, k_spinlock, k_spinlock_key_t};
+    use zephyr_sys::{zr_irq_lock, zr_irq_unlock};
 
     struct ZephyrCriticalSection;
     critical_section::set_impl!(ZephyrCriticalSection);
 
-    // The critical section shares a single spinlock.
-    static mut LOCK: k_spinlock = unsafe { core::mem::zeroed() };
-
     unsafe impl critical_section::Impl for ZephyrCriticalSection {
         unsafe fn acquire() -> RawRestoreState {
-            let res = k_spin_lock(addr_of_mut!(LOCK));
-            res.key as RawRestoreState
+            let res = zr_irq_lock();
+            fence(Ordering::Acquire);
+            res as RawRestoreState
         }
 
         unsafe fn release(token: RawRestoreState) {
-            k_spin_unlock(
-                addr_of_mut!(LOCK),
-                k_spinlock_key_t {
-                    key: token as c_int,
-                },
-            );
+            fence(Ordering::Release);
+            zr_irq_unlock(token as c_int);
         }
     }
 }
