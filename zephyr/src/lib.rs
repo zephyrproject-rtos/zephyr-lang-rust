@@ -80,14 +80,13 @@ pub mod align;
 pub mod device;
 pub mod embassy;
 pub mod error;
-#[cfg(CONFIG_RUST_ALLOC)]
-pub mod kio;
 pub mod logging;
 pub mod object;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod simpletls;
 pub mod sync;
 pub mod sys;
+pub mod thread;
 pub mod time;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod timer;
@@ -100,6 +99,9 @@ pub use logging::set_logger;
 
 /// Re-exported for local macro use.
 pub use paste::paste;
+
+/// Re-export the proc macros.
+pub use zephyr_macros::thread;
 
 // Bring in the generated kconfig module
 pub mod kconfig {

@@ -1,6 +1,6 @@
 sample:
-  description: Philosphers, in Rust
-  name: workq philosophers rust
+  description: Async Philosphers, in Rust
+  name: async philosophers rust
 common:
   harness: console
   harness_config:
