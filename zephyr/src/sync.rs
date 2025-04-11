@@ -33,7 +33,7 @@ mod pinweak {
 
     /// Safe Pinned Weak references.
     ///
-    /// Pin<Arc<T>> can't be converted to/from Weak safely, because there is know way to know if a given
+    /// `Pin<Arc<T>>` can't be converted to/from Weak safely, because there is know way to know if a given
     /// weak reference came from a pinned Arc.  This wraps the weak reference in a new type so we know
     /// that it came from a pinned Arc.
     ///
