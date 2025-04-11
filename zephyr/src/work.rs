@@ -138,6 +138,7 @@
 //!         .set_priority(2).
 //!         .set_name(c"mainloop")
 //!         .set_no_yield(true)
+//!         .set_work_timeout_ms(1000)
 //!         .start(MAIN_LOOP_STACK.init_once(()).unwrap())
 //!     );
 //!
@@ -220,6 +221,7 @@ impl WorkQueueBuilder {
                 name: ptr::null(),
                 no_yield: false,
                 essential: false,
+                work_timeout_ms: 0,
             },
             priority: 0,
         }
@@ -252,6 +254,18 @@ impl WorkQueueBuilder {
     /// an essential thread to be a fatal error.
     pub fn set_essential(&mut self, value: bool) -> &mut Self {
         self.config.essential = value;
+        self
+    }
+
+    /// Controls whether work queue monitors work timeouts.
+    ///
+    /// If non-zero, and CONFIG_WORKQUEUE_WORK_TIMEOUT is enabled,
+    /// the work queue will monitor the duration of each work item.
+    /// If the work item handler takes longer than the specified
+    /// time to execute, the work queue thread will be aborted, and
+    /// an error will be logged if CONFIG_LOG is enabled.
+    pub fn set_work_timeout_ms(&mut self, value: u32) -> &mut Self {
+        self.config.work_timeout_ms = value;
         self
     }
 
