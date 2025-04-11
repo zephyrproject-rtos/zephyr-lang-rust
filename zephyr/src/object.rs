@@ -231,7 +231,7 @@ pub trait ObjectInit<T> {
     /// Initialize the object.
     ///
     /// This is called upon first use.  The address given may (and generally will) be different than
-    /// the initial address given to the `setup` call in the [`ZephyrObject::new`] constructor.
+    /// the initial address given to the `setup` call in the [`ZephyrObject::new_raw`] constructor.
     /// After this is called, all subsequent calls to [`ZephyrObject::get`] will return the same
     /// address, or panic.
     fn init(item: *mut T);
