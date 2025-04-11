@@ -17,39 +17,7 @@
 //! having the `k_work` embedded in their structure, and Zephyr schedules the work when the given
 //! reason happens.
 //!
-//! At this time, only the basic work queue type is supported.
-//!
-//! Zephyr's work queues can be used in different ways:
-//!
-//! - Work can be scheduled as needed.  For example, an IRQ handler can queue a work item to process
-//!   data it has received from a device.
-//! - Work can be scheduled periodically.
-//!
-//! As most C use of Zephyr statically allocates things like work, these are typically rescheduled
-//! when the work is complete.  The work queue scheduling functions are designed, and intended, for
-//! a given work item to be able to reschedule itself, and such usage is common.
-//!
-//! ## Ownership
-//!
-//! The remaining challenge with implementing `k_work` for Rust is that of ownership.  The model
-//! taken here is that the work items are held in a `Box` that is effectively owned by the work
-//! itself.  When the work item is scheduled to Zephyr, ownership of that box is effectively handed
-//! off to C, and then when the work item is called, the Box re-constructed.  This repeats until the
-//! work is no longer needed, at which point the work will be dropped.
-//!
-//! There are two common ways the lifecycle of work can be managed in an embedded system:
-//!
-//! - A set of `Future`'s are allocated once at the start, and these never return a value.  Work
-//!   Futures inside of this (which correspond to `.await` in async code) can have lives and return
-//!   values, but the main loops will not return values, or be dropped.  Embedded Futures will
-//!   typically not be boxed.
-//!
-//! One consequence of the ownership being passed through to C code is that if the work cancellation
-//! mechanism is used on a work queue, the work items themselves will be leaked.
-//!
-//! These work items are also `Pin`, to ensure that the work actions are not moved.
-//!
-//! ## The work queues themselves
+//! At this point, this code supports the simple work queues, with [`Work`] items.
 //!
 //! Work Queues should be declared with the `define_work_queue!` macro, this macro requires the name
 //! of the symbol for the work queue, the stack size, and then zero or more optional arguments,
@@ -185,8 +153,10 @@ impl<const SIZE: usize> WorkQueueDecl<SIZE> {
 /// A running work queue thread.
 ///
 /// This must be declared statically, and initialized once.  Please see the macro
-/// [`define_work_queue`] which declares this with a [`StaticWorkQueue`] to help with the
+/// [`define_work_queue`] which declares this with a [`WorkQueue`] to help with the
 /// association with a stack, and making sure the queue is only started once.
+///
+/// [`define_work_queue`]: crate::define_work_queue
 pub struct WorkQueue {
     #[allow(dead_code)]
     item: UnsafeCell<k_work_q>,
