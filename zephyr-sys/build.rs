@@ -76,6 +76,7 @@ fn main() -> Result<()> {
         .derive_copy(false)
         .allowlist_function("k_.*")
         .allowlist_function("gpio_.*")
+		.allowlist_function("auxdisplay_.*")
         .allowlist_function("flash_.*")
         .allowlist_item("GPIO_.*")
         .allowlist_item("FLASH_.*")
