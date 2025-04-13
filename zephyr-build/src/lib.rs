@@ -11,6 +11,7 @@
 // This builds a program that is run on the compilation host before the code is compiled.  It can
 // output configuration settings that affect the compilation.
 
+use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
@@ -27,19 +28,27 @@ mod devicetree;
 /// Export boolean Kconfig entries.  This must happen in any crate that wishes to access the
 /// configuration settings.
 pub fn export_bool_kconfig() {
-    let dotconfig = env::var("DOTCONFIG").expect("DOTCONFIG must be set by wrapper");
+    let build_dir = env::var("BUILD_DIR").expect("BUILD_DIR must be set by wrapper");
 
-    // Ensure the build script is rerun when the dotconfig changes.
-    println!("cargo:rerun-if-env-changed=DOTCONFIG");
-    println!("cargo-rerun-if-changed={}", dotconfig);
+    let bool_options_path = Path::new(&build_dir)
+        .join("rust-kconfig-bool-options.json")
+        .to_str()
+        .unwrap()
+        .to_string();
 
-    let config_y = Regex::new(r"^(CONFIG_.*)=y$").unwrap();
+    // Ensure the build script is rerun when kconfig bool options change.
+    println!("cargo:rerun-if-changed={}", bool_options_path);
 
-    let file = File::open(&dotconfig).expect("Unable to open dotconfig");
-    for line in BufReader::new(file).lines() {
-        let line = line.expect("reading line from dotconfig");
-        if let Some(caps) = config_y.captures(&line) {
-            println!("cargo:rustc-cfg={}", &caps[1]);
+    if let Ok(bool_options) = File::open(&bool_options_path) {
+        let bool_options: BTreeMap<String, String> =
+            serde_yaml_ng::from_reader(bool_options).expect("Unable to parse bool options");
+
+        for (key, value) in bool_options.iter() {
+            println!("cargo:rustc-check-cfg=cfg({})", key);
+
+            if value == "y" {
+                println!("cargo:rustc-cfg={}", key);
+            }
         }
     }
 }
