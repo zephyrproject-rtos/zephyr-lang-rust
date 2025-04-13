@@ -33,13 +33,18 @@ pub fn export_bool_kconfig() {
     println!("cargo:rerun-if-env-changed=DOTCONFIG");
     println!("cargo-rerun-if-changed={}", dotconfig);
 
+    let config_n = Regex::new(r"(CONFIG_.*) is not set$").unwrap();
     let config_y = Regex::new(r"^(CONFIG_.*)=y$").unwrap();
 
     let file = File::open(&dotconfig).expect("Unable to open dotconfig");
     for line in BufReader::new(file).lines() {
         let line = line.expect("reading line from dotconfig");
+
         if let Some(caps) = config_y.captures(&line) {
             println!("cargo:rustc-cfg={}", &caps[1]);
+            println!("cargo:rustc-check-cfg=cfg({})", &caps[1]);
+        } else if let Some(caps) = config_n.captures(&line) {
+            println!("cargo:rustc-check-cfg=cfg({})", &caps[1]);
         }
     }
 }
