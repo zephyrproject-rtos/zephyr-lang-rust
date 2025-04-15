@@ -62,9 +62,6 @@
 //! It is perfectly permissible to use the `executor-thread` feature from embassy-executor on
 //! Zephyr, within the following guidelines:
 //!
-//! - The executor is incompatible with the async executor provided within [`crate::kio`], and
-//!   because there are no features to enable this, this functions will still be accessible.  Be
-//!   careful.  You should enable `no-kio` in the zephyr crate to hide these functions.
 //! - This executor does not coordinate with the scheduler on Zephyr, but uses an
 //!   architecture-specific mechanism when there is no work. On Cortex-M, this is the 'wfe'
 //!   instruction, on riscv32, the 'wfi' instruction.  This means that no tasks of lower priority
@@ -73,13 +70,6 @@
 //!   mode, when the system is idle.  This is very platform specific.
 //!
 //! ## Caveats
-//!
-//! The executor provided by Embassy is fundamentally incompatible with the executor provided by
-//! this crate's [`crate::kio`] and [`crate::work::futures`].  Trying to use the functionality
-//! provided by operations, such as [`Semaphore::take_async`], will generally result in a panic.
-//! These routines are conditionally compiled out when `executor-zephyr` is enabled, but there is no
-//! way for this crate to detect the use of embassy's `executor-threaded`.  Combining these will
-//! result in undefined behavior, likely difficult to debug crashes.
 //!
 //! [`Semaphore::take_async`]: crate::sys::sync::Semaphore::take_async
 
