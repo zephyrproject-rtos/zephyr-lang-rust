@@ -195,6 +195,7 @@ ${config_paths}
   add_custom_target(librustapp ALL
     DEPENDS ${DUMMY_FILE}
         # The variables, defined at the top level, don't seem to be accessible here.
+        offsets_h
         syscall_list_h_target
         driver_validation_h_target
         kobj_types_h_target
@@ -237,6 +238,7 @@ ${config_paths}
   add_custom_target(rustdoc
     DEPENDS generate_rust_docs
         # The variables, defined at the top level, don't seem to be accessible here.
+        offsets_h
         syscall_list_h_target
         driver_validation_h_target
         kobj_types_h_target
