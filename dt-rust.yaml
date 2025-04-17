@@ -30,17 +30,13 @@
 # Hook up the gpio-keys as gpio pins as well
 - name: gpio-keys
   rules:
-  - type: compatible
-    value:
+    - !Compatible
       names:
-      - gpio-keys
+        - gpio-keys
       level: 1
   actions:
-  - type: instance
-    value:
-      raw:
-        type: phandle
-        value: gpios
+    - !Instance
+      raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
 # Flash controllers don't have any particular property to identify them, so we need a list of
@@ -85,17 +81,14 @@
 # I2C.
 - name: i2c
   rules:
-    - type: compatible
-      value:
-        names:
-          - "snps,designware-i2c"
-        level: 0
+    - !Compatible
+      names:
+        - "snps,designware-i2c"
+      level: 0
   actions:
-    - type: instance
-      value:
-        raw:
-          type: myself
-        device: crate::device::i2c::I2C
+    - !Instance
+      raw: !Myself
+      device: crate::device::i2c::I2C
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
