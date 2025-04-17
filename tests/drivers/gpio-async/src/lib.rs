@@ -35,13 +35,18 @@ async fn main(spawner: Spawner) {
     info!("Hello world");
     let _ = spawner;
 
+    /*
     let mut col0 = zephyr::devicetree::labels::col0::get_instance().unwrap();
     let mut row0 = zephyr::devicetree::labels::row0::get_instance().unwrap();
+    */
+    let mut row0 = zephyr::devicetree::aliases::sw0::get_instance().unwrap();
     let mut gpio_token = unsafe { zephyr::device::gpio::GpioToken::get_instance().unwrap() };
 
     unsafe {
+        /*
         col0.configure(&mut gpio_token, GPIO_OUTPUT_ACTIVE);
         col0.set(&mut gpio_token, true);
+        */
         row0.configure(&mut gpio_token, GPIO_INPUT | GPIO_PULL_DOWN);
     }
 

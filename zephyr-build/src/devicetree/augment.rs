@@ -28,6 +28,12 @@ pub trait Augment {
     /// The default implementation checks if this node matches and calls a generator if it does, or
     /// does nothing if not.
     fn augment(&self, node: &Node, tree: &DeviceTree) -> TokenStream {
+        // If there is a status field present, and it is not set to "okay", don't augment this node.
+        if let Some(status) = node.get_single_string("status") {
+            if status != "okay" {
+                return TokenStream::new();
+            }
+        }
         if self.is_compatible(node) {
             self.generate(node, tree)
         } else {
@@ -75,7 +81,6 @@ impl Augment for Augmentation {
 
 /// A matching rule.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", content = "value")]
 pub enum Rule {
     /// A set of "or" matches.
     Or(Vec<Rule>),
@@ -121,7 +126,6 @@ fn parent_compatible(node: &Node, names: &[String], level: usize) -> bool {
 
 /// An action to perform
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", content = "value")]
 pub enum Action {
     /// Generate an "instance" with a specific device name.
     Instance {
@@ -171,7 +175,6 @@ impl Action {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", content = "value")]
 pub enum RawInfo {
     /// Get the raw device directly from this node.
     Myself,
@@ -270,7 +273,6 @@ impl RawInfo {
 ///
 /// At this point, we assume these all come from the current node.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case", content = "value")]
 pub enum ArgInfo {
     /// The arguments come from a 'reg' property.
     Reg,

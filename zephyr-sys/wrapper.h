@@ -42,6 +42,10 @@ extern int errno;
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
+#include <zephyr/irq.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/rtio/rtio.h>
+#include <zephyr/sys/mpsc_lockfree.h>
 
 /*
  * bindgen will only output #defined constants that resolve to simple numbers.  These are some
@@ -61,3 +65,21 @@ const uint32_t ZR_POLL_TYPE_DATA_AVAILABLE = K_POLL_TYPE_DATA_AVAILABLE;
 const uint32_t ZR_GPIO_INT_MODE_DISABLE_ONLY = GPIO_INT_MODE_DISABLE_ONLY;
 const uint32_t ZR_GPIO_INT_MODE_ENABLE_ONLY = GPIO_INT_MODE_ENABLE_ONLY;
 #endif
+
+const uint8_t ZR_I2C_MSG_WRITE = I2C_MSG_WRITE;
+const uint8_t ZR_I2C_MSG_READ = I2C_MSG_READ;
+const uint8_t ZR_I2C_MSG_STOP = I2C_MSG_STOP;
+
+const uint16_t ZR_RTIO_SQE_NO_RESPONSE = RTIO_SQE_NO_RESPONSE;
+
+/*
+ * Zephyr's irq_lock() and irq_unlock() are macros not inline functions, so we need some inlines to
+ * access them.
+ */
+static inline int zr_irq_lock(void) {
+	return irq_lock();
+}
+
+static inline void zr_irq_unlock(int key) {
+	irq_unlock(key);
+}
