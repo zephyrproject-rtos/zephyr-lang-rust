@@ -7,13 +7,10 @@
 # few instances were we can actually just match on a property.
 - name: gpio-controller
   rules:
-  - type: has_prop
-    value: gpio-controller
+    - !HasProp gpio-controller
   actions:
-  - type: instance
-    value:
-      raw:
-        type: myself
+    - !Instance
+      raw: !Myself
       device: crate::device::gpio::Gpio
       static_type: crate::device::gpio::GpioStatic
 
@@ -22,36 +19,28 @@
 # with each gpio.
 - name: gpio-leds
   rules:
-  - type: compatible
-    value:
-      names:
-      - gpio-leds
+    - !Compatible
+      names: [gpio-leds]
       level: 1
   actions:
-  - type: instance
-    value:
-      raw:
-        type: phandle
-        value: gpios
+    - !Instance
+      raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
   rules:
-  - type: compatible
-    value:
+    - !Compatible
       names:
-      - "nordic,nrf52-flash-controller"
-      - "nordic,nrf51-flash-controller"
-      - "raspberrypi,pico-flash-controller"
-      - "zephyr,sim-flash"
+        - "nordic,nrf52-flash-controller"
+        - "nordic,nrf51-flash-controller"
+        - "raspberrypi,pico-flash-controller"
+        - "zephyr,sim-flash"
       level: 0
   actions:
-  - type: instance
-    value:
-      raw:
-        type: myself
+    - !Instance
+      raw: !Myself
       device: crate::device::flash::FlashController
 
 # Flash partitions exist as children of a node compatible with "soc-nv-flash" that itself is a child
@@ -59,31 +48,24 @@
 # TODO: Get the write and erase property from the DT if present.
 - name: flash-partition
   rules:
-  - type: compatible
-    value:
+    - !Compatible
       names:
-      - "fixed-partitions"
+        - "fixed-partitions"
       level: 1
-  - type: compatible
-    value:
+    - !Compatible
       names:
-      - "soc-nv-flash"
+        - "soc-nv-flash"
       level: 2
   actions:
-  - type: instance
-    value:
-      raw:
-        type: parent
-        value:
-          level: 3
-          args:
-          - type: reg
+    - !Instance
+      raw: !Parent
+        level: 3
+        args:
+          - !Reg
       device: "crate::device::flash::FlashPartition"
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
-  rules:
-    - type: root
+  rules: !Root
   actions:
-  - type: labels
-
+    - !Labels
