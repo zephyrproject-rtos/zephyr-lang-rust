@@ -129,7 +129,7 @@ ${module}.path = \"$CACHE{RUST_MODULE_DIR}/${module}\"
   # symlink) in the source directory to allow various IDE tools and such to work.  The build we
   # invoke will override these settings, in case they are out of date.  Everything set here
   # should match the arguments given to the cargo build command below.
-  file(WRITE ${SAMPLE_CARGO_CONFIG} "
+  file(GENERATE OUTPUT ${SAMPLE_CARGO_CONFIG} CONTENT "
 # This is a generated sample .cargo/config.toml file from the Zephyr build.
 # At the time of generation, this represented the settings needed to allow
 # a `cargo build` command to compile the rust code using the current Zephyr build.
