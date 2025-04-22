@@ -57,6 +57,21 @@ mod pinweak {
                 .upgrade()
                 .map(|arc| unsafe { Pin::new_unchecked(arc) })
         }
+
+        /// Equivalent to [`Weak::strong_count`]
+        pub fn strong_count(&self) -> usize {
+            self.0.strong_count()
+        }
+
+        /// Equivalent to [`Weak::weak_count`]
+        pub fn weak_count(&self) -> usize {
+            self.0.weak_count()
+        }
+
+        /// Equivalent to [`Weak::ptr_eq`]
+        pub fn ptr_eq(&self, other: &Self) -> bool {
+            self.0.ptr_eq(&other.0)
+        }
     }
 }
 
