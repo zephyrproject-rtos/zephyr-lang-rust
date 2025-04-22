@@ -619,15 +619,16 @@ impl Simple {
         );
 
         // Before we go away, make sure that there aren't any leaked workers.
-        /*
         let mut locked = main.action().locked.lock().unwrap();
         while let Some(other) = locked.works.pop_front() {
-            // Portable atomic's Arc seems to be a problem here.
-            let other = unsafe { Pin::into_inner_unchecked(other) };
+            let other = Pin::into_inner(other);
             assert_eq!(Arc::strong_count(&other), 1);
-            // printkln!("Child: {} refs", Arc::strong_count(&other));
         }
-        */
+        drop(locked);
+
+        // And nothing has leaked main, either.
+        let main = Pin::into_inner(main);
+        assert_eq!(Arc::strong_count(&main), 1);
     }
 }
 
