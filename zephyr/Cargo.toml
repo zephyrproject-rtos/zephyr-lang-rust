@@ -9,6 +9,9 @@ description = """
 Functionality for Rust-based applications that run on Zephyr.
 """
 
+# 1.85 is needed to support working with or without edition 2024.
+rust-version = "1.85"
+
 [dependencies]
 zephyr-sys = { version = "0.1.0", path = "../zephyr-sys" }
 zephyr-macros = { version = "0.1.0", path = "../zephyr-macros" }
