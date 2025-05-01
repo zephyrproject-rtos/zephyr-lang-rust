@@ -24,7 +24,9 @@ use zephyr_sys::{
 
 use crate::{
     align::AlignAs,
+    error::to_result_void,
     sys::{K_FOREVER, K_NO_WAIT},
+    time::{Forever, Timeout},
 };
 
 /// Adjust a given requested stack size up for the alignment.  This is just the stack, and the
@@ -249,20 +251,26 @@ pub struct RunningThread {
 }
 
 impl RunningThread {
+    /// Wait, with timeout, for this thread to finish executing.
+    ///
+    /// Will block until either the thread terminates, or the timeout occurrs.
+    pub fn join_timeout<T>(&self, timeout: T) -> crate::Result<()>
+    where
+        T: Into<Timeout>,
+    {
+        let timeout: Timeout = timeout.into();
+        let ret = unsafe { k_thread_join(self.id, timeout.0) };
+        to_result_void(ret)
+    }
+
     /// Wait for this thread to finish executing.
     ///
     /// Will block until the thread has terminated.
     ///
     /// TODO: Allow a timeout?
     /// TODO: Should we try to return a value?
-    pub fn join(&self) {
-        unsafe {
-            // TODO: Can we do something meaningful with the result?
-            k_thread_join(self.id, K_FOREVER);
-
-            // TODO: Ideally, we could put the thread state back to avoid the need for another join
-            // check when re-allocating the thread.
-        }
+    pub fn join(&self) -> crate::Result<()> {
+        self.join_timeout(Forever)
     }
 }
 
