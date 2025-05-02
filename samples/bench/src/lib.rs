@@ -583,7 +583,7 @@ impl Simple {
 
     fn run(&self, workers: usize, iterations: usize) {
         // printkln!("Running Simple");
-        let main = Work::new(SimpleMain::new(workers * iterations, self.workq));
+        let main: Pin<Arc<Work<_>>> = Work::new(SimpleMain::new(workers * iterations, self.workq));
 
         let children: VecDeque<_> = (0..workers)
             .map(|n| Work::new(SimpleWorker::new(main.clone(), self.workq, n)))
