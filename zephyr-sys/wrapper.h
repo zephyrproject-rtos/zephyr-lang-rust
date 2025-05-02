@@ -42,12 +42,9 @@ extern int errno;
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
-<<<<<<< HEAD
 #include <zephyr/drivers/auxdisplay.h>
-=======
 #include <zephyr/irq.h>
 
->>>>>>> a683eb8a3b5aaaf1b15298e12a0887649e2340d8
 /*
  * bindgen will only output #defined constants that resolve to simple numbers.  These are some
  * symbols that we want exported that, at least in some situations, are more complex, usually with a
