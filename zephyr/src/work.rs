@@ -49,11 +49,16 @@ use portable_atomic::AtomicBool;
 use portable_atomic_util::Arc;
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
-    k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config, k_work_queue_init,
-    k_work_queue_start, k_work_submit, k_work_submit_to_queue, z_thread_stack_element,
+    k_poll_signal_reset, k_work, k_work_handler_t, k_work_init, k_work_q, k_work_queue_config,
+    k_work_queue_init, k_work_queue_start, k_work_submit, k_work_submit_to_queue,
+    z_thread_stack_element,
 };
 
-use crate::{error::to_result_void, object::Fixed, simpletls::SimpleTls};
+use crate::{
+    error::to_result_void,
+    object::{Fixed, ObjectInit, ZephyrObject},
+    simpletls::SimpleTls,
+};
 
 /// The WorkQueue decl args as a struct, so we can have a default, and the macro can fill in those
 /// specified by the user.
@@ -348,7 +353,7 @@ pub trait SimpleAction {
 /// Holds a `k_work`, along with the data associated with that work.  When the work is queued, the
 /// `act` method will be called on the provided `SimpleAction`.
 pub struct Work<T> {
-    work: UnsafeCell<k_work>,
+    work: ZephyrObject<k_work>,
     action: T,
 }
 
@@ -380,12 +385,9 @@ impl<T: SimpleAction + Send> Work<T> {
     where
         P: SubmittablePointer<T>,
     {
-        let this: P = unsafe { SubmittablePointer::new_ptr(action) };
-
-        // SAFETY: Initializes the above zero-initialized struct.
-        unsafe {
-            k_work_init(this.get_work(), Some(P::handler));
-        }
+        // SAFETY: Initializes the above zero-initialized struct.  Initialization once is handled by
+        // ZephyrObject.
+        let this: P = unsafe { SubmittablePointer::new_ptr(action, Some(P::handler)) };
 
         this
     }
@@ -453,7 +455,7 @@ impl<T: SimpleAction + Send> Work<T> {
 pub trait SubmittablePointer<T> {
     /// Create a new version of a pointer for this particular type.  The pointer should be pinned
     /// after this call, and can then be initialized and used by C code.
-    unsafe fn new_ptr(action: T) -> Self;
+    unsafe fn new_ptr(action: T, handler: k_work_handler_t) -> Self;
 
     /// Given a raw pointer to the work_q burried within, recover the Self pointer containing our
     /// data.
@@ -475,15 +477,21 @@ pub trait SubmittablePointer<T> {
 }
 
 impl<T: SimpleAction + Send> SubmittablePointer<T> for Pin<Arc<Work<T>>> {
-    unsafe fn new_ptr(action: T) -> Self {
-        Arc::pin(Work {
-            work: unsafe { mem::zeroed() },
-            action,
-        })
+    unsafe fn new_ptr(action: T, handler: k_work_handler_t) -> Self {
+        let work = <ZephyrObject<k_work>>::new_raw();
+
+        unsafe {
+            let addr = work.get_uninit();
+            (*addr).handler = handler;
+        }
+
+        Arc::pin(Work { work, action })
     }
 
     fn get_work(&self) -> *mut k_work {
-        self.work.get()
+        // SAFETY: The `get` method takes care of initialization as well as ensuring that the value
+        // is not moved since the first initialization.
+        unsafe { self.work.get() }
     }
 
     unsafe fn from_raw(ptr: *const k_work) -> Self {
@@ -527,6 +535,17 @@ impl<T: SimpleAction + Send> SubmittablePointer<T> for Pin<Arc<Work<T>>> {
         let action = unsafe { this.as_ref().map_unchecked(|p| &p.action) };
 
         action.act();
+    }
+}
+
+impl ObjectInit<k_work> for ZephyrObject<k_work> {
+    fn init(item: *mut k_work) {
+        // SAFETY: The handler was stashed in this field when constructing.  At this point, the item
+        // will be pinned.
+        unsafe {
+            let handler = (*item).handler;
+            k_work_init(item, handler);
+        }
     }
 }
 
