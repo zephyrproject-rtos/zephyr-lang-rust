@@ -1,0 +1,15 @@
+[package]
+name = "zephyr-macros"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+descriptions = "Macros for managing tasks and work queues in Zephyr"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0.85", features = ["full", "visit"] }
+quote = "1.0.37"
+proc-macro2 = "1.0.86"
+darling = "0.20.1"

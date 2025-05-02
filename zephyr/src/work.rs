@@ -17,6 +17,8 @@
 //! having the `k_work` embedded in their structure, and Zephyr schedules the work when the given
 //! reason happens.
 //!
+//! At this time, only the basic work queue type is supported.
+//!
 //! Zephyr's work queues can be used in different ways:
 //!
 //! - Work can be scheduled as needed.  For example, an IRQ handler can queue a work item to process
@@ -27,84 +29,13 @@
 //! when the work is complete.  The work queue scheduling functions are designed, and intended, for
 //! a given work item to be able to reschedule itself, and such usage is common.
 //!
-//! ## Waitable events
-//!
-//! The triggerable work items can be triggered to wake on a set of any of the following:
-//!
-//! - A signal.  `k_poll_signal` is a type used just for waking work items.  This works similar to a
-//!   binary semaphore, but is lighter weight for use just by this mechanism.
-//! - A semaphore.  Work can be scheduled to run when a `k_sem` is available.  Since
-//!   [`sys::sync::Semaphore`] is built on top of `k_sem`, the "take" operation for these semaphores
-//!   can be a trigger source.
-//! - A queue/FIFO/LIFO.  The queue is used to implement [`sync::channel`] and thus any blocking
-//!   operation on queues can be a trigger source.
-//! - Message Queues, and Pipes.  Although not yet provided in Rust, these can also be a source of
-//!   triggering.
-//!
-//! It is important to note that the trigger source may not necessarily still be available by the
-//! time the work item is actually run.  This depends on the design of the system.  If there is only
-//! a single waiter, then it will still be available (the mechanism does not have false triggers,
-//! like CondVar).
-//!
-//! Also, note, specifically, that Zephyr Mutexes cannot be used as a trigger source.  That means
-//! that locking a [`sync::Mutex`] shouldn't be use within work items.  There is another
-//! [`kio::sync::Mutex`], which is a simplified Mutex that is implemented with a Semaphore that can
-//! be used from work-queue based code.
-//!
-//! # Rust `Future`
-//!
-//! The rust language, also has built-in support for something rather similar to Zephyr work queues.
-//! The main user-visible type behind this is [`Future`].  The rust compiler has support for
-//! functions, as well as code blocks to be declared as `async`.  For this code, instead of directly
-//! returning the given data, returns a `Future` that has as its output type the data.  What this
-//! does is essentially capture what would be stored on the stack to maintain the state of that code
-//! into the data of the `Future` itself.  For rust code running on a typical OS, a crate such as
-//! [Tokio](https://tokio.rs/) provides what is known as an executor, which implements the schedule
-//! for these `Futures` as well as provides equivalent primitives for Mutex, Semaphores and channels
-//! for this code to use for synchronization.
-//!
-//! It is notable that the Zephyr implementation of `Future` operations under a fairly simple
-//! assumption of how this scheduling will work.  Each future is invoked with a Context, which
-//! contains a dynamic `Waker` that can be invoked to schedule this Future to run again.  This means
-//! that the primitives are typically implemented above OS primitives, where each manages wake
-//! queues to determine the work that needs to be woken.
-//!
-//! # Bringing it together.
-//!
-//! There are a couple of issues that need to be addressed to bring work-queue support to Rust.
-//! First is the question of how they will be used.  On the one hand, there are users that will
-//! definitely want to make use of `async` in rust, and it is important to implement a executor,
-//! similar to Tokio, that will schedule this `async` code.  On the other hand, it will likely be
-//! common for others to want to make more direct use of the work queues themselves.  As such, these
-//! users will want more direct access to scheduling and triggering of work.
-//!
-//! ## Future erasure
-//!
-//! One challenge with using `Future` for work is that the `Future` type intentionally erases the
-//! details of scheduling work, reducing it down to a single `Waker`, which similar to a trait, has
-//! a `wake` method to cause the executor to schedule this work.  Unfortunately, this simple
-//! mechanism makes it challenging to take advantage of Zephyr's existing mechanisms to be able to
-//! automatically trigger work based on primitives.
-//!
-//! As such, what we do is have a structure `Work` that contains both a `k_work_poll` as well as
-//! `Context` from Rust.  Our handler can use a mechanism similar to C's `CONTAINER_OF` macro to
-//! recover this outer structure.
-//!
-//! There is some extra complexity to this process, as the `Future` we are storing associated with
-//! the work is `?Sized`, since each particular Future will have a different size.  As such, it is
-//! not possible to recover the full work type.  To work around this, we have a Sized struct at the
-//! beginning of this structure, that along with judicious use of `#[repr(C)]` allows us to recover
-//! this fixed data.  This structure contains the information needed to re-schedule the work, based
-//! on what is needed.
-//!
 //! ## Ownership
 //!
 //! The remaining challenge with implementing `k_work` for Rust is that of ownership.  The model
 //! taken here is that the work items are held in a `Box` that is effectively owned by the work
 //! itself.  When the work item is scheduled to Zephyr, ownership of that box is effectively handed
 //! off to C, and then when the work item is called, the Box re-constructed.  This repeats until the
-//! work is no longer needed (e.g. when a [`Future::poll`] returns `Ready`), at which point the work
-//! will be dropped.
+//! work is no longer needed, at which point the work will be dropped.
 //!
 //! There are two common ways the lifecycle of work can be managed in an embedded system:
 //!
@@ -112,17 +43,11 @@
 //!   Futures inside of this (which correspond to `.await` in async code) can have lives and return
 //!   values, but the main loops will not return values, or be dropped.  Embedded Futures will
 //!   typically not be boxed.
-//! - Work will be dynamically created based on system need, with threads using [`kio::spawn`] to
-//!   create additional work (or creating the `Work` items directly).  These can use [`join`] or
-//!   [`join_async`] to wait for the results.
 //!
 //! One consequence of the ownership being passed through to C code is that if the work cancellation
 //! mechanism is used on a work queue, the work items themselves will be leaked.
 //!
-//! The Future mechanism in Rust relies on the use of [`Pin`] to ensure that work items are not
-//! moved.  We have the same requirements here, although currently, the pin is only applied while
-//! the future is run, and we do not expose the `Box` that we use, thus preventing moves of the work
-//! items.
+//! These work items are also `Pin`, to ensure that the work actions are not moved.
 //!
 //! ## The work queues themselves
 //!
@@ -170,8 +95,6 @@
 //! [`sys::sync::Semaphore`]: crate::sys::sync::Semaphore
 //! [`sync::channel`]: crate::sync::channel
 //! [`sync::Mutex`]: crate::sync::Mutex
-//! [`kio::sync::Mutex`]: crate::kio::sync::Mutex
-//! [`kio::spawn`]: crate::kio::spawn
 //! [`join`]: futures::JoinHandle::join
 //! [`join_async`]: futures::JoinHandle::join_async
 
@@ -180,30 +103,24 @@ extern crate alloc;
 use core::{
     cell::UnsafeCell,
     ffi::{c_int, c_uint, CStr},
-    future::Future,
     mem,
     pin::Pin,
     ptr,
-    task::Poll,
 };
 
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
     k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config, k_work_queue_init,
-    k_work_queue_start, k_work_submit, k_work_submit_to_queue, ETIMEDOUT,
+    k_work_queue_start, k_work_submit, k_work_submit_to_queue,
 };
 
 use crate::{
     error::to_result_void,
-    kio::ContextExt,
     object::Fixed,
     simpletls::SimpleTls,
     sync::{Arc, Mutex},
     sys::thread::ThreadStack,
-    time::Timeout,
 };
-
-pub mod futures;
 
 /// A builder for work queues themselves.
 ///
@@ -454,66 +371,11 @@ impl Signal {
     pub fn raise(&self, result: c_int) -> crate::Result<()> {
         to_result_void(unsafe { k_poll_signal_raise(self.item.get(), result) })
     }
-
-    /// Asynchronously wait for a signal to be signaled.
-    ///
-    /// If the signal has not been raised, will wait until it has been.  If the signal has been
-    /// raised, the Future will immediately return that value without waiting.
-    ///
-    /// **Note**: there is no sync wait, as Zephyr does not provide a convenient mechanmism for
-    /// this.  It could be implemented with `k_poll` if needed.
-    pub fn wait_async<'a>(
-        &'a self,
-        timeout: impl Into<Timeout>,
-    ) -> impl Future<Output = crate::Result<c_int>> + 'a {
-        SignalWait {
-            signal: self,
-            timeout: timeout.into(),
-            ran: false,
-        }
-    }
 }
 
 impl Default for Signal {
     fn default() -> Self {
         Signal::new()
-    }
-}
-
-/// The Future for Signal::wait_async.
-struct SignalWait<'a> {
-    /// The signal we are waiting on.
-    signal: &'a Signal,
-    /// The timeout to use.
-    timeout: Timeout,
-    /// Set after we've waited once,
-    ran: bool,
-}
-
-impl<'a> Future for SignalWait<'a> {
-    type Output = crate::Result<c_int>;
-
-    fn poll(
-        mut self: Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> core::task::Poll<Self::Output> {
-        // We can check if the even happened immediately, and avoid blocking if we were already
-        // signaled.
-        if let Some(result) = self.signal.check() {
-            return Poll::Ready(Ok(result));
-        }
-
-        if self.ran {
-            // If it is not ready, assuming a timeout.  Note that if a thread other than this work
-            // thread resets the signal, it is possible to see a timeout even if `Forever` was given
-            // as the timeout.
-            return Poll::Ready(Err(crate::Error(ETIMEDOUT)));
-        }
-
-        cx.add_signal(self.signal, self.timeout);
-        self.ran = true;
-
-        Poll::Pending
     }
 }
 

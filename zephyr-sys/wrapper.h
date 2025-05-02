@@ -42,7 +42,12 @@ extern int errno;
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
+<<<<<<< HEAD
 #include <zephyr/drivers/auxdisplay.h>
+=======
+#include <zephyr/irq.h>
+
+>>>>>>> a683eb8a3b5aaaf1b15298e12a0887649e2340d8
 /*
  * bindgen will only output #defined constants that resolve to simple numbers.  These are some
  * symbols that we want exported that, at least in some situations, are more complex, usually with a
@@ -61,3 +66,15 @@ const uint32_t ZR_POLL_TYPE_DATA_AVAILABLE = K_POLL_TYPE_DATA_AVAILABLE;
 const uint32_t ZR_GPIO_INT_MODE_DISABLE_ONLY = GPIO_INT_MODE_DISABLE_ONLY;
 const uint32_t ZR_GPIO_INT_MODE_ENABLE_ONLY = GPIO_INT_MODE_ENABLE_ONLY;
 #endif
+
+/*
+ * Zephyr's irq_lock() and irq_unlock() are macros not inline functions, so we need some inlines to
+ * access them.
+ */
+static inline int zr_irq_lock(void) {
+	return irq_lock();
+}
+
+static inline void zr_irq_unlock(int key) {
+	irq_unlock(key);
+}

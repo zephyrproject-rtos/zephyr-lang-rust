@@ -45,15 +45,12 @@ use alloc::boxed::Box;
 use core::cell::UnsafeCell;
 use core::ffi::c_void;
 use core::fmt;
-use core::future::Future;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use core::pin::Pin;
-use core::task::Poll;
 
-use crate::kio::ContextExt;
 use crate::sys::queue::Queue;
-use crate::time::{Duration, Forever, NoWait, Timeout};
+use crate::time::{Forever, NoWait, Timeout};
 
 mod counter;
 
@@ -206,90 +203,6 @@ impl<T> Sender<T> {
     }
 }
 
-// A little note about the Unpin constraint here.  Because Futures are pinned in Rust Async code,
-// and the future stores the messages, we can only send and receive messages that aren't pinned.
-impl<T: Unpin> Sender<T> {
-    /// Waits for a message to be sent into the channel, but only for a limited time.  Async
-    /// version.
-    ///
-    /// This has the same behavior as [`send_timeout`], but as an Async function.
-    ///
-    /// [`send_timeout`]: Sender::send_timeout
-    pub fn send_timeout_async<'a>(
-        &'a self,
-        msg: T,
-        timeout: impl Into<Timeout>,
-    ) -> impl Future<Output = Result<(), SendError<T>>> + 'a {
-        SendFuture {
-            sender: self,
-            msg: Some(msg),
-            timeout: timeout.into(),
-            waited: false,
-        }
-    }
-
-    /// Sends a message over the given channel, waiting if necessary. Async version.
-    pub async fn send_async(&self, msg: T) -> Result<(), SendError<T>> {
-        self.send_timeout_async(msg, Forever).await
-    }
-
-    // Note that there is no async version of `try_send`.
-}
-
-/// The implementation of Future for Sender::send_timeout_async.
-struct SendFuture<'a, T: Unpin> {
-    sender: &'a Sender<T>,
-    msg: Option<T>,
-    timeout: Timeout,
-    waited: bool,
-}
-
-impl<'a, T: Unpin> Future for SendFuture<'a, T> {
-    type Output = Result<(), SendError<T>>;
-
-    fn poll(
-        self: Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> core::task::Poll<Self::Output> {
-        /*
-        let this = unsafe {
-            Pin::get_unchecked_mut(self)
-        };
-        */
-        let this = Pin::get_mut(self);
-
-        // Take the message out in preparation to try sending it.  It is a logic error if the unwrap
-        // fails.
-        let msg = this.msg.take().unwrap();
-
-        // Try sending the message, with no timeout.
-        let msg = match this.sender.try_send(msg) {
-            Ok(()) => return Poll::Ready(Ok(())),
-            Err(SendError(msg)) => msg,
-        };
-
-        if this.waited {
-            // We already waited, and no message, so give the messagre back, indiciating a timeout.
-            return Poll::Ready(Err(SendError(msg)));
-        }
-
-        // Send didn't happen, put the message back to have for the next call.
-        this.msg = Some(msg);
-
-        // Otherwise, schedule to wake up on receipt or timeout.
-        match &this.sender.flavor {
-            SenderFlavor::Unbounded { .. } => {
-                panic!("Implementation error: unbounded queues should never fail");
-            }
-            SenderFlavor::Bounded(chan) => {
-                cx.add_queue(&chan.free, this.timeout);
-            }
-        }
-
-        Poll::Pending
-    }
-}
-
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
         match &self.flavor {
@@ -423,43 +336,6 @@ impl<T> Receiver<T> {
     }
 }
 
-// Note that receive doesn't need the Unpin constraint, as we aren't storing any message.
-impl<T> Receiver<T> {
-    /// Waits for a message to be received from the channel, but only for a limited time.
-    /// Async version.
-    ///
-    /// If the channel is empty and not disconnected, this call will block until the receive
-    /// operation can proceed or the operation times out.
-    /// wake up and return an error.
-    pub fn recv_timeout_async<'a>(
-        &'a self,
-        timeout: impl Into<Timeout>,
-    ) -> impl Future<Output = Result<T, RecvError>> + 'a {
-        RecvFuture {
-            receiver: self,
-            timeout: timeout.into(),
-            waited: false,
-        }
-    }
-
-    /// Blocks the current thread until a message is received or the channel is empty and
-    /// disconnected.  Async version.
-    ///
-    /// If the channel is empty and not disconnected, this call will block until the receive
-    /// operation can proceed.
-    pub async fn recv_async(&self) -> Result<T, RecvError> {
-        self.recv_timeout_async(Forever).await
-    }
-
-    /// Return a reference to the inner queue.
-    fn as_queue(&self) -> &Queue {
-        match &self.flavor {
-            ReceiverFlavor::Unbounded { queue, .. } => queue,
-            ReceiverFlavor::Bounded(chan) => &chan.chan,
-        }
-    }
-}
-
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         match &self.flavor {
@@ -502,34 +378,6 @@ impl<T> Clone for Receiver<T> {
 impl<T> fmt::Debug for Receiver<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Sender")
-    }
-}
-
-struct RecvFuture<'a, T> {
-    receiver: &'a Receiver<T>,
-    timeout: Timeout,
-    waited: bool,
-}
-
-impl<'a, T> Future for RecvFuture<'a, T> {
-    type Output = Result<T, RecvError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
-        // Try to receive a message.
-        if let Ok(msg) = self.receiver.try_recv() {
-            return Poll::Ready(Ok(msg));
-        }
-
-        if self.waited {
-            // Wait already happened, so this is a timeout.
-            return Poll::Ready(Err(RecvError));
-        }
-
-        // Otherwise, schedule to wakeup on receipt or timeout.
-        cx.add_queue(self.receiver.as_queue(), self.timeout);
-        self.waited = true;
-
-        Poll::Pending
     }
 }
 
@@ -629,92 +477,3 @@ impl<T> fmt::Debug for SendError<T> {
 /// [`recv`]: Receiver::recv
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct RecvError;
-
-/// Wait loop
-///
-/// A common scenario for async work tasks is to wait for, and process messages off of a queue, but
-/// to also wake periodically to perform some task.
-///
-/// This performs this periodic loop.  It has some support for handling the case where the
-/// processing takes longer than the loop duration, but it merely re-schedules for the period past
-/// the current time.  This means the phase of the period will change upon dropped ticks.
-///
-/// Each time an event is received, 'handle' is called with `Some(ev)`.  In addition, periodically
-/// (based on `period`) `handle` will be called with None.
-///
-/// **Note**: It needs to be a single handler, because this closure will frequently be in a move
-/// closure, and this would force shared data to be shared in Sync types of wrappers.  The main
-/// purpose of combining the event handling and the periodic is to avoid that.
-///
-/// Note that also, if the timer is just barely able to run, it will still be scheduled "shortly" in
-/// the future.
-///
-/// T is the type of the messages expected to be received.
-///
-/// TODO: This function, in general, is completely worthless without Rust support for [async
-/// closures](https://rust-lang.github.io/rfcs/3668-async-closures.html).
-pub async fn event_loop_useless<T, EF, EFF>(
-    events: Receiver<T>,
-    period: Duration,
-    mut handle: EF,
-) -> !
-where
-    EF: FnMut(Option<T>) -> EFF,
-    EFF: Future<Output = ()>,
-{
-    // Start with a deadline 'period' out in the future.
-    let mut next = crate::time::now() + period;
-    loop {
-        if let Ok(ev) = events.recv_timeout_async(next).await {
-            handle(Some(ev)).await;
-            continue;
-        }
-
-        // We either reached, or exceeded our timeout.
-        handle(None).await;
-
-        // Calculate the next time.
-        next += period;
-
-        // If this is passed, just reschedule after our Duration from "now".
-        let now = crate::time::now();
-        if next <= now {
-            next = now + period;
-        }
-    }
-}
-
-/// Wait loop, as a macro.
-///
-/// This is the `event loop` above, implemented as a macro, which becomes more useful as the async
-/// closures aren't needed.
-#[macro_export]
-macro_rules! event_loop {
-    ($events:expr, $period:expr,
-     Some($eventvar:ident) => $event_body:block,
-     None => $periodic_body: block $(,)?) =>
-    {
-        let events = $events;
-        let period = $period;
-        let mut next = $crate::time::now() + period;
-        loop {
-            if let Ok($eventvar) = events.recv_timeout_async(next).await {
-                $event_body
-            } else {
-                // Note that ':block' above requires the braces, so this body can't introduce
-                // bindings that shadow our local variables.
-                $periodic_body
-                next += period;
-
-                // If this is passed, just reschedule after our Duration from "now".
-                let now = $crate::time::now();
-                if next <= now {
-                    ::log::warn!("periodic overflow: {} ticks, {}:{}",
-                                 (now - next).ticks(),
-                                 core::file!(), core::line!());
-                    next = now + period;
-                }
-            }
-        }
-    };
-}

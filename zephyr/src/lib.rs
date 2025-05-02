@@ -43,13 +43,6 @@
 //!   [`work::WorkQueue`] allow creation of Zephyr work queues to be used from Rust.  The
 //!   [`work::Work`] item had an action that will be invoked by the work queue, and can be manually
 //!   submitted when needed.
-//! - [`kio`]: An implementation of an async executor built around triggerable work queues in
-//!   Zephyr.  Although there is a bit more overhead to this executor, it is compatible with many of
-//!   the Zephyr synchronization types, and many of these [`sys::sync::Semaphore`], and
-//!   [`sync::channel`] will provide `_async` variants of most of the blocking operations.  These
-//!   will return a `Future`, and can be used from async code started by the [`spawn`] function.
-//!   In addition, because Zephyr's work queues do not work well with Zephyr's Mutex type, this is
-//!   also a [`kio::sync::Mutex`] type that works with async.
 //! - [`logging`]: A logging backend for Rust on Zephyr.  This will log to either `printk` or
 //!   through Zephyr's logging framework.
 //!
@@ -57,7 +50,6 @@
 //! [`Duration`]: time::Duration
 //! [`std::sync::atomic`]: https://doc.rust-lang.org/std/sync/atomic/
 //! [`std::sync::Arc`]: https://doc.rust-lang.org/std/sync/struct.Arc.html
-//! [`spawn`]: kio::spawn
 //!
 //! In addition to the above, the [`kconfig`] and [`devicetree`] provide a reflection of the kconfig
 //! settings and device tree that were used for a specific build.  As such, the documentation
@@ -80,14 +72,13 @@ pub mod align;
 pub mod device;
 pub mod embassy;
 pub mod error;
-#[cfg(CONFIG_RUST_ALLOC)]
-pub mod kio;
 pub mod logging;
 pub mod object;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod simpletls;
 pub mod sync;
 pub mod sys;
+pub mod thread;
 pub mod time;
 #[cfg(CONFIG_RUST_ALLOC)]
 pub mod timer;
@@ -100,6 +91,9 @@ pub use logging::set_logger;
 
 /// Re-exported for local macro use.
 pub use paste::paste;
+
+/// Re-export the proc macros.
+pub use zephyr_macros::thread;
 
 // Bring in the generated kconfig module
 pub mod kconfig {
@@ -129,6 +123,9 @@ pub mod devicetree {
 
     // Don't enforce doc comments on the generated device tree.
     #![allow(missing_docs)]
+    // Allow nodes to have non-snake-case names.  This comes from addresses in the node names, which
+    // usually use uppercase.
+    #![allow(non_snake_case)]
 
     include!(concat!(env!("OUT_DIR"), "/devicetree.rs"));
 }
