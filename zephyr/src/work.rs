@@ -40,7 +40,6 @@ use core::{
     cell::{RefCell, UnsafeCell},
     ffi::{c_char, c_int, c_uint},
     mem,
-    pin::Pin,
     sync::atomic::Ordering,
 };
 
@@ -49,7 +48,7 @@ use portable_atomic::AtomicBool;
 use portable_atomic_util::Arc;
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
-    k_poll_signal_reset, k_work, k_work_handler_t, k_work_init, k_work_q, k_work_queue_config,
+    k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config,
     k_work_queue_init, k_work_queue_start, k_work_submit, k_work_submit_to_queue,
     z_thread_stack_element,
 };
@@ -345,7 +344,7 @@ impl SubmitResult {
 /// below uses an Arc, so this data can be shared.
 pub trait SimpleAction {
     /// Perform the action.
-    fn act(self: Pin<&Self>);
+    fn act(self: &Self);
 }
 
 /// A basic Zephyr work item.
@@ -373,6 +372,103 @@ where
 {
 }
 
+/// Arc held work.
+///
+/// Because C code takes ownership of the work, we only support submitting work with very specific
+/// pointer types.  This wraps an Arc holding work to allow Work held in an Arc to be queued.
+/// Earlier versions of this required the work to be `Pin<Arc<..>>`, however, we use
+/// [`ZephyrObject`] to hold work items, anyway, and this already does a runtime check to prevents
+/// moves, so we can safely avoid needing to use `Pin`.  However, note that if the work is moved
+/// between it's first use, and subsequent use, it will panic.
+pub struct ArcWork<T: SimpleAction + Send>(pub Arc<Work<T>>);
+
+/// Clone just passes the clone to the arc.
+impl<T: SimpleAction + Send> Clone for ArcWork<T> {
+    fn clone(&self) -> Self {
+        ArcWork(self.0.clone())
+    }
+}
+
+impl<T: SimpleAction + Send> ArcWork<T> {
+    /// Submit this work to the system work queue.
+    ///
+    /// This can return several possible `Ok` results.  See the docs on [`SubmitResult`] for an
+    /// explanation of them.
+    pub fn submit(self) -> crate::Result<SubmitResult> {
+        // Leak the arc, so that when the handler runs, it can be safely turned back into an Arc,
+        // and then the drop on the Arc will run.
+        // SAFETY: As we are leaking the pointer until the C code is done with it, it is safe to get
+        // the pointer to the raw work.
+        let work = unsafe { self.0.work.get() };
+        let _ = Arc::into_raw(self.0);
+
+        let result = SubmitResult::to_result(unsafe { k_work_submit(work) });
+
+        Self::check_drop(work, &result);
+
+        result
+    }
+
+    /// Submit this work to the given work queue.
+    ///
+    /// This can return several possible `Ok` results.  See the docs on [`SubmitResult`] for an
+    /// explanation of them.
+    pub fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        // Leak the arc, so that when the handler runs, it can be safely turned back into an Arc,
+        // and then the drop on the Arc will run.
+        // SAFETY: As we are leaking the pointer until the C code is done with it, it is safe to get
+        // the pointer to the raw work.
+        let work = unsafe { self.0.work.get() };
+        let _ = Arc::into_raw(self.0);
+
+        let result = SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) });
+
+        Self::check_drop(work, &result);
+
+        result
+    }
+
+    /// Given the raw "C" work pointer, get a pointer back to our work item.
+    unsafe fn from_raw(ptr: *const k_work) -> Self {
+        let ptr = ptr
+            .cast::<u8>()
+            .sub(mem::offset_of!(Work<T>, work))
+            .cast::<Work<T>>();
+        let this = Arc::from_raw(ptr);
+        Self(this)
+    }
+
+    /// Check if the C code has "dropped" it's reference, and drop our Arc reference as well.  This
+    /// should detect the case where the work was not queued, and no callback, of this ownership,
+    /// will be called.
+    fn check_drop(work: *const k_work, result: &crate::Result<SubmitResult>) {
+        if matches!(result, Ok(SubmitResult::AlreadySubmitted) | Err(_)) {
+            // SAFETY: If the above matches, it indicates this work was already running, and someone
+            // other than the work itself is trying to submit it.  In this case, there will be no
+            // callback that belongs to this particular context.  Err also indicates that the work
+            // was not enqueued.
+            unsafe {
+                let this = Self::from_raw(work);
+                drop(this);
+            }
+        }
+    }
+
+    /// The handler for Arc based work.
+    extern "C" fn handler(work: *mut k_work) {
+        // Reconstruct self out of the work.
+        // SAFETY: The submit functions will leak the arc any time C has ownership of the Work, and
+        // the C will relinquish that ownership when calling this handler.
+        let this = unsafe { Self::from_raw(work) };
+
+        let action = &this.0.action;
+
+        action.act();
+
+        // This will be dropped.
+    }
+}
+
 impl<T: SimpleAction + Send> Work<T> {
     /// Construct a new Work from the given action.
     ///
@@ -381,68 +477,19 @@ impl<T: SimpleAction + Send> Work<T> {
     /// inter-thread sharing mechanisms are needed.
     ///
     /// TODO: Can we come up with a way to allow sharing on the same worker using Rc instead of Arc?
-    pub fn new<P>(action: T) -> P
-    where
-        P: SubmittablePointer<T>,
-    {
+    pub fn new_arc(action: T) -> ArcWork<T> {
+        let work = <ZephyrObject<k_work>>::new_raw();
+
         // SAFETY: Initializes the above zero-initialized struct.  Initialization once is handled by
         // ZephyrObject.
-        let this: P = unsafe { SubmittablePointer::new_ptr(action, Some(P::handler)) };
-
-        this
-    }
-
-    /// Submit this work to the system work queue.
-    ///
-    /// This can return several possible `Ok` results.  See the docs on [`SubmitResult`] for an
-    /// explanation of them.
-    pub fn submit<P>(this: P) -> crate::Result<SubmitResult>
-    where
-        P: SubmittablePointer<T>,
-    {
-        // We "leak" the arc, so that when the handler runs, it can be safely turned back into an
-        // Arc, and the drop on the arc will then run.
-        let work = this.get_work();
-
-        // SAFETY: C the code does not perform moves on the data, and the `from_raw` below puts it
-        // back into a Pin when it reconstructs the Arc.
         unsafe {
-            P::into_raw(this);
+            let addr = work.get_uninit();
+            (*addr).handler = Some(ArcWork::<T>::handler);
         }
 
-        // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
-        // work item is no longer queued when the data is dropped.
-        let result = SubmitResult::to_result(unsafe { k_work_submit(work) });
+        let this = Arc::new(Work { work, action });
 
-        P::check_drop(work, &result);
-
-        result
-    }
-
-    /// Submit this work to a specified work queue.
-    ///
-    /// TODO: Change when we have better wrappers for work queues.
-    pub fn submit_to_queue<P>(this: P, queue: &'static WorkQueue) -> crate::Result<SubmitResult>
-    where
-        P: SubmittablePointer<T>,
-    {
-        let work = this.get_work();
-
-        // "leak" the arc to give to C.  We'll reconstruct it in the handler.
-        // SAFETY: The C code does not perform moves on the data, and the `from_raw` below puts it
-        // back into a Pin when it reconstructs the Arc.
-        unsafe {
-            P::into_raw(this);
-        }
-
-        // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
-        // work item is no longer queued when the data is dropped.
-        let result =
-            SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) });
-
-        P::check_drop(work, &result);
-
-        result
+        ArcWork(this)
     }
 
     /// Access the inner action.
@@ -453,88 +500,20 @@ impl<T: SimpleAction + Send> Work<T> {
 
 /// Capture the kinds of pointers that are safe to submit to work queues.
 pub trait SubmittablePointer<T> {
-    /// Create a new version of a pointer for this particular type.  The pointer should be pinned
-    /// after this call, and can then be initialized and used by C code.
-    unsafe fn new_ptr(action: T, handler: k_work_handler_t) -> Self;
+    /// Submit this work to the system work queue.
+    fn submit(self) -> crate::Result<SubmitResult>;
 
-    /// Given a raw pointer to the work_q burried within, recover the Self pointer containing our
-    /// data.
-    unsafe fn from_raw(ptr: *const k_work) -> Self;
-
-    /// Given our Self, indicate that this reference is now owned by the C code.  For something like
-    /// Arc, this should leak a reference, and is the opposite of from_raw.
-    unsafe fn into_raw(self);
-
-    /// Determine from the submitted work if this work has been enqueued, and if not, cause a "drop"
-    /// to happen on the Self pointer type.
-    fn check_drop(work: *const k_work, result: &crate::Result<SubmitResult>);
-
-    /// Get the inner work pointer.
-    fn get_work(&self) -> *mut k_work;
-
-    /// The low-level handler for this specific type.
-    extern "C" fn handler(work: *mut k_work);
+    /// Submit this work to the given work queue.
+    fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult>;
 }
 
-impl<T: SimpleAction + Send> SubmittablePointer<T> for Pin<Arc<Work<T>>> {
-    unsafe fn new_ptr(action: T, handler: k_work_handler_t) -> Self {
-        let work = <ZephyrObject<k_work>>::new_raw();
-
-        unsafe {
-            let addr = work.get_uninit();
-            (*addr).handler = handler;
-        }
-
-        Arc::pin(Work { work, action })
+impl<T: SimpleAction + Send> SubmittablePointer<T> for Arc<Work<T>> {
+    fn submit(self) -> crate::Result<SubmitResult> {
+        ArcWork(self).submit()
     }
 
-    fn get_work(&self) -> *mut k_work {
-        // SAFETY: The `get` method takes care of initialization as well as ensuring that the value
-        // is not moved since the first initialization.
-        unsafe { self.work.get() }
-    }
-
-    unsafe fn from_raw(ptr: *const k_work) -> Self {
-        // SAFETY: This fixes the pointer back to the beginning of Self.  This also assumes the
-        // pointer is valid.
-        let ptr = ptr
-            .cast::<u8>()
-            .sub(mem::offset_of!(Work<T>, work))
-            .cast::<Work<T>>();
-        let this = Arc::from_raw(ptr);
-        Pin::new_unchecked(this)
-    }
-
-    unsafe fn into_raw(self) {
-        // SAFETY: The C code does not perform moves on the data, and the `from_raw` that gets back
-        // our Arc puts it back into the pin when it reconstructs the Arc.
-        let this = unsafe { Pin::into_inner_unchecked(self) };
-        let _ = Arc::into_raw(this.clone());
-    }
-
-    fn check_drop(work: *const k_work, result: &crate::Result<SubmitResult>) {
-        if matches!(result, Ok(SubmitResult::AlreadySubmitted) | Err(_)) {
-            // SAFETY: If the above submit indicates that it was already running, the work will not
-            // be submitted (no additional handle will be called).  "un leak" the work so that it
-            // will be dropped.  Also, any error indicates that the work did not enqueue.
-            unsafe {
-                let this = Self::from_raw(work);
-                drop(this);
-            }
-        }
-    }
-
-    extern "C" fn handler(work: *mut k_work) {
-        // We want to avoid needing a `repr(C)` on our struct, so the `k_work` pointer is not
-        // necessarily at the beginning of the struct.
-        // SAFETY: Converts raw pointer to work back into the box.
-        let this = unsafe { Self::from_raw(work) };
-
-        // Access the action within, still pinned.
-        // SAFETY: It is safe to keep the pin on the interior.
-        let action = unsafe { this.as_ref().map_unchecked(|p| &p.action) };
-
-        action.act();
+    fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        ArcWork(self).submit_to_queue(queue)
     }
 }
 

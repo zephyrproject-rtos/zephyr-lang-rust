@@ -10,7 +10,6 @@
 extern crate alloc;
 
 use core::mem;
-use core::pin::Pin;
 
 use alloc::collections::vec_deque::VecDeque;
 use alloc::vec;
@@ -18,9 +17,9 @@ use executor::AsyncTests;
 use static_cell::StaticCell;
 use zephyr::define_work_queue;
 use zephyr::raw::k_yield;
-use zephyr::sync::{PinWeak, SpinMutex};
+use zephyr::sync::{SpinMutex, Weak};
 use zephyr::time::NoWait;
-use zephyr::work::{SimpleAction, Work};
+use zephyr::work::{ArcWork, SimpleAction, Work};
 use zephyr::{
     kconfig::CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
     printkln,
@@ -583,22 +582,22 @@ impl Simple {
 
     fn run(&self, workers: usize, iterations: usize) {
         // printkln!("Running Simple");
-        let main: Pin<Arc<Work<_>>> = Work::new(SimpleMain::new(workers * iterations, self.workq));
+        let main = Work::new_arc(SimpleMain::new(workers * iterations, self.workq));
 
         let children: VecDeque<_> = (0..workers)
-            .map(|n| Work::new(SimpleWorker::new(main.clone(), self.workq, n)))
+            .map(|n| Work::new_arc(SimpleWorker::new(main.0.clone(), self.workq, n)).0)
             .collect();
 
-        let mut locked = main.action().locked.lock().unwrap();
+        let mut locked = main.0.action().locked.lock().unwrap();
         let _ = mem::replace(&mut locked.works, children);
         drop(locked);
 
         let start = now();
         // Fire off main, which will run everything.
-        Work::submit_to_queue(main.clone(), self.workq).unwrap();
+        main.clone().submit_to_queue(self.workq).unwrap();
 
         // And wait for the completion semaphore.
-        main.action().done.take(Forever).unwrap();
+        main.0.action().done.take(Forever).unwrap();
 
         let stop = now();
         let time = (stop - start) as f64 / (CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC as f64) * 1000.0;
@@ -619,30 +618,28 @@ impl Simple {
         );
 
         // Before we go away, make sure that there aren't any leaked workers.
-        let mut locked = main.action().locked.lock().unwrap();
+        let mut locked = main.0.action().locked.lock().unwrap();
         while let Some(other) = locked.works.pop_front() {
-            let other = Pin::into_inner(other);
             assert_eq!(Arc::strong_count(&other), 1);
         }
         drop(locked);
 
         // And nothing has leaked main, either.
-        let main = Pin::into_inner(main);
-        assert_eq!(Arc::strong_count(&main), 1);
+        assert_eq!(Arc::strong_count(&main.0), 1);
     }
 }
 
 /// A simple worker.  When run, it submits the main worker to do the next work.
 struct SimpleWorker {
-    main: PinWeak<Work<SimpleMain>>,
+    main: Weak<Work<SimpleMain>>,
     workq: &'static WorkQueue,
     _id: usize,
 }
 
 impl SimpleWorker {
-    fn new(main: Pin<Arc<Work<SimpleMain>>>, workq: &'static WorkQueue, id: usize) -> Self {
+    fn new(main: Arc<Work<SimpleMain>>, workq: &'static WorkQueue, id: usize) -> Self {
         Self {
-            main: PinWeak::downgrade(main),
+            main: Arc::downgrade(&main),
             workq,
             _id: id,
         }
@@ -650,10 +647,10 @@ impl SimpleWorker {
 }
 
 impl SimpleAction for SimpleWorker {
-    fn act(self: Pin<&Self>) {
+    fn act(self: &Self) {
         // Each time we are run, fire the main worker back up.
-        let main = self.main.upgrade().unwrap();
-        Work::submit_to_queue(main.clone(), self.workq).unwrap();
+        let main = ArcWork(self.main.upgrade().unwrap());
+        main.clone().submit_to_queue(self.workq).unwrap();
     }
 }
 
@@ -668,7 +665,7 @@ struct SimpleMain {
 }
 
 impl SimpleAction for SimpleMain {
-    fn act(self: Pin<&Self>) {
+    fn act(self: &Self) {
         // Each time, take a worker from the queue, and submit it.
         let mut lock = self.locked.lock().unwrap();
 
@@ -683,7 +680,7 @@ impl SimpleAction for SimpleMain {
         lock.count -= 1;
         drop(lock);
 
-        Work::submit_to_queue(worker.clone(), self.workq).unwrap();
+        ArcWork(worker.clone()).submit_to_queue(self.workq).unwrap();
     }
 }
 
@@ -698,7 +695,7 @@ impl SimpleMain {
 }
 
 struct Locked {
-    works: VecDeque<Pin<Arc<Work<SimpleWorker>>>>,
+    works: VecDeque<Arc<Work<SimpleWorker>>>,
     count: usize,
 }
 
