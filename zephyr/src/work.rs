@@ -469,6 +469,37 @@ impl<T: SimpleAction + Send> ArcWork<T> {
     }
 }
 
+/// Static Work.
+///
+/// Work items can also be declared statically.  Note that the work should only be submitted after
+/// it has been moved to it's final static location.
+pub struct StaticWork<T: SimpleAction + Send + 'static>(pub &'static Work<T>);
+
+impl<T: SimpleAction + Send + 'static> StaticWork<T> {
+    /// Submit this work to the system work queue.
+    pub fn submit(self) -> crate::Result<SubmitResult> {
+        SubmitResult::to_result(unsafe { k_work_submit(self.0.work.get()) })
+    }
+
+    /// Submit this work to the a specific work queue.
+    pub fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), self.0.work.get()) })
+    }
+
+    /// The handler for static work.
+    extern "C" fn handler(work: *mut k_work) {
+        let ptr = unsafe {
+            work
+                .cast::<u8>()
+                .sub(mem::offset_of!(Work<T>, work))
+                .cast::<Work<T>>()
+        };
+        let this = unsafe { &*ptr };
+        let action = &this.action;
+        action.act();
+    }
+}
+
 impl<T: SimpleAction + Send> Work<T> {
     /// Construct a new Work from the given action.
     ///
@@ -490,6 +521,20 @@ impl<T: SimpleAction + Send> Work<T> {
         let this = Arc::new(Work { work, action });
 
         ArcWork(this)
+    }
+}
+
+impl<T: SimpleAction + Send + 'static> Work<T> {
+    /// Construct a static worker.
+    pub const fn new_static(action: T) -> Work<T> {
+        let work = <ZephyrObject<k_work>>::new_raw();
+
+        unsafe { 
+            let addr = work.get_uninit();
+            (*addr).handler = Some(StaticWork::<T>::handler);
+        }
+
+        Work { work, action }
     }
 
     /// Access the inner action.
@@ -514,6 +559,16 @@ impl<T: SimpleAction + Send> SubmittablePointer<T> for Arc<Work<T>> {
 
     fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
         ArcWork(self).submit_to_queue(queue)
+    }
+}
+
+impl<T: SimpleAction + Send + 'static> SubmittablePointer<T> for &'static Work<T> {
+    fn submit(self) -> crate::Result<SubmitResult> {
+        StaticWork(self).submit()
+    }
+
+    fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        StaticWork(self).submit_to_queue(queue)
     }
 }
 
