@@ -75,3 +75,4 @@ nodename = @{
 }
 
 WHITESPACE = _{ " " | "\r" | "\n" | "\t" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
