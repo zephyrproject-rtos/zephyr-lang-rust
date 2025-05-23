@@ -48,9 +48,8 @@ use portable_atomic::AtomicBool;
 use portable_atomic_util::Arc;
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
-    k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config,
-    k_work_queue_init, k_work_queue_start, k_work_submit, k_work_submit_to_queue,
-    z_thread_stack_element,
+    k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config, k_work_queue_init,
+    k_work_queue_start, k_work_submit, k_work_submit_to_queue, z_thread_stack_element,
 };
 
 use crate::{
@@ -421,7 +420,8 @@ impl<T: SimpleAction + Send> ArcWork<T> {
         let work = unsafe { self.0.work.get() };
         let _ = Arc::into_raw(self.0);
 
-        let result = SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) });
+        let result =
+            SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) });
 
         Self::check_drop(work, &result);
 
@@ -483,14 +483,15 @@ impl<T: SimpleAction + Send + 'static> StaticWork<T> {
 
     /// Submit this work to the a specific work queue.
     pub fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
-        SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), self.0.work.get()) })
+        SubmitResult::to_result(unsafe {
+            k_work_submit_to_queue(queue.item.get(), self.0.work.get())
+        })
     }
 
     /// The handler for static work.
     extern "C" fn handler(work: *mut k_work) {
         let ptr = unsafe {
-            work
-                .cast::<u8>()
+            work.cast::<u8>()
                 .sub(mem::offset_of!(Work<T>, work))
                 .cast::<Work<T>>()
         };
@@ -529,7 +530,7 @@ impl<T: SimpleAction + Send + 'static> Work<T> {
     pub const fn new_static(action: T) -> Work<T> {
         let work = <ZephyrObject<k_work>>::new_raw();
 
-        unsafe { 
+        unsafe {
             let addr = work.get_uninit();
             (*addr).handler = Some(StaticWork::<T>::handler);
         }
