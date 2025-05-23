@@ -28,17 +28,16 @@ features = [
 
 [dependencies.embassy-futures]
 version = "0.1.1"
-# path = "../../embassy/embassy-futures"
 
 [dependencies.embassy-sync]
 version = "0.6.2"
-# path = "../../embassy/embassy-sync"
 
 [dependencies.embassy-time]
 version = "0.4.0"
-# path = "../../embassy/embassy-time"
-# This is board specific.
-features = ["tick-hz-10_000"]
+# For real builds, you should figure out your target's tick rate and set the appropriate feature,
+# like in these examples.  Without this, embassy-time will assume a 1Mhz tick rate, and every time
+# operation will involve a conversion.
+#features = ["tick-hz-10_000"]
 
 [dependencies.critical-section]
 version = "1.2"

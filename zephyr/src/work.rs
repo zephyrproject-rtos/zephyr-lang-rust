@@ -17,227 +17,152 @@
 //! having the `k_work` embedded in their structure, and Zephyr schedules the work when the given
 //! reason happens.
 //!
-//! At this time, only the basic work queue type is supported.
+//! At this point, this code supports the simple work queues, with [`Work`] items.
 //!
-//! Zephyr's work queues can be used in different ways:
+//! Work Queues should be declared with the `define_work_queue!` macro, this macro requires the name
+//! of the symbol for the work queue, the stack size, and then zero or more optional arguments,
+//! defined by the fields in the [`WorkQueueDeclArgs`] struct.  For example:
 //!
-//! - Work can be scheduled as needed.  For example, an IRQ handler can queue a work item to process
-//!   data it has received from a device.
-//! - Work can be scheduled periodically.
-//!
-//! As most C use of Zephyr statically allocates things like work, these are typically rescheduled
-//! when the work is complete.  The work queue scheduling functions are designed, and intended, for
-//! a given work item to be able to reschedule itself, and such usage is common.
-//!
-//! ## Ownership
-//!
-//! The remaining challenge with implementing `k_work` for Rust is that of ownership.  The model
-//! taken here is that the work items are held in a `Box` that is effectively owned by the work
-//! itself.  When the work item is scheduled to Zephyr, ownership of that box is effectively handed
-//! off to C, and then when the work item is called, the Box re-constructed.  This repeats until the
-//! work is no longer needed, at which point the work will be dropped.
-//!
-//! There are two common ways the lifecycle of work can be managed in an embedded system:
-//!
-//! - A set of `Future`'s are allocated once at the start, and these never return a value.  Work
-//!   Futures inside of this (which correspond to `.await` in async code) can have lives and return
-//!   values, but the main loops will not return values, or be dropped.  Embedded Futures will
-//!   typically not be boxed.
-//!
-//! One consequence of the ownership being passed through to C code is that if the work cancellation
-//! mechanism is used on a work queue, the work items themselves will be leaked.
-//!
-//! These work items are also `Pin`, to ensure that the work actions are not moved.
-//!
-//! ## The work queues themselves
-//!
-//! Workqueues themselves are built using [`WorkQueueBuilder`].  This needs a statically defined
-//! stack.  Typical usage will be along the lines of:
 //! ```rust
-//! kobj_define! {
-//!   WORKER_STACK: ThreadStack<2048>;
-//! }
-//! // ...
-//! let main_worker = Box::new(
-//!     WorkQueueBuilder::new()
-//!         .set_priority(2).
-//!         .set_name(c"mainloop")
-//!         .set_no_yield(true)
-//!         .start(MAIN_LOOP_STACK.init_once(()).unwrap())
-//!     );
-//!
-//! let _ = zephyr::kio::spawn(
-//!     mainloop(), // Async or function returning Future.
-//!     &main_worker,
-//!     c"w:mainloop",
-//! );
-//!
-//! ...
-//!
-//! // Leak the Box so that the worker is never freed.
-//! let _ = Box::leak(main_worker);
+//! define_work_queue!(MY_WORKQ, 2048, no_yield = true, priority = 2);
 //! ```
 //!
-//! It is important that WorkQueues never be dropped.  It has a Drop implementation that invokes
-//! panic.  Zephyr provides no mechanism to stop work queue threads, so dropping would result in
-//! undefined behavior.
-//!
-//! # Current Status
-//!
-//! Although Zephyr has 3 types of work queues, the `k_work_poll` is sufficient to implement all of
-//! the behavior, and this implementation only implements this type.  Non Future work could be built
-//! around the other work types.
-//!
-//! As such, this means that manually constructed work is still built using `Future`.  The `_async`
-//! primitives throughout this crate can be used just as readily by hand-written Futures as by async
-//! code.  Notable, the use of [`Signal`] will likely be common, along with possible timeouts.
-//!
-//! [`sys::sync::Semaphore`]: crate::sys::sync::Semaphore
-//! [`sync::channel`]: crate::sync::channel
-//! [`sync::Mutex`]: crate::sync::Mutex
-//! [`join`]: futures::JoinHandle::join
-//! [`join_async`]: futures::JoinHandle::join_async
+//! Then, in code, the work queue can be started, and used to issue work.
+//! ```rust
+//! let my_workq = MY_WORKQ.start();
+//! let action = Work::new(action_item);
+//! action.submit(my_workq);
+//! ```
 
 extern crate alloc;
 
 use core::{
-    cell::UnsafeCell,
-    ffi::{c_int, c_uint, CStr},
+    cell::{RefCell, UnsafeCell},
+    ffi::{c_char, c_int, c_uint},
     mem,
-    pin::Pin,
-    ptr,
+    sync::atomic::Ordering,
 };
 
+use critical_section::Mutex;
+use portable_atomic::AtomicBool;
+use portable_atomic_util::Arc;
 use zephyr_sys::{
     k_poll_signal, k_poll_signal_check, k_poll_signal_init, k_poll_signal_raise,
     k_poll_signal_reset, k_work, k_work_init, k_work_q, k_work_queue_config, k_work_queue_init,
-    k_work_queue_start, k_work_submit, k_work_submit_to_queue,
+    k_work_queue_start, k_work_submit, k_work_submit_to_queue, z_thread_stack_element,
 };
 
 use crate::{
     error::to_result_void,
-    object::Fixed,
+    object::{Fixed, ObjectInit, ZephyrObject},
     simpletls::SimpleTls,
-    sync::{Arc, Mutex},
-    sys::thread::ThreadStack,
 };
 
-/// A builder for work queues themselves.
-///
-/// A work queue is a Zephyr thread that instead of directly running a piece of code, manages a work
-/// queue.  Various types of `Work` can be submitted to these queues, along with various types of
-/// triggering conditions.
-pub struct WorkQueueBuilder {
-    /// The "config" value passed in.
-    config: k_work_queue_config,
-    /// Priority for the work queue thread.
-    priority: c_int,
+/// The WorkQueue decl args as a struct, so we can have a default, and the macro can fill in those
+/// specified by the user.
+pub struct WorkQueueDeclArgs {
+    /// Should this work queue call yield after each queued item.
+    pub no_yield: bool,
+    /// Is this work queue thread "essential".
+    ///
+    /// Threads marked essential will panic if they stop running.
+    pub essential: bool,
+    /// Zephyr thread priority for the work queue thread.
+    pub priority: c_int,
 }
 
-impl WorkQueueBuilder {
-    /// Construct a new WorkQueueBuilder with default values.
-    pub fn new() -> Self {
+impl WorkQueueDeclArgs {
+    /// Like `Default::default`, but const.
+    pub const fn default_values() -> Self {
         Self {
-            config: k_work_queue_config {
-                name: ptr::null(),
-                no_yield: false,
-                essential: false,
-            },
+            no_yield: false,
+            essential: false,
             priority: 0,
         }
     }
+}
 
-    /// Set the name for the WorkQueue thread.
-    ///
-    /// This name shows up in debuggers and some analysis tools.
-    pub fn set_name(&mut self, name: &'static CStr) -> &mut Self {
-        self.config.name = name.as_ptr();
-        self
-    }
+/// A static declaration of a work-queue.  This associates a work queue, with a stack, and an atomic
+/// to determine if it has been initialized.
+// TODO: Remove the pub on the fields, and make a constructor.
+pub struct WorkQueueDecl<const SIZE: usize> {
+    queue: WorkQueue,
+    stack: &'static crate::thread::ThreadStack<SIZE>,
+    config: k_work_queue_config,
+    priority: c_int,
+    started: AtomicBool,
+}
 
-    /// Set the "no yield" flag for the created worker.
-    ///
-    /// If this is not set, the work queue will call `k_yield` between each enqueued work item.  For
-    /// non-preemptible threads, this will allow other threads to run.  For preemptible threads,
-    /// this will allow other threads at the same priority to run.
-    ///
-    /// This method has a negative in the name, which goes against typical conventions.  This is
-    /// done to match the field in the Zephyr config.
-    pub fn set_no_yield(&mut self, value: bool) -> &mut Self {
-        self.config.no_yield = value;
-        self
-    }
+// SAFETY: Sync is needed here to make a static declaration, despite the `*const i8` that is burried
+// in the config.
+unsafe impl<const SIZE: usize> Sync for WorkQueueDecl<SIZE> {}
 
-    /// Set the "essential" flag for the created worker.
-    ///
-    /// This sets the essential flag on the running thread.  The system considers the termination of
-    /// an essential thread to be a fatal error.
-    pub fn set_essential(&mut self, value: bool) -> &mut Self {
-        self.config.essential = value;
-        self
-    }
-
-    /// Set the priority for the worker thread.
-    ///
-    /// See the Zephyr docs for the meaning of priority.
-    pub fn set_priority(&mut self, value: c_int) -> &mut Self {
-        self.priority = value;
-        self
-    }
-
-    /// Start the given work queue thread.
-    ///
-    /// TODO: Implement a 'start' that works from a static work queue.
-    pub fn start(&self, stack: ThreadStack) -> WorkQueue {
-        let item: Fixed<k_work_q> = Fixed::new(unsafe { mem::zeroed() });
-        unsafe {
-            // SAFETY: Initialize zeroed memory.
-            k_work_queue_init(item.get());
-
-            // SAFETY: This associates the workqueue with the thread ID that runs it.  The thread is
-            // a pointer into this work item, which will not move, because of the Fixed.
-            let this = &mut *item.get();
-            WORK_QUEUES
-                .lock()
-                .unwrap()
-                .insert(&this.thread, WorkQueueRef(item.get()));
-
-            // SAFETY: Start work queue thread.  The main issue here is that the work queue cannot
-            // be deallocated once the thread has started.  We enforce this by making Drop panic.
-            k_work_queue_start(
-                item.get(),
-                stack.base,
-                stack.size,
-                self.priority,
-                &self.config,
-            );
+impl<const SIZE: usize> WorkQueueDecl<SIZE> {
+    /// Static constructor.  Mostly for use by the macro.
+    pub const fn new(
+        stack: &'static crate::thread::ThreadStack<SIZE>,
+        name: *const c_char,
+        args: WorkQueueDeclArgs,
+    ) -> Self {
+        Self {
+            queue: unsafe { mem::zeroed() },
+            stack,
+            config: k_work_queue_config {
+                name,
+                no_yield: args.no_yield,
+                essential: args.essential,
+            },
+            priority: args.priority,
+            started: AtomicBool::new(false),
         }
+    }
 
-        WorkQueue { item }
+    /// Start the work queue thread, if needed, and return a reference to it.
+    pub fn start(&'static self) -> &'static WorkQueue {
+        critical_section::with(|cs| {
+            if self.started.load(Ordering::Relaxed) {
+                // Already started, just return it.
+                return &self.queue;
+            }
+
+            // SAFETY: Starting is coordinated by the atomic, as well as being protected in a
+            // critical section.
+            unsafe {
+                let this = &mut *self.queue.item.get();
+
+                k_work_queue_init(self.queue.item.get());
+
+                // Add to the WORK_QUEUES data.  That needs to be changed to a critical
+                // section Mutex from a Zephyr Mutex, as that would deadlock if called while in a
+                // critrical section.
+                let mut tls = WORK_QUEUES.borrow_ref_mut(cs);
+                tls.insert(&this.thread, WorkQueueRef(self.queue.item.get()));
+
+                // Start the work queue thread.
+                k_work_queue_start(
+                    self.queue.item.get(),
+                    self.stack.data.get() as *mut z_thread_stack_element,
+                    self.stack.size(),
+                    self.priority,
+                    &self.config,
+                );
+            }
+
+            &self.queue
+        })
     }
 }
 
 /// A running work queue thread.
 ///
-/// # Panic
+/// This must be declared statically, and initialized once.  Please see the macro
+/// [`define_work_queue`] which declares this with a [`WorkQueue`] to help with the
+/// association with a stack, and making sure the queue is only started once.
 ///
-/// Allowing a work queue to drop will result in a panic.  There are two ways to handle this,
-/// depending on whether the WorkQueue is in a Box, or an Arc:
-/// ```
-/// // Leak a work queue in an Arc.
-/// let wq = Arc::new(WorkQueueBuilder::new().start(...));
-/// // If the Arc is used after this:
-/// let _ = Arc::into_raw(wq.clone());
-/// // If the Arc is no longer needed:
-/// let _ = Arc::into_raw(wq);
-///
-/// // Leak a work queue in a Box.
-/// let wq = Box::new(WorkQueueBuilder::new().start(...));
-/// let _ = Box::leak(wq);
-/// ```
+/// [`define_work_queue`]: crate::define_work_queue
 pub struct WorkQueue {
     #[allow(dead_code)]
-    item: Fixed<k_work_q>,
+    item: UnsafeCell<k_work_q>,
 }
 
 /// Work queues can be referenced from multiple threads, and thus are Send and Sync.
@@ -265,7 +190,8 @@ impl Drop for WorkQueue {
 ///
 /// This is a little bit messy as we don't have a lazy mechanism, so we have to handle this a bit
 /// manually right now.
-static WORK_QUEUES: Mutex<SimpleTls<WorkQueueRef>> = Mutex::new(SimpleTls::new());
+static WORK_QUEUES: Mutex<RefCell<SimpleTls<WorkQueueRef>>> =
+    Mutex::new(RefCell::new(SimpleTls::new()));
 
 /// For the queue mapping, we need a simple wrapper around the underlying pointer, one that doesn't
 /// implement stop.
@@ -278,7 +204,7 @@ unsafe impl Sync for WorkQueueRef {}
 
 /// Retrieve the current work queue, if we are running within one.
 pub fn get_current_workq() -> Option<*mut k_work_q> {
-    WORK_QUEUES.lock().unwrap().get().map(|wq| wq.0)
+    critical_section::with(|cs| WORK_QUEUES.borrow_ref(cs).get().map(|wq| wq.0))
 }
 
 /// A Rust wrapper for `k_poll_signal`.
@@ -417,7 +343,7 @@ impl SubmitResult {
 /// below uses an Arc, so this data can be shared.
 pub trait SimpleAction {
     /// Perform the action.
-    fn act(self: Pin<&Self>);
+    fn act(self: &Self);
 }
 
 /// A basic Zephyr work item.
@@ -425,7 +351,7 @@ pub trait SimpleAction {
 /// Holds a `k_work`, along with the data associated with that work.  When the work is queued, the
 /// `act` method will be called on the provided `SimpleAction`.
 pub struct Work<T> {
-    work: UnsafeCell<k_work>,
+    work: ZephyrObject<k_work>,
     action: T,
 }
 
@@ -445,6 +371,136 @@ where
 {
 }
 
+/// Arc held work.
+///
+/// Because C code takes ownership of the work, we only support submitting work with very specific
+/// pointer types.  This wraps an Arc holding work to allow Work held in an Arc to be queued.
+/// Earlier versions of this required the work to be `Pin<Arc<..>>`, however, we use
+/// [`ZephyrObject`] to hold work items, anyway, and this already does a runtime check to prevents
+/// moves, so we can safely avoid needing to use `Pin`.  However, note that if the work is moved
+/// between it's first use, and subsequent use, it will panic.
+pub struct ArcWork<T: SimpleAction + Send>(pub Arc<Work<T>>);
+
+/// Clone just passes the clone to the arc.
+impl<T: SimpleAction + Send> Clone for ArcWork<T> {
+    fn clone(&self) -> Self {
+        ArcWork(self.0.clone())
+    }
+}
+
+impl<T: SimpleAction + Send> ArcWork<T> {
+    /// Submit this work to the system work queue.
+    ///
+    /// This can return several possible `Ok` results.  See the docs on [`SubmitResult`] for an
+    /// explanation of them.
+    pub fn submit(self) -> crate::Result<SubmitResult> {
+        // Leak the arc, so that when the handler runs, it can be safely turned back into an Arc,
+        // and then the drop on the Arc will run.
+        // SAFETY: As we are leaking the pointer until the C code is done with it, it is safe to get
+        // the pointer to the raw work.
+        let work = unsafe { self.0.work.get() };
+        let _ = Arc::into_raw(self.0);
+
+        let result = SubmitResult::to_result(unsafe { k_work_submit(work) });
+
+        Self::check_drop(work, &result);
+
+        result
+    }
+
+    /// Submit this work to the given work queue.
+    ///
+    /// This can return several possible `Ok` results.  See the docs on [`SubmitResult`] for an
+    /// explanation of them.
+    pub fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        // Leak the arc, so that when the handler runs, it can be safely turned back into an Arc,
+        // and then the drop on the Arc will run.
+        // SAFETY: As we are leaking the pointer until the C code is done with it, it is safe to get
+        // the pointer to the raw work.
+        let work = unsafe { self.0.work.get() };
+        let _ = Arc::into_raw(self.0);
+
+        let result =
+            SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) });
+
+        Self::check_drop(work, &result);
+
+        result
+    }
+
+    /// Given the raw "C" work pointer, get a pointer back to our work item.
+    unsafe fn from_raw(ptr: *const k_work) -> Self {
+        let ptr = ptr
+            .cast::<u8>()
+            .sub(mem::offset_of!(Work<T>, work))
+            .cast::<Work<T>>();
+        let this = Arc::from_raw(ptr);
+        Self(this)
+    }
+
+    /// Check if the C code has "dropped" it's reference, and drop our Arc reference as well.  This
+    /// should detect the case where the work was not queued, and no callback, of this ownership,
+    /// will be called.
+    fn check_drop(work: *const k_work, result: &crate::Result<SubmitResult>) {
+        if matches!(result, Ok(SubmitResult::AlreadySubmitted) | Err(_)) {
+            // SAFETY: If the above matches, it indicates this work was already running, and someone
+            // other than the work itself is trying to submit it.  In this case, there will be no
+            // callback that belongs to this particular context.  Err also indicates that the work
+            // was not enqueued.
+            unsafe {
+                let this = Self::from_raw(work);
+                drop(this);
+            }
+        }
+    }
+
+    /// The handler for Arc based work.
+    extern "C" fn handler(work: *mut k_work) {
+        // Reconstruct self out of the work.
+        // SAFETY: The submit functions will leak the arc any time C has ownership of the Work, and
+        // the C will relinquish that ownership when calling this handler.
+        let this = unsafe { Self::from_raw(work) };
+
+        let action = &this.0.action;
+
+        action.act();
+
+        // This will be dropped.
+    }
+}
+
+/// Static Work.
+///
+/// Work items can also be declared statically.  Note that the work should only be submitted after
+/// it has been moved to it's final static location.
+pub struct StaticWork<T: SimpleAction + Send + 'static>(pub &'static Work<T>);
+
+impl<T: SimpleAction + Send + 'static> StaticWork<T> {
+    /// Submit this work to the system work queue.
+    pub fn submit(self) -> crate::Result<SubmitResult> {
+        SubmitResult::to_result(unsafe { k_work_submit(self.0.work.get()) })
+    }
+
+    /// Submit this work to the a specific work queue.
+    pub fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        SubmitResult::to_result(unsafe {
+            k_work_submit_to_queue(queue.item.get(), self.0.work.get())
+        })
+    }
+
+    /// The handler for static work.
+    extern "C" fn handler(work: *mut k_work) {
+        let ptr = unsafe {
+            work.cast::<u8>()
+                .sub(mem::offset_of!(Work<T>, work))
+                .cast::<Work<T>>()
+        };
+        let this = unsafe { &*ptr };
+        let action = &this.action;
+        action.act();
+    }
+}
+
 impl<T: SimpleAction + Send> Work<T> {
     /// Construct a new Work from the given action.
     ///
@@ -453,96 +509,106 @@ impl<T: SimpleAction + Send> Work<T> {
     /// inter-thread sharing mechanisms are needed.
     ///
     /// TODO: Can we come up with a way to allow sharing on the same worker using Rc instead of Arc?
-    pub fn new(action: T) -> Pin<Arc<Self>> {
-        let this = Arc::pin(Self {
-            // SAFETY: will be initialized below, after this is pinned.
-            work: unsafe { mem::zeroed() },
-            action,
-        });
+    pub fn new_arc(action: T) -> ArcWork<T> {
+        let work = <ZephyrObject<k_work>>::new_raw();
 
-        // SAFETY: Initializes above zero-initialized struct.
+        // SAFETY: Initializes the above zero-initialized struct.  Initialization once is handled by
+        // ZephyrObject.
         unsafe {
-            k_work_init(this.work.get(), Some(Self::handler));
+            let addr = work.get_uninit();
+            (*addr).handler = Some(ArcWork::<T>::handler);
         }
 
-        this
+        let this = Arc::new(Work { work, action });
+
+        ArcWork(this)
     }
+}
 
-    /// Submit this work to the system work queue.
-    ///
-    /// This can return several possible `Ok` results.  See the docs on [`SubmitResult`] for an
-    /// explanation of them.
-    pub fn submit(this: Pin<Arc<Self>>) -> crate::Result<SubmitResult> {
-        // We "leak" the arc, so that when the handler runs, it can be safely turned back into an
-        // Arc, and the drop on the arc will then run.
-        let work = this.work.get();
+impl<T: SimpleAction + Send + 'static> Work<T> {
+    /// Construct a static worker.
+    pub const fn new_static(action: T) -> Work<T> {
+        let work = <ZephyrObject<k_work>>::new_raw();
 
-        // SAFETY: C the code does not perform moves on the data, and the `from_raw` below puts it
-        // back into a Pin when it reconstructs the Arc.
-        let this = unsafe { Pin::into_inner_unchecked(this) };
-        let _ = Arc::into_raw(this);
+        unsafe {
+            let addr = work.get_uninit();
+            (*addr).handler = Some(StaticWork::<T>::handler);
+        }
 
-        // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
-        // work item is no longer queued when the data is dropped.
-        SubmitResult::to_result(unsafe { k_work_submit(work) })
-    }
-
-    /// Submit this work to a specified work queue.
-    ///
-    /// TODO: Change when we have better wrappers for work queues.
-    pub fn submit_to_queue(this: Pin<Arc<Self>>, queue: &WorkQueue) -> crate::Result<SubmitResult> {
-        let work = this.work.get();
-
-        // "leak" the arc to give to C.  We'll reconstruct it in the handler.
-        // SAFETY: The C code does not perform moves on the data, and the `from_raw` below puts it
-        // back into a Pin when it reconstructs the Arc.
-        let this = unsafe { Pin::into_inner_unchecked(this) };
-        let _ = Arc::into_raw(this);
-
-        // SAFETY: The Pin ensures this will not move.  Our implementation of drop ensures that the
-        // work item is no longer queued when the data is dropped.
-        SubmitResult::to_result(unsafe { k_work_submit_to_queue(queue.item.get(), work) })
-    }
-
-    /// Callback, through C, but bound by a specific type.
-    extern "C" fn handler(work: *mut k_work) {
-        // We want to avoid needing a `repr(C)` on our struct, so the `k_work` pointer is not
-        // necessarily at the beginning of the struct.
-        // SAFETY: Converts raw pointer to work back into the box.
-        let this = unsafe { Self::from_raw(work) };
-
-        // Access the action within, still pinned.
-        // SAFETY: It is safe to keep the pin on the interior.
-        let action = unsafe { this.as_ref().map_unchecked(|p| &p.action) };
-
-        action.act();
-    }
-
-    /*
-    /// Consume this Arc, returning the internal pointer.  Needs to have a complementary `from_raw`
-    /// called to avoid leaking the item.
-    fn into_raw(this: Pin<Arc<Self>>) -> *const Self {
-        // SAFETY: This removes the Pin guarantee, but is given as a raw pointer to C, which doesn't
-        // generally use move.
-        let this = unsafe { Pin::into_inner_unchecked(this) };
-        Arc::into_raw(this)
-    }
-    */
-
-    /// Given a pointer to the work_q burried within, recover the Pinned Box containing our data.
-    unsafe fn from_raw(ptr: *const k_work) -> Pin<Arc<Self>> {
-        // SAFETY: This fixes the pointer back to the beginning of Self.  This also assumes the
-        // pointer is valid.
-        let ptr = ptr
-            .cast::<u8>()
-            .sub(mem::offset_of!(Self, work))
-            .cast::<Self>();
-        let this = Arc::from_raw(ptr);
-        Pin::new_unchecked(this)
+        Work { work, action }
     }
 
     /// Access the inner action.
     pub fn action(&self) -> &T {
         &self.action
     }
+}
+
+/// Capture the kinds of pointers that are safe to submit to work queues.
+pub trait SubmittablePointer<T> {
+    /// Submit this work to the system work queue.
+    fn submit(self) -> crate::Result<SubmitResult>;
+
+    /// Submit this work to the given work queue.
+    fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult>;
+}
+
+impl<T: SimpleAction + Send> SubmittablePointer<T> for Arc<Work<T>> {
+    fn submit(self) -> crate::Result<SubmitResult> {
+        ArcWork(self).submit()
+    }
+
+    fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        ArcWork(self).submit_to_queue(queue)
+    }
+}
+
+impl<T: SimpleAction + Send + 'static> SubmittablePointer<T> for &'static Work<T> {
+    fn submit(self) -> crate::Result<SubmitResult> {
+        StaticWork(self).submit()
+    }
+
+    fn submit_to_queue(self, queue: &'static WorkQueue) -> crate::Result<SubmitResult> {
+        StaticWork(self).submit_to_queue(queue)
+    }
+}
+
+impl ObjectInit<k_work> for ZephyrObject<k_work> {
+    fn init(item: *mut k_work) {
+        // SAFETY: The handler was stashed in this field when constructing.  At this point, the item
+        // will be pinned.
+        unsafe {
+            let handler = (*item).handler;
+            k_work_init(item, handler);
+        }
+    }
+}
+
+/// Declare a static work queue.
+///
+/// This declares a static work queue (of type [`WorkQueueDecl`]).  This will have a single method
+/// `.start()` which can be used to start the work queue, as well as return the persistent handle
+/// that can be used to enqueue to it.
+#[macro_export]
+macro_rules! define_work_queue {
+    ($name:ident, $stack_size:expr) => {
+        $crate::define_work_queue!($name, $stack_size,);
+    };
+    ($name:ident, $stack_size:expr, $($key:ident = $value:expr),* $(,)?) => {
+        static $name: $crate::work::WorkQueueDecl<$stack_size> = {
+            #[link_section = concat!(".noinit.workq.", stringify!($name))]
+            static _ZEPHYR_STACK: $crate::thread::ThreadStack<$stack_size> =
+                $crate::thread::ThreadStack::new();
+            const _ZEPHYR_C_NAME: &[u8] = concat!(stringify!($name), "\0").as_bytes();
+            const _ZEPHYR_ARGS: $crate::work::WorkQueueDeclArgs = $crate::work::WorkQueueDeclArgs {
+                $($key: $value,)*
+                ..$crate::work::WorkQueueDeclArgs::default_values()
+            };
+            $crate::work::WorkQueueDecl::new(
+                &_ZEPHYR_STACK,
+                _ZEPHYR_C_NAME.as_ptr() as *const ::core::ffi::c_char,
+                _ZEPHYR_ARGS,
+            )
+        };
+    };
 }
