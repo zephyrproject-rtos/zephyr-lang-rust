@@ -31,8 +31,8 @@ mod async_io {
     use embassy_sync::waitqueue::AtomicWaker;
     use zephyr_sys::{
         device, gpio_add_callback, gpio_callback, gpio_init_callback, gpio_pin_interrupt_configure,
-        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, GPIO_INT_EDGE_FALLING, GPIO_INT_EDGE_RISING, 
-        ZR_GPIO_INT_MODE_DISABLE_ONLY,
+        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, GPIO_INT_EDGE_FALLING,
+        GPIO_INT_EDGE_RISING, ZR_GPIO_INT_MODE_DISABLE_ONLY,
     };
 
     use crate::sync::atomic::{AtomicBool, AtomicU32};
@@ -212,15 +212,17 @@ mod async_io {
             self.pin.data.register(self.pin.pin.pin, cx.waker());
 
             let mode = match self.level {
-                0 => GPIO_INT_EDGE_FALLING/*GPIO_INT_LEVEL_LOW*/,
-                1 => GPIO_INT_EDGE_RISING/*GPIO_INT_LEVEL_HIGH*/,
+                0 => GPIO_INT_EDGE_FALLING,
+                1 => GPIO_INT_EDGE_RISING,
                 _ => unreachable!(),
             };
 
             unsafe {
                 gpio_pin_interrupt_configure_dt(&self.pin.pin, mode);
 
-                if self.level == zephyr_sys::gpio_pin_get_raw(self.pin.pin.port,self.pin.pin.pin) as u8 {
+                if self.level
+                    == zephyr_sys::gpio_pin_get_raw(self.pin.pin.port, self.pin.pin.pin) as u8
+                {
                     let cb = self.pin.data.callback.get();
                     GpioStatic::callback_handler(self.pin.pin.port, cb, 1 << self.pin.pin.pin);
                 }
