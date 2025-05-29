@@ -71,7 +71,7 @@
 //!
 //! ## Caveats
 //!
-//! [`Semaphore::take_async`]: crate::sys::sync::Semaphore::take_async
+//! The executor currently doesn't support async waits on Zephyr primitives, such as Semaphore.
 
 #[cfg(feature = "time-driver")]
 mod time_driver;
