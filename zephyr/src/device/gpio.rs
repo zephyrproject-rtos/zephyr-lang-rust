@@ -35,7 +35,10 @@ mod async_io {
         ZR_GPIO_INT_MODE_DISABLE_ONLY,
     };
 
-    use crate::sync::atomic::{AtomicBool, AtomicU32};
+    use crate::{
+        printkln,
+        sync::atomic::{AtomicBool, AtomicU32},
+    };
 
     use super::{GpioPin, GpioToken};
 
@@ -112,6 +115,7 @@ mod async_io {
             cb: *mut gpio_callback,
             mut pins: gpio_port_pins_t,
         ) {
+            printkln!("GPIO callback: {}", pins);
             let data = unsafe {
                 cb.cast::<u8>()
                     .sub(mem::offset_of!(Self, callback))
