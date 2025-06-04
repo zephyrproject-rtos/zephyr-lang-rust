@@ -74,6 +74,7 @@ fn main() -> Result<()> {
         .clang_arg("-DRUST_BINDGEN")
         .clang_arg(format!("-I{}/lib/libc/minimal/include", zephyr_base))
         .derive_copy(false)
+        .derive_default(true)
         .allowlist_function("k_.*")
         .allowlist_function("gpio_.*")
         .allowlist_function("flash_.*")
