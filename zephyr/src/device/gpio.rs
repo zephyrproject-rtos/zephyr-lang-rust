@@ -31,8 +31,8 @@ mod async_io {
     use embassy_sync::waitqueue::AtomicWaker;
     use zephyr_sys::{
         device, gpio_add_callback, gpio_callback, gpio_init_callback, gpio_pin_interrupt_configure,
-        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, GPIO_INT_LEVEL_HIGH, GPIO_INT_LEVEL_LOW,
-        ZR_GPIO_INT_MODE_DISABLE_ONLY,
+        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, ZR_GPIO_INT_LEVEL_HIGH,
+        ZR_GPIO_INT_LEVEL_LOW, ZR_GPIO_INT_MODE_DISABLE_ONLY,
     };
 
     use crate::sync::atomic::{AtomicBool, AtomicU32};
@@ -212,8 +212,8 @@ mod async_io {
             self.pin.data.register(self.pin.pin.pin, cx.waker());
 
             let mode = match self.level {
-                0 => GPIO_INT_LEVEL_LOW,
-                1 => GPIO_INT_LEVEL_HIGH,
+                0 => ZR_GPIO_INT_LEVEL_LOW,
+                1 => ZR_GPIO_INT_LEVEL_HIGH,
                 _ => unreachable!(),
             };
 

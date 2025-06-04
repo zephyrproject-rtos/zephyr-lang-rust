@@ -9,7 +9,7 @@ use embassy_time::{Duration, Ticker};
 use zephyr::{
     device::gpio::{GpioPin, GpioToken},
     embassy::Executor,
-    raw::{GPIO_INPUT, GPIO_OUTPUT_ACTIVE, GPIO_PULL_DOWN},
+    raw::{GPIO_PULL_DOWN, ZR_GPIO_INPUT, ZR_GPIO_OUTPUT_ACTIVE},
 };
 
 use embassy_executor::Spawner;
@@ -40,9 +40,9 @@ async fn main(spawner: Spawner) {
     let mut gpio_token = unsafe { zephyr::device::gpio::GpioToken::get_instance().unwrap() };
 
     unsafe {
-        col0.configure(&mut gpio_token, GPIO_OUTPUT_ACTIVE);
+        col0.configure(&mut gpio_token, ZR_GPIO_OUTPUT_ACTIVE);
         col0.set(&mut gpio_token, true);
-        row0.configure(&mut gpio_token, GPIO_INPUT | GPIO_PULL_DOWN);
+        row0.configure(&mut gpio_token, ZR_GPIO_INPUT | GPIO_PULL_DOWN);
     }
 
     loop {
