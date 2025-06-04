@@ -105,7 +105,6 @@ use core::{
     ffi::{c_int, c_uint, CStr},
     mem,
     pin::Pin,
-    ptr,
 };
 
 use zephyr_sys::{
@@ -138,11 +137,7 @@ impl WorkQueueBuilder {
     /// Construct a new WorkQueueBuilder with default values.
     pub fn new() -> Self {
         Self {
-            config: k_work_queue_config {
-                name: ptr::null(),
-                no_yield: false,
-                essential: false,
-            },
+            config: Default::default(),
             priority: 0,
         }
     }
