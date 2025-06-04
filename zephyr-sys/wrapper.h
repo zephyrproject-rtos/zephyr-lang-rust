@@ -42,6 +42,7 @@ extern int errno;
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
+#include <zephyr/drivers/eeprom.h>
 #include <zephyr/irq.h>
 
 /*
