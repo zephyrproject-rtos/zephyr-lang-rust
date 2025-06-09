@@ -191,23 +191,30 @@ impl RawInfo {
             Self::Myself => {
                 let ord = node.ord;
                 let rawdev = format_ident!("__device_dts_ord_{}", ord);
-                quote! {
-                    /// Get the raw `const struct device *` of the device tree generated node.
-                    pub unsafe fn get_instance_raw() -> *const crate::raw::device {
-                        &crate::raw::#rawdev
-                    }
-                    #[allow(dead_code)]
-                    pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
-                        &STATIC
-                    }
+                match node.get_single_string("status") {
+                    Some("okay") | Some("ok") | None => {
+                        quote! {
+                            /// Get the raw `const struct device *` of the device tree generated node.
+                            pub unsafe fn get_instance_raw() -> *const crate::raw::device {
+                                &crate::raw::#rawdev
+                            }
+                            #[allow(dead_code)]
+                            pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
+                                &STATIC
+                            }
 
-                    static UNIQUE: crate::device::Unique = crate::device::Unique::new();
-                    static STATIC: #static_type = #static_type::new();
-                    pub fn get_instance() -> Option<#device_id> {
-                        unsafe {
-                            let device = get_instance_raw();
-                            #device_id::new(&UNIQUE, &STATIC, device)
+                            static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                            static STATIC: #static_type = #static_type::new();
+                            pub fn get_instance() -> Option<#device_id> {
+                                unsafe {
+                                    let device = get_instance_raw();
+                                    #device_id::new(&UNIQUE, &STATIC, device)
+                                }
+                            }
                         }
+                    }
+                    _ => {
+                        quote! {}
                     }
                 }
             }
