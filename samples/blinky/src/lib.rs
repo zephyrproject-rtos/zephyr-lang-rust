@@ -10,7 +10,7 @@
 
 use log::warn;
 
-use zephyr::raw::GPIO_OUTPUT_ACTIVE;
+use zephyr::raw::ZR_GPIO_OUTPUT_ACTIVE;
 use zephyr::time::{sleep, Duration};
 
 #[no_mangle]
@@ -29,21 +29,16 @@ fn do_blink() {
     warn!("Inside of blinky");
 
     let mut led0 = zephyr::devicetree::aliases::led0::get_instance().unwrap();
-    let mut gpio_token = unsafe { zephyr::device::gpio::GpioToken::get_instance().unwrap() };
 
     if !led0.is_ready() {
         warn!("LED is not ready");
         loop {}
     }
 
-    unsafe {
-        led0.configure(&mut gpio_token, GPIO_OUTPUT_ACTIVE);
-    }
+    led0.configure(ZR_GPIO_OUTPUT_ACTIVE);
     let duration = Duration::millis_at_least(500);
     loop {
-        unsafe {
-            led0.toggle_pin(&mut gpio_token);
-        }
+        led0.toggle_pin();
         sleep(duration);
     }
 }
