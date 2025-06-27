@@ -21,6 +21,7 @@
 #![allow(clippy::transmute_int_to_bool)]
 #![allow(clippy::useless_transmute)]
 #![allow(clippy::len_without_is_empty)]
+#![allow(unnecessary_transmutes)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 // We have directed bindgen to not generate copy for any times.  It unfortunately doesn't have an
