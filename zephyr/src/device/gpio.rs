@@ -37,7 +37,7 @@ mod async_io {
 
     use crate::sync::atomic::{AtomicBool, AtomicU32};
 
-    use super::{GpioPin, GpioToken};
+    use super::GpioPin;
 
     pub(crate) struct GpioStatic {
         /// The wakers for each of the gpios.
@@ -158,13 +158,8 @@ mod async_io {
         ///
         /// # Safety
         ///
-        /// The `_token` enforces single use of gpios.  Note that this makes it impossible to wait for
-        /// more than one GPIO.
-        ///
-        pub unsafe fn wait_for_high(
-            &mut self,
-            _token: &mut GpioToken,
-        ) -> impl Future<Output = ()> + use<'_> {
+        /// Safety of multiple GPIOs depends on the underlying controller.
+        pub unsafe fn wait_for_high(&mut self) -> impl Future<Output = ()> + use<'_> {
             GpioWait::new(self, 1)
         }
 
@@ -172,12 +167,8 @@ mod async_io {
         ///
         /// # Safety
         ///
-        /// The `_token` enforces single use of gpios.  Note that this makes it impossible to wait
-        /// for more than one GPIO.
-        pub unsafe fn wait_for_low(
-            &mut self,
-            _token: &mut GpioToken,
-        ) -> impl Future<Output = ()> + use<'_> {
+        /// Safety of multiple GPIOs depends on the underlying controller.
+        pub unsafe fn wait_for_low(&mut self) -> impl Future<Output = ()> + use<'_> {
             GpioWait::new(self, 0)
         }
     }
@@ -245,35 +236,6 @@ mod async_io {
 
 pub(crate) use async_io::*;
 
-/// Global instance to help make gpio in Rust slightly safer.
-///
-/// # Safety
-///
-/// To help with safety, the rust types use a global instance of a gpio-token.  Methods will
-/// take a mutable reference to this, which will require either a single thread in the
-/// application code, or something like a mutex or critical section to manage.  The operation
-/// methods are still unsafe, because we have no control over what happens with the gpio
-/// operations outside of Rust code, but this will help make the Rust usage at least better.
-pub struct GpioToken(());
-
-static GPIO_TOKEN: Unique = Unique::new();
-
-impl GpioToken {
-    /// Retrieves the gpio token.
-    ///
-    /// # Safety
-    /// This is unsafe because lots of code in zephyr operates on the gpio drivers.  The user of the
-    /// gpio subsystem, in general should either coordinate all gpio access across the system (the
-    /// token coordinates this only within Rust code), or verify that the particular gpio driver and
-    /// methods are thread safe.
-    pub unsafe fn get_instance() -> Option<GpioToken> {
-        if !GPIO_TOKEN.once() {
-            return None;
-        }
-        Some(GpioToken(()))
-    }
-}
-
 /// A single instance of a zephyr device to manage a gpio controller.  A gpio controller
 /// represents a set of gpio pins, that are generally operated on by the same hardware block.
 pub struct Gpio {
@@ -312,9 +274,7 @@ impl Gpio {
 
 /// A GpioPin represents a single pin on a gpio device.
 ///
-/// This is a lightweight wrapper around the Zephyr `gpio_dt_spec` structure.  Note that
-/// multiple pins may share a gpio controller, and as such, all methods on this are both unsafe,
-/// and require a mutable reference to the [`GpioToken`].
+/// This is a lightweight wrapper around the Zephyr `gpio_dt_spec` structure.
 #[allow(dead_code)]
 pub struct GpioPin {
     pub(crate) pin: raw::gpio_dt_spec,
@@ -366,10 +326,8 @@ impl GpioPin {
     ///
     /// # Safety
     ///
-    /// The `_token` enforces single threaded use of gpios from Rust code.  However, many drivers
-    /// within Zephyr use GPIOs, and to use gpios safely, the caller must ensure that there is
-    /// either not simultaneous use, or the gpio driver in question is thread safe.
-    pub unsafe fn configure(&mut self, _token: &mut GpioToken, extra_flags: raw::gpio_flags_t) {
+    /// Concurrency safety is determined by the underlying driver.
+    pub fn configure(&mut self, extra_flags: raw::gpio_flags_t) {
         // TODO: Error?
         unsafe {
             raw::gpio_pin_configure(
@@ -384,10 +342,8 @@ impl GpioPin {
     ///
     /// # Safety
     ///
-    /// The `_token` enforces single threaded use of gpios from Rust code.  However, many drivers
-    /// within Zephyr use GPIOs, and to use gpios safely, the caller must ensure that there is
-    /// either not simultaneous use, or the gpio driver in question is thread safe.
-    pub unsafe fn toggle_pin(&mut self, _token: &mut GpioToken) {
+    /// Concurrency safety is determined by the underlying driver.
+    pub fn toggle_pin(&mut self) {
         // TODO: Error?
         unsafe {
             raw::gpio_pin_toggle_dt(&self.pin);
@@ -395,16 +351,20 @@ impl GpioPin {
     }
 
     /// Set the logical level of the pin.
-    pub unsafe fn set(&mut self, _token: &mut GpioToken, value: bool) {
-        raw::gpio_pin_set_dt(&self.pin, value as c_int);
+    pub fn set(&mut self, value: bool) {
+        unsafe {
+            raw::gpio_pin_set_dt(&self.pin, value as c_int);
+        }
     }
 
     /// Read the logical level of the pin.
-    pub unsafe fn get(&mut self, _token: &mut GpioToken) -> bool {
-        match raw::gpio_pin_get_dt(&self.pin) {
-            0 => false,
-            1 => true,
-            _ => panic!("TODO: Handle gpio get error"),
+    pub fn get(&mut self) -> bool {
+        unsafe {
+            match raw::gpio_pin_get_dt(&self.pin) {
+                0 => false,
+                1 => true,
+                _ => panic!("TODO: Handle gpio get error"),
+            }
         }
     }
 }
