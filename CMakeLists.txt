@@ -147,6 +147,7 @@ INCLUDE_DEFINES = \"${include_defines}\"
 WRAPPER_FILE = \"${WRAPPER_FILE}\"
 BINARY_DIR_INCLUDE_GENERATED = \"${BINARY_DIR_INCLUDE_GENERATED}\"
 DT_AUGMENTS = \"${DT_AUGMENTS}\"
+ZEPHYR_BASE = \"${ZEPHYR_BASE}\"
 
 [patch.crates-io]
 ${config_paths}
