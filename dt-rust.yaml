@@ -37,6 +37,7 @@
         - "nordic,nrf51-flash-controller"
         - "raspberrypi,pico-flash-controller"
         - "zephyr,sim-flash"
+        - "st,stm32-flash-controller"
       level: 0
   actions:
     - !Instance
