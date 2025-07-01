@@ -66,6 +66,7 @@
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
-  rules: !Root
+  rules:
+    - !Root
   actions:
     - !Labels
