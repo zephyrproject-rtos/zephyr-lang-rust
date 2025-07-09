@@ -11,8 +11,14 @@
 //! this an enum itself, however, it would probably be better to auto-generate this enum instead of
 //! trying to maintain the list manually.
 
+use core::cmp::PartialOrd;
 use core::ffi::c_int;
 use core::fmt;
+use num::Signed;
+
+extern "C" {
+    fn get_errno() -> c_int;
+}
 
 // This is a little messy because the constants end up as u32 from bindgen, although the values are
 // negative.
@@ -46,6 +52,20 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub fn to_result(code: c_int) -> Result<c_int> {
     if code < 0 {
         Err(Error(-code as u32))
+    } else {
+        Ok(code)
+    }
+}
+
+/// Map a return result and errno from Zephyr into a Result.
+///
+/// Some Zephyr functions (particularly those intended for compatibility with POSIX function
+/// signatures) return -1 on error, with the specific error code stored in the `errno` variable.
+#[inline(always)]
+pub fn to_result_errno<T: PartialOrd + Signed>(code: T) -> Result<T> {
+    if code.is_negative() {
+        let e = unsafe { get_errno() };
+        Err(Error(e as u32))
     } else {
         Ok(code)
     }
