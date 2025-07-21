@@ -152,6 +152,20 @@ DT_AUGMENTS = \"${DT_AUGMENTS}\"
 ${config_paths}
 ")
 
+  set(RUST_KCONFIG_BOOL_OPTIONS_FILE "${CMAKE_CURRENT_BINARY_DIR}/rust-kconfig-bool-options.json")
+
+  add_custom_command(
+    OUTPUT ${RUST_KCONFIG_BOOL_OPTIONS_FILE}
+    COMMAND
+      ${CMAKE_COMMAND} -E
+      env ${COMMON_KCONFIG_ENV_SETTINGS}
+      ${RUST_MODULE_DIR}/scripts/kconfig-bool-options.py ${KCONFIG_ROOT} ${DOTCONFIG}
+      ${RUST_KCONFIG_BOOL_OPTIONS_FILE}
+    DEPENDS ${DOTCONFIG}
+    COMMENT "Finding valid kconfig boolean options"
+    WORKING_DIRECTORY ${APPLICATION_SOURCE_DIR}
+  )
+
   # The block of environment variables below could theoretically be captured in a variable, but this
   # seems "challenging" in CMake (to be polite), as many of these contain spaces, and the quoting
   # rules in CMake are inconsistent, at best.
@@ -161,6 +175,7 @@ ${config_paths}
   add_custom_command(
     OUTPUT ${DUMMY_FILE}
     BYPRODUCTS ${RUST_LIBRARY} ${WRAPPER_FILE}
+    DEPENDS ${RUST_KCONFIG_BOOL_OPTIONS_FILE}
     USES_TERMINAL
     COMMAND
       ${CMAKE_COMMAND} -E
