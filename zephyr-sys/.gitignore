@@ -1,0 +1,2 @@
+# Library, don't save the lock file
+Cargo.lock
