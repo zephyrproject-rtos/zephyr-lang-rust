@@ -59,7 +59,7 @@ extern "C" fn rust_main() {
 
     info!(
         "Starting Embassy executor on {}",
-        zephyr::kconfig::CONFIG_BOARD
+        zephyr::kconfig::CONFIG_BOARD_TARGET
     );
 
     let executor = EXECUTOR_MAIN.init(Executor::new());

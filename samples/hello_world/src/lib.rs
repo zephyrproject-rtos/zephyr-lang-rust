@@ -11,5 +11,5 @@ extern "C" fn rust_main() {
         zephyr::set_logger().unwrap();
     }
 
-    info!("Hello world from Rust on {}", zephyr::kconfig::CONFIG_BOARD);
+    info!("Hello world from Rust on {}", zephyr::kconfig::CONFIG_BOARD_TARGET);
 }

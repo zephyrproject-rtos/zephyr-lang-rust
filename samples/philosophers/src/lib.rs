@@ -65,7 +65,10 @@ trait ForkSync: core::fmt::Debug + Sync + Send {
 
 #[no_mangle]
 extern "C" fn rust_main() {
-    printkln!("Hello world from Rust on {}", zephyr::kconfig::CONFIG_BOARD);
+    printkln!(
+        "Hello world from Rust on {}",
+        zephyr::kconfig::CONFIG_BOARD_TARGET
+    );
     printkln!("Time tick: {}", zephyr::time::SYS_FREQUENCY);
 
     let stats = &STAT_MUTEX;
