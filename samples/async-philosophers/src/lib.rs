@@ -26,7 +26,10 @@ const NUM_PHIL: usize = 6;
 
 #[no_mangle]
 extern "C" fn rust_main() {
-    printkln!("Async dining philosophers{}", zephyr::kconfig::CONFIG_BOARD);
+    printkln!(
+        "Async dining philosophers {}",
+        zephyr::kconfig::CONFIG_BOARD
+    );
     printkln!("Time tick: {}", zephyr::time::SYS_FREQUENCY);
 
     let executor = EXECUTOR.init(Executor::new());
