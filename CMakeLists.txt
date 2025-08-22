@@ -134,6 +134,18 @@ function(rust_cargo_application)
   endif()
   set(BUILD_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE}")
 
+  if(CONFIG_RUST_NIGHTLY)
+    set(CARGO_TOOLCHAIN_OVERRIDE "+nightly")
+  else()
+    set(CARGO_TOOLCHAIN_OVERRIDE "")
+  endif()
+
+  if(CONFIG_RUST_BUILD_STD)
+    set(CARGO_ARGS "-Zbuild-std=core,alloc")
+  else()
+    set(CARGO_ARGS "")
+  endif()
+
   set(CARGO_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust/target")
   set(RUST_LIBRARY "${CARGO_TARGET_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE}/librustapp.a")
   set(SAMPLE_CARGO_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/rust/sample-cargo-config.toml")
@@ -214,7 +226,7 @@ ${config_paths}
       WRAPPER_FILE="${WRAPPER_FILE}"
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
-      cargo build
+      cargo ${CARGO_TOOLCHAIN_OVERRIDE} build
       ${rust_build_type_arg}
 
       # Override the features according to the shield given. For a general case,
@@ -228,6 +240,7 @@ ${config_paths}
       ${command_paths}
       --target ${RUST_TARGET}
       --target-dir ${CARGO_TARGET_DIR}
+      ${CARGO_ARGS}
     COMMENT "Building Rust application"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
@@ -258,7 +271,7 @@ ${config_paths}
       WRAPPER_FILE="${WRAPPER_FILE}"
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
-      cargo doc
+      cargo ${CARGO_TOOLCHAIN_OVERRIDE} doc
       ${rust_build_type_arg}
 
       # Override the features according to the shield given. For a general case,
@@ -272,6 +285,7 @@ ${config_paths}
       ${command_paths}
       --target ${RUST_TARGET}
       --target-dir ${CARGO_TARGET_DIR}
+      ${CARGO_ARGS}
     COMMENT "Building Rust documentation"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
