@@ -1,5 +1,6 @@
 # Normal west builds will place the Rust target directory under the build directory.  However,
 # sometimes IDEs and such will litter these target directories as well.
+build*/
 target/
 
 # None of this code is an application, so don't capture any of the dependencies in the lock file.
