@@ -54,7 +54,7 @@ pub fn build_kconfig_mod() {
 
     // The assumption is that hex values are unsigned, and decimal are signed.
     let config_hex = Regex::new(r"^(CONFIG_.*)=(0x[0-9a-fA-F]+)$").unwrap();
-    let config_int = Regex::new(r"^(CONFIG_.*)=(-?[1-9][0-9]*)$").unwrap();
+    let config_int = Regex::new(r"^(CONFIG_.*)=(-?[1-9][0-9]*|0)$").unwrap();
     // It is unclear what quoting might be used in the .config.
     let config_str = Regex::new(r#"^(CONFIG_.*)=(".*")$"#).unwrap();
     let gen_path = Path::new(&outdir).join("kconfig.rs");
