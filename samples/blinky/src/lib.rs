@@ -10,9 +10,6 @@
 
 use log::warn;
 
-use zephyr::raw::ZR_GPIO_OUTPUT_ACTIVE;
-use zephyr::time::{sleep, Duration};
-
 #[no_mangle]
 extern "C" fn rust_main() {
     unsafe {
@@ -26,6 +23,9 @@ extern "C" fn rust_main() {
 
 #[cfg(dt = "aliases::led0")]
 fn do_blink() {
+    use zephyr::raw::ZR_GPIO_OUTPUT_ACTIVE;
+    use zephyr::time::{sleep, Duration};
+
     warn!("Inside of blinky");
 
     let mut led0 = zephyr::devicetree::aliases::led0::get_instance().unwrap();
