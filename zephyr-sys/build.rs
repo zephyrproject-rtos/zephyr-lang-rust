@@ -53,8 +53,31 @@ fn main() -> Result<()> {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let wrapper_path = PathBuf::from(env::var("WRAPPER_FILE").unwrap());
 
+    // Get GCC toolchain info to find stddef.h
+    let cc = env::var("CC").unwrap_or_default();
+    let gcc_include = if !cc.is_empty() {
+        let cc_path = Path::new(&cc);
+        let toolchain_path = cc_path.parent().and_then(|p| p.parent()).unwrap();
+        let target_triple = cc_path.file_name().unwrap().to_str().unwrap()
+            .strip_suffix("-gcc").unwrap_or("arm-zephyr-eabi");
+        let gcc_version = std::process::Command::new(&cc)
+            .arg("-dumpversion")
+            .output().ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|v| v.trim().to_string())
+            .unwrap_or("12.2.0".to_string());
+        format!("{}/lib/gcc/{}/{}/include", toolchain_path.display(), target_triple, gcc_version)
+    } else {
+        String::new()
+    };
+
+    // Create dummy ARM headers to avoid ACLE errors
+    let dummy_headers = out_path.join("dummy_headers");
+    std::fs::create_dir_all(&dummy_headers).ok();
+    std::fs::write(dummy_headers.join("arm_acle.h"), "").ok();
+
     // Bindgen everything.
-    let bindings = Builder::default()
+    let mut bindings = Builder::default()
         .header(
             Path::new("wrapper.h")
                 .canonicalize()
@@ -63,7 +86,13 @@ fn main() -> Result<()> {
                 .unwrap(),
         )
         .use_core()
-        .clang_arg(&target_arg);
+        .clang_arg(&target_arg)
+        .clang_arg(format!("-I{}", dummy_headers.display()));
+    
+    if !gcc_include.is_empty() {
+        bindings = bindings.clang_arg(format!("-I{}", gcc_include));
+    }
+    
     let bindings = define_args(bindings, "-I", "INCLUDE_DIRS");
     let bindings = define_args(bindings, "-D", "INCLUDE_DEFINES");
     let bindings = bindings
