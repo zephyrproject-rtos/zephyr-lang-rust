@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - v*-branch
+      - test*
   pull_request:
     branches:
       - main
