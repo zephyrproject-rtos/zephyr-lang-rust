@@ -1,0 +1,24 @@
+# Copyright (c) 2025 Emil Hammarström <emil.a.hammarstrom@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+# This must be rustapp for now.
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "Press a button to make an LED blink using the GPIO API"
+license = "Apache-2.0 OR MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = { version = "0.1.0", features = ["time-driver", "executor-zephyr", "async-drivers"] }
+log = "0.4.22"
+static_cell = "2.1"
+embassy-executor = { version = "0.7.0", features = ["log", "task-arena-size-2048"] }
+embassy-sync = "0.6.2"
+embassy-time = { version = "0.4.0", features = ["tick-hz-32_768"] }
+
+[build-dependencies]
+zephyr-build = "0.1.0"

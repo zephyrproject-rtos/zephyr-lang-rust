@@ -27,6 +27,19 @@
       raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
+# The gpio-keys node will have #children nodes describing each key.  We'll match on the parent
+# having this compatible property.  The nodes themselves are built out of the properties associated
+# with each gpio.
+- name: gpio-keys
+  rules:
+    - !Compatible
+      names: [gpio-keys]
+      level: 1
+  actions:
+    - !Instance
+      raw: !Phandle gpios
+      device: crate::device::gpio::GpioPin
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
