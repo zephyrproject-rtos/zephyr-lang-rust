@@ -33,8 +33,10 @@
   rules:
     - !Compatible
       names:
-        - "nordic,nrf52-flash-controller"
         - "nordic,nrf51-flash-controller"
+        - "nordic,nrf52-flash-controller"
+        - "nordic,nrf53-flash-controller"
+        - "nordic,nrf91-flash-controller"
         - "raspberrypi,pico-flash-controller"
         - "zephyr,sim-flash"
         - "st,stm32-flash-controller"
