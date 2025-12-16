@@ -154,7 +154,7 @@ fn configure_button() -> Result<GpioPin, &'static str> {
     Err("sw0 not configured")
 }
 
-#[cfg(not(dt = "aliases::led0"))]
+#[cfg(dt = "aliases::led0")]
 fn configure_led() -> Result<GpioPin, &'static str> {
     let mut led0 = devicetree::aliases::led0::get_instance().unwrap();
 
@@ -166,7 +166,7 @@ fn configure_led() -> Result<GpioPin, &'static str> {
     }
 }
 
-#[cfg(dt = "aliases::led0")]
+#[cfg(not(dt = "aliases::led0"))]
 fn configure_led() -> Result<GpioPin, &'static str> {
     Err("led0 not configured")
 }

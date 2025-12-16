@@ -3,3 +3,4 @@
 -p qemu_riscv32
 -p qemu_riscv64
 -p m2gl025_miv
+-p nrf5340dk/nrf5340/cpuapp
