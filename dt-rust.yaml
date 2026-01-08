@@ -38,6 +38,7 @@
         - "raspberrypi,pico-flash-controller"
         - "zephyr,sim-flash"
         - "st,stm32-flash-controller"
+        - "nxp,msf1"
       level: 0
   actions:
     - !Instance
