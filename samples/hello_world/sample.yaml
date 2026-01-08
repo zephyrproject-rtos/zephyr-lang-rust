@@ -15,6 +15,7 @@ common:
     - qemu_riscv32
     - qemu_riscv64
     - nrf52840dk/nrf52840
+    - frdm_mcxa156/mcxa156
 tests:
   sample.rust.helloworld:
     tags: introduction
