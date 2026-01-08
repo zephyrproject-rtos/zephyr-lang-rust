@@ -19,5 +19,6 @@ manifest:
         name-allowlist:
           - cmsis      # required by the ARM port
           - cmsis_6    # required by the ARM port
+          - hal_nxp    # required by NXP boards (e.g. frdm_mcxa156)
           - hal_nordic # required by the custom_plank board (Nordic based)
           - hal_stm32  # required by the nucleo_f302r8 board (STM32 based)
