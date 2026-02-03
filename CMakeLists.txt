@@ -139,6 +139,7 @@ target = \"${RUST_TARGET}\"
 target-dir = \"${CARGO_TARGET_DIR}\"
 
 [env]
+ZEPHYR_BASE = \"${ZEPHYR_BASE}\"
 BUILD_DIR = \"${CMAKE_CURRENT_BINARY_DIR}\"
 DOTCONFIG = \"${DOTCONFIG}\"
 ZEPHYR_DTS = \"${ZEPHYR_DTS}\"
