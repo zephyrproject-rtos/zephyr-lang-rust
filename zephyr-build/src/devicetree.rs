@@ -233,6 +233,41 @@ impl Value {
             _ => (),
         }
     }
+
+    // Output code to build this value when requested in code.
+    fn to_tokens(&self) -> proc_macro2::TokenStream {
+        let items = match self {
+            Self::Bytes(bytes) => {
+                quote::quote! {
+                    crate::devicetree::Value::Bytes(vec![#(#bytes),*])
+                }
+            }
+            Self::String(text) => {
+                quote::quote! {
+                    crate::devicetree::Value::String(#text)
+                }
+            }
+            Self::Phandle(ph) => {
+                let name = &ph.name;
+                quote::quote! {
+                    crate::devicetree::Value::Phandle(#name)
+                }
+            }
+            Self::Words(words) => {
+                let twords = words.iter().map(|w| match w {
+                    Word::Number(n) => quote::quote! { crate::devicetree::Word::Number(#n) },
+                    Word::Phandle(ph) => {
+                        let name = ph.name.as_str();
+                        quote::quote! { crate::devicetree::Word::Phandle(#name) }
+                    }
+                });
+                quote::quote! {
+                    crate::devicetree::Value::Words(&[#(#twords),*])
+                }
+            }
+        };
+        items
+    }
 }
 
 impl Phandle {
