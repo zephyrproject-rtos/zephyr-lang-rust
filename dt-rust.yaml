@@ -65,6 +65,12 @@
           - !Reg
       device: "crate::device::flash::FlashPartition"
 
+# To allow more general use, output all of the properties for every node as data.
+- name: raw_properties
+  rules: []
+  actions:
+    - !RawProperties
+
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
   rules:
