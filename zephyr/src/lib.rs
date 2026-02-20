@@ -145,6 +145,8 @@ pub mod devicetree {
         Number(u32),
         /// A phandle value.  For now, this is just the name, since we can't dynamically reference a module.
         Phandle(&'static str),
+        /// A specific GPIO value.
+        Gpio(&'static str, &'static [u32]),
     }
 
     include!(concat!(env!("OUT_DIR"), "/devicetree.rs"));
