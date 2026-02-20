@@ -254,13 +254,53 @@ impl Value {
                 }
             }
             Self::Words(words) => {
-                let twords = words.iter().map(|w| match w {
-                    Word::Number(n) => quote::quote! { crate::devicetree::Word::Number(#n) },
-                    Word::Phandle(ph) => {
-                        let name = ph.name.as_str();
-                        quote::quote! { crate::devicetree::Word::Phandle(#name) }
+                let mut twords = Vec::new();
+                let mut iter = words.iter();
+                while let Some(word) = iter.next() {
+                    match word {
+                        Word::Number(n) => {
+                            twords.push(quote::quote! { crate::devicetree::Word::Number(#n) });
+                        }
+                        Word::Phandle(ph) => {
+                            let mut consumed = false;
+                            if let Some(target) = ph.node.borrow().as_ref() {
+                                if target.has_prop("gpio-controller") {
+                                    if let Some(cells) = target.get_number("#gpio-cells") {
+                                        let cells = cells as usize;
+                                        let mut lookahead = iter.clone();
+                                        let mut args = Vec::new();
+                                        let mut valid = true;
+                                        for _ in 0..cells {
+                                            if let Some(Word::Number(n)) = lookahead.next() {
+                                                args.push(*n);
+                                            } else {
+                                                valid = false;
+                                                break;
+                                            }
+                                        }
+
+                                        if valid {
+                                            for _ in 0..cells {
+                                                iter.next();
+                                            }
+                                            let name = ph.name.as_str();
+                                            twords.push(quote::quote! {
+                                                crate::devicetree::Word::Gpio(#name, &[#(#args),*])
+                                            });
+                                            consumed = true;
+                                        }
+                                    }
+                                }
+                            }
+                            if !consumed {
+                                let name = ph.name.as_str();
+                                twords.push(
+                                    quote::quote! { crate::devicetree::Word::Phandle(#name) },
+                                );
+                            }
+                        }
                     }
-                });
+                }
                 quote::quote! {
                     crate::devicetree::Value::Words(&[#(#twords),*])
                 }
