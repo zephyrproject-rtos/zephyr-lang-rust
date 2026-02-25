@@ -219,8 +219,14 @@ impl RawInfo {
                             pub unsafe fn get_instance_raw() -> *const crate::raw::device {
                                 &crate::raw::#rawdev
                             }
+                            /// Get the static data associated with this device node.
+                            ///
+                            /// # Safety
+                            ///
+                            /// The caller must ensure the returned reference is only
+                            /// used with the matching device from `get_instance_raw`.
                             #[allow(dead_code)]
-                            pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
+                            pub unsafe fn get_static_raw() -> &'static #static_type {
                                 &STATIC
                             }
 
