@@ -44,7 +44,7 @@ impl Unique {
 
 /// For devices that don't need any associated static data, This NoStatic type will take no space
 /// and generate no code, and has the const constructor needed for the type.
-pub(crate) struct NoStatic;
+pub struct NoStatic;
 
 impl NoStatic {
     pub(crate) const fn new() -> Self {

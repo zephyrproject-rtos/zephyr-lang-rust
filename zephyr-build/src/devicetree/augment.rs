@@ -220,7 +220,7 @@ impl RawInfo {
                                 &crate::raw::#rawdev
                             }
                             #[allow(dead_code)]
-                            pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
+                            pub unsafe fn get_static_raw() -> &'static #static_type {
                                 &STATIC
                             }
 
