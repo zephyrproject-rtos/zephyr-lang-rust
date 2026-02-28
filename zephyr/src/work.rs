@@ -201,8 +201,8 @@ impl WorkQueueBuilder {
             // be deallocated once the thread has started.  We enforce this by making Drop panic.
             k_work_queue_start(
                 item.get(),
-                stack.base,
-                stack.size,
+                stack.base(),
+                stack.size(),
                 self.priority,
                 &self.config,
             );
