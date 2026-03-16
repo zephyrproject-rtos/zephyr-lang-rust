@@ -132,7 +132,9 @@ pub mod devicetree {
     pub enum Value {
         /// A string value.
         String(&'static str),
-        /// A number value.
+        /// An arbitrary byte sequence.
+        Bytes(&'static [u8]),
+        /// A sequence of devicetree cells (numbers, phandles, or GPIO references).
         Words(&'static [Word]),
         /// A phandle value.  For now, this is just the name, since we can't dynamically reference a module.
         Phandle(&'static str),
