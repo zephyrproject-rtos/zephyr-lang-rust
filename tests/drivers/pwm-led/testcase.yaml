@@ -1,0 +1,15 @@
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  # The hifive1 has three PWM-driven LEDs (pwm-led0/1/2) in its upstream
+  # devicetree, and is simulated by Renode, so this test runs in CI.  The
+  # tiny2040 has the same RGB LED, but its pwm-leds node is not upstream
+  # yet; the board files here let it be built by hand in the meantime.
+  platform_allow:
+    - hifive1
+tests:
+  test.rust.drivers.pwm-led:
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "All tests passed"
