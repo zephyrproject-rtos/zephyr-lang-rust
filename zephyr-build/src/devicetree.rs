@@ -239,7 +239,7 @@ impl Value {
         let items = match self {
             Self::Bytes(bytes) => {
                 quote::quote! {
-                    crate::devicetree::Value::Bytes(vec![#(#bytes),*])
+                    crate::devicetree::Value::Bytes(&[#(#bytes),*])
                 }
             }
             Self::String(text) => {
