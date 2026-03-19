@@ -16,6 +16,8 @@ pub mod flash;
 pub mod gpio;
 #[cfg(CONFIG_LED)]
 pub mod led;
+#[cfg(CONFIG_LED_STRIP)]
+pub mod led_strip;
 
 // Allow dead code, because it isn't required for a given build to have any devices.
 /// Device uniqueness.
