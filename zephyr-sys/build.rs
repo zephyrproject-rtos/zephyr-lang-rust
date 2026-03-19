@@ -77,6 +77,7 @@ fn main() -> Result<()> {
         .derive_default(true)
         .allowlist_function("k_.*")
         .allowlist_function("gpio_.*")
+        .allowlist_type("led_rgb")
         .allowlist_function("flash_.*")
         .allowlist_function("zr_.*")
         .allowlist_item("GPIO_.*")
