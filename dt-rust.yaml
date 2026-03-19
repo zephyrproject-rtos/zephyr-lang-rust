@@ -70,6 +70,45 @@
           - !ChildIdx
       device: crate::device::led::Led
 
+# LED strip devices (e.g. WS2812 addressable RGB strips) are identified by their compatible string.
+# The device handle lives on the node with the compatible property (level 0). Each compatible is
+# gated on its own driver, since a node only becomes a device when that driver is enabled.
+- name: ws2812-rpi-pico-pio-led-strip
+  cfg: CONFIG_WS2812_STRIP_RPI_PICO_PIO
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-rpi_pico-pio"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
+- name: ws2812-spi-led-strip
+  cfg: CONFIG_WS2812_STRIP_SPI
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-spi"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
+- name: ws2812-gpio-led-strip
+  cfg: CONFIG_WS2812_STRIP_GPIO
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-gpio"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
 
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
