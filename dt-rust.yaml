@@ -71,20 +71,25 @@
       device: crate::device::led::Led
 
 # LED strip devices (e.g. WS2812 addressable RGB strips) are identified by their compatible string.
-# The device handle lives on the node with the compatible property (level 0). Each compatible is
-# gated on its own driver, since a node only becomes a device when that driver is enabled.
+# Each compatible is gated on its own driver, since a node only becomes a device when that driver is
+# enabled.
+
+# WS2812 PIO driver: the strip device handle lives on the *child* of the PIO node (level 1).
+# The parent carries compatible = "worldsemi,ws2812-rpi_pico-pio" and manages PIO setup;
+# each child node is a distinct strip and is what DEVICE_DT_GET / aliases point to.
 - name: ws2812-rpi-pico-pio-led-strip
   cfg: CONFIG_WS2812_STRIP_RPI_PICO_PIO
   rules:
     - !Compatible
       names:
         - "worldsemi,ws2812-rpi_pico-pio"
-      level: 0
+      level: 1
   actions:
     - !Instance
       raw: !Myself
       device: crate::device::led_strip::LedStrip
 
+# WS2812 SPI/GPIO drivers: the strip device handle lives directly on the compatible node (level 0).
 - name: ws2812-spi-led-strip
   cfg: CONFIG_WS2812_STRIP_SPI
   rules:
