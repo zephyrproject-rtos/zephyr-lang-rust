@@ -99,6 +99,23 @@
       raw: !Myself
       device: crate::device::led_strip::LedStrip
 
+# I2C controllers.  Match the compatible strings for common I2C peripherals so that each gets a
+# `get_instance()` returning an `I2c` wrapper.
+- name: i2c-controller
+  cfg: CONFIG_I2C
+  rules:
+    - !Compatible
+      names:
+        - "raspberrypi,pico-i2c"
+        - "snps,designware-i2c"
+        - "nordic,nrf-twi"
+        - "nordic,nrf-twim"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::i2c::I2c
+
 
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
