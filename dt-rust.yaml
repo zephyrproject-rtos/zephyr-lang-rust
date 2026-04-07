@@ -27,6 +27,22 @@
       raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
+# I2C controllers.  Match the compatible strings for common I2C peripherals so that each gets a
+# `get_instance()` returning an `I2c` wrapper.
+- name: i2c-controller
+  rules:
+    - !Compatible
+      names:
+        - "raspberrypi,pico-i2c"
+        - "snps,designware-i2c"
+        - "nordic,nrf-twi"
+        - "nordic,nrf-twim"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::i2c::I2c
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
