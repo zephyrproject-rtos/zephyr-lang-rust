@@ -1,4 +1,5 @@
 common:
+  tags: rust
   filter: CONFIG_RUST_SUPPORTED
   platform_allow:
     - tiny2040
