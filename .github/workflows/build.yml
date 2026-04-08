@@ -10,10 +10,12 @@ on:
     branches:
       - main
       - v*-branch
+      - devel
   pull_request:
     branches:
       - main
       - v*-branch
+      - devel
   schedule:
     - cron: "0 0 * * *"
 
