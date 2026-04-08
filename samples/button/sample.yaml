@@ -1,0 +1,21 @@
+# See doc/develop/test/twister.rst for what is here.
+sample:
+  name: Button Sample
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    # - qemu_cortex_m0
+    # - qemu_cortex_m3
+    # - qemu_riscv32
+    # - qemu_riscv64
+    # - nrf52840dk/nrf52840
+    - nrf5340dk/nrf5340
+tests:
+  sample.rust.basic.button:
+    tags:
+      - button
+      - gpio
+    filter:
+      - dt_enabled_alias_with_parent_compat("sw0", "gpio-keys")
+    depends_on: gpio
+    harness: button
