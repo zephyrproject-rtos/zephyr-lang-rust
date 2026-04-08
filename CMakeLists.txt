@@ -42,10 +42,51 @@ function(_rust_map_target)
   elseif(CONFIG_RISCV)
     if(CONFIG_RISCV_ISA_RV64I)
       # TODO: Should fail if the extensions don't match.
-      set(RUST_TARGET "riscv64imac-unknown-none-elf" PARENT_SCOPE)
-    elseif(CONFIG_RISCV_ISA_RV32I)
-      # TODO: We have multiple choices, try to pick the best.
-      set(RUST_TARGET "riscv32i-unknown-none-elf" PARENT_SCOPE)
+      # We have multiple choices, try to pick the best.
+      # Note that Rust currently only supports "riscv64gc" and "riscv64imac" targets!
+      set(RUST_TARGET "riscv64")
+      if(CONFIG_RISCV_ISA_EXT_G)
+        set(RUST_TARGET "${RUST_TARGET}g")
+      else()
+        set(RUST_TARGET "${RUST_TARGET}i")
+        if(CONFIG_RISCV_ISA_EXT_M)
+          set(RUST_TARGET "${RUST_TARGET}m")
+        endif()
+        if(CONFIG_RISCV_ISA_EXT_A)
+          set(RUST_TARGET "${RUST_TARGET}a")
+        endif()
+        if(CONFIG_RISCV_ISA_EXT_F)
+          set(RUST_TARGET "${RUST_TARGET}f")
+        endif()
+        if(CONFIG_RISCV_ISA_EXT_D)
+          set(RUST_TARGET "${RUST_TARGET}d")
+        endif()
+      endif()
+      if(CONFIG_RISCV_ISA_EXT_C)
+        set(RUST_TARGET "${RUST_TARGET}c")
+      endif()
+      set(RUST_TARGET "${RUST_TARGET}-unknown-none-elf" PARENT_SCOPE)
+    elseif(CONFIG_RISCV_ISA_RV32I OR CONFIG_RISCV_ISA_RV32E)
+      # We have multiple choices, try to pick the best.
+      # Note that Rust currently only supports subsets of "riscv32imafc" targets!
+      if(CONFIG_RISCV_ISA_RV32I)
+        set(RUST_TARGET "riscv32i")
+      else()
+        set(RUST_TARGET "riscv32e")
+      endif()
+      if(CONFIG_RISCV_ISA_EXT_M)
+        set(RUST_TARGET "${RUST_TARGET}m")
+      endif()
+      if(CONFIG_RISCV_ISA_EXT_A)
+        set(RUST_TARGET "${RUST_TARGET}a")
+      endif()
+      if(CONFIG_RISCV_ISA_EXT_F)
+        set(RUST_TARGET "${RUST_TARGET}f")
+      endif()
+      if(CONFIG_RISCV_ISA_EXT_C)
+        set(RUST_TARGET "${RUST_TARGET}c")
+      endif()
+      set(RUST_TARGET "${RUST_TARGET}-unknown-none-elf" PARENT_SCOPE)
     else()
       message(FATAL_ERROR "Rust: Unsupported riscv ISA")
     endif()
@@ -92,6 +133,18 @@ function(rust_cargo_application)
     set(rust_build_type_arg "--release")
   endif()
   set(BUILD_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE}")
+
+  if(CONFIG_RUST_NIGHTLY)
+    set(CARGO_TOOLCHAIN_OVERRIDE "+nightly")
+  else()
+    set(CARGO_TOOLCHAIN_OVERRIDE "")
+  endif()
+
+  if(CONFIG_RUST_BUILD_STD)
+    set(CARGO_ARGS "-Zbuild-std=core,alloc")
+  else()
+    set(CARGO_ARGS "")
+  endif()
 
   set(CARGO_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust/target")
   set(RUST_LIBRARY "${CARGO_TARGET_DIR}/${RUST_TARGET}/${RUST_BUILD_TYPE}/librustapp.a")
@@ -173,7 +226,7 @@ ${config_paths}
       WRAPPER_FILE="${WRAPPER_FILE}"
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
-      cargo build
+      cargo ${CARGO_TOOLCHAIN_OVERRIDE} build
       ${rust_build_type_arg}
 
       # Override the features according to the shield given. For a general case,
@@ -187,6 +240,7 @@ ${config_paths}
       ${command_paths}
       --target ${RUST_TARGET}
       --target-dir ${CARGO_TARGET_DIR}
+      ${CARGO_ARGS}
     COMMENT "Building Rust application"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
@@ -217,7 +271,7 @@ ${config_paths}
       WRAPPER_FILE="${WRAPPER_FILE}"
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
-      cargo doc
+      cargo ${CARGO_TOOLCHAIN_OVERRIDE} doc
       ${rust_build_type_arg}
 
       # Override the features according to the shield given. For a general case,
@@ -231,6 +285,7 @@ ${config_paths}
       ${command_paths}
       --target ${RUST_TARGET}
       --target-dir ${CARGO_TARGET_DIR}
+      ${CARGO_ARGS}
     COMMENT "Building Rust documentation"
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )

@@ -8,7 +8,7 @@ menu "Rust Language Support"
 config RUST_SUPPORTED
 	bool
 	default y if ((CPU_CORTEX_M || \
-				(RISCV && !RISCV_ISA_RV32E && !RISCV_ISA_RV128I) || \
+				(RISCV && !RISCV_ISA_RV128I) || \
 				(ARCH_POSIX && 64BIT)) && \
 				!TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)
 	help
@@ -30,6 +30,25 @@ config RUST_ALLOC
 	  an allocator.  This allocator will use the currently configured
 	  Zephyr allocator (malloc/free).  This this enabled, Rust
 	  applications can use the `alloc` crate.
+
+config RUST_NIGHTLY
+	bool "Use nightly for building the target"
+	default y if RISCV_ISA_RV32E
+	help
+	  If enabled, nightly edition will be used for building.
+
+if RUST_NIGHTLY
+
+config RUST_BUILD_STD
+	bool "Build standard library from source"
+	default y if RISCV_ISA_RV32E
+	help
+	  Some targets require building standard library from source.
+	  If enabled, this will add `-Z build-std=core,alloc` to cargo build.
+	  Depends on nightly edition.
+	  You need to run `rustup +nightly component add rust-src` before building.
+
+endif # RUST_NIGHTLY
 
 endif # RUST
 
