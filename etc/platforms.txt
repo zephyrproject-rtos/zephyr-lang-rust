@@ -3,3 +3,4 @@
 -p qemu_riscv32
 -p qemu_riscv64
 -p m2gl025_miv
+-p tiny2040
