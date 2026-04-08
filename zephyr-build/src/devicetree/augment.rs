@@ -247,9 +247,31 @@ impl RawInfo {
                 }
             }
             Self::Parent { level, args } => {
+                assert!(*level > 0);
+
+                // Walk up to the ancestor node and check its status.  If the
+                // ancestor is disabled it will not have a get_instance_raw()
+                // function, so we must not emit code that calls it.
+                let ancestor = {
+                    let mut cur = node.parent.borrow().as_ref().cloned();
+                    for _ in 1..*level {
+                        let next = cur
+                            .as_ref()
+                            .and_then(|n| n.parent.borrow().as_ref().cloned());
+                        cur = next;
+                    }
+                    cur
+                };
+
+                if let Some(ref anc) = ancestor {
+                    match anc.get_single_string("status") {
+                        Some("okay") | Some("ok") | None => {}
+                        _ => return quote! {},
+                    }
+                }
+
                 let get_args = args.iter().map(|arg| arg.args(node));
 
-                assert!(*level > 0);
                 let mut path = quote! {super};
                 for _ in 1..*level {
                     path = quote! { #path :: super };
