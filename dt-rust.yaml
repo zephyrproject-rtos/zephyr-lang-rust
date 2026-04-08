@@ -35,6 +35,7 @@
       names:
         - "nordic,nrf52-flash-controller"
         - "nordic,nrf51-flash-controller"
+        - "nordic,rram-controller"
         - "raspberrypi,pico-flash-controller"
         - "zephyr,sim-flash"
         - "st,stm32-flash-controller"
