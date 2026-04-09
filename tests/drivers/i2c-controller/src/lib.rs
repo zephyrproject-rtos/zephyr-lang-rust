@@ -10,7 +10,7 @@
 #![no_std]
 
 use zephyr::{
-    device::i2c::I2c,
+    device::i2c::{I2c, Operation},
     printkln,
     time::{sleep, Duration},
 };
@@ -43,6 +43,35 @@ fn test_write_then_read(i2c: &mut I2c) {
     );
 
     printkln!("  write then read: OK");
+}
+
+/// Test a combined write/read transaction built with the general `transfer` API.
+///
+/// Mirrors `test_write_read` but composes the transaction from explicit
+/// [`Operation`] entries instead of using the dedicated `write_read` helper.
+fn test_transfer(i2c: &mut I2c) {
+    printkln!("Test: transfer (write + read)");
+
+    // Seed a known pattern at register 0x08 with a single write operation.
+    let write_buf: [u8; 5] = [0x08, 0x10, 0x20, 0x30, 0x40];
+    i2c.transfer(TARGET_ADDR, &mut [Operation::Write(&write_buf)])
+        .expect("transfer write failed");
+
+    sleep(Duration::millis_at_least(10));
+
+    // Now do a combined write+read in a single transaction: set the register
+    // pointer, RESTART, then read 4 bytes.
+    let reg_addr: [u8; 1] = [0x08];
+    let mut read_buf = [0u8; 4];
+    i2c.transfer(
+        TARGET_ADDR,
+        &mut [Operation::Write(&reg_addr), Operation::Read(&mut read_buf)],
+    )
+    .expect("transfer write+read failed");
+
+    assert_eq!(read_buf, [0x10, 0x20, 0x30, 0x40], "transfer data mismatch");
+
+    printkln!("  transfer: OK");
 }
 
 /// Test a combined write_read (RESTART) transaction.
@@ -85,6 +114,7 @@ extern "C" fn rust_main() {
 
     test_write_then_read(&mut i2c);
     test_write_read(&mut i2c);
+    test_transfer(&mut i2c);
 
     printkln!("All tests passed");
 }
