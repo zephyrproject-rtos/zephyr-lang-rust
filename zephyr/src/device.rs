@@ -12,6 +12,7 @@ use crate::sync::atomic::{AtomicBool, Ordering};
 
 pub mod flash;
 pub mod gpio;
+pub mod i2c;
 pub mod led;
 pub mod led_strip;
 
