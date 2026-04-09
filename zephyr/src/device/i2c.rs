@@ -1,11 +1,26 @@
 //! Device wrappers for Zephyr I2C controllers and targets.
 
 use super::{NoStatic, Unique};
-use crate::{error::to_result_void, raw, Result};
+use crate::{
+    error::{to_result_void, Error},
+    raw, Result,
+};
 
 // Re-export the raw callback types so users can write `extern "C"` handlers without reaching into
 // `zephyr::raw` directly.
 pub use raw::{i2c_target_callbacks, i2c_target_config};
+
+/// A single operation in a multi-stage I2C transaction.
+///
+/// Used with [`I2c::transfer`] to compose general scatter/gather transfers.  A RESTART is
+/// inserted automatically between adjacent operations of differing direction; the underlying
+/// `i2c_transfer` always emits a STOP after the final operation.
+pub enum Operation<'a> {
+    /// Write the bytes from the buffer to the bus.
+    Write(&'a [u8]),
+    /// Read bytes from the bus into the buffer.
+    Read(&'a mut [u8]),
+}
 
 /// A Zephyr I2C controller device.
 ///
@@ -66,6 +81,54 @@ impl I2c {
     pub fn read(&mut self, addr: u16, buf: &mut [u8]) -> Result<()> {
         to_result_void(unsafe {
             raw::zr_i2c_read(self.device, buf.as_mut_ptr(), buf.len() as u32, addr)
+        })
+    }
+
+    /// Maximum number of operations supported in a single [`transfer`](Self::transfer) call.
+    ///
+    /// `transfer` builds the underlying `i2c_msg` array on the stack so the bound is fixed at
+    /// compile time.  Increase this if longer transactions are needed.
+    pub const MAX_TRANSFER_OPS: usize = 8;
+
+    /// Perform a multi-stage I2C transaction.
+    ///
+    /// Wraps Zephyr's `i2c_transfer`, the general-purpose scatter/gather entry point.  Each
+    /// [`Operation`] becomes one `i2c_msg`; a RESTART is inserted between adjacent operations
+    /// whose direction differs, and `i2c_transfer` itself appends a STOP after the final
+    /// message.
+    ///
+    /// Up to [`MAX_TRANSFER_OPS`](Self::MAX_TRANSFER_OPS) operations are supported per call;
+    /// passing more returns `Err(Error(E2BIG))`.  For simple cases prefer
+    /// [`write`](Self::write), [`read`](Self::read), or [`write_read`](Self::write_read).
+    pub fn transfer(&mut self, addr: u16, ops: &mut [Operation<'_>]) -> Result<()> {
+        if ops.len() > Self::MAX_TRANSFER_OPS {
+            return Err(Error(raw::E2BIG));
+        }
+
+        let mut msgs: [raw::i2c_msg; Self::MAX_TRANSFER_OPS] =
+            core::array::from_fn(|_| Default::default());
+        for (i, op) in ops.iter_mut().enumerate() {
+            let (buf_ptr, len, mut flags) = match op {
+                // i2c_msg.buf is `*mut u8` even for writes; the driver does not mutate write
+                // buffers.
+                Operation::Write(buf) => {
+                    (buf.as_ptr() as *mut u8, buf.len(), raw::ZR_I2C_MSG_WRITE)
+                }
+                Operation::Read(buf) => (buf.as_mut_ptr(), buf.len(), raw::ZR_I2C_MSG_READ),
+            };
+            // Insert a RESTART when the direction changes from the previous message, matching
+            // what Zephyr's own `i2c_write_read` helper does for the write -> read transition.
+            if i > 0 && (msgs[i - 1].flags & raw::ZR_I2C_MSG_READ) != (flags & raw::ZR_I2C_MSG_READ)
+            {
+                flags |= raw::ZR_I2C_MSG_RESTART;
+            }
+            msgs[i].buf = buf_ptr;
+            msgs[i].len = len as u32;
+            msgs[i].flags = flags;
+        }
+
+        to_result_void(unsafe {
+            raw::i2c_transfer(self.device, msgs.as_mut_ptr(), ops.len() as u8, addr)
         })
     }
 
