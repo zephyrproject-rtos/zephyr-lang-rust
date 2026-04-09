@@ -298,6 +298,8 @@ impl RawInfo {
 pub enum ArgInfo {
     /// The arguments come from a 'reg' property.
     Reg,
+    /// The argument is the node's index within its parent.
+    ChildIdx,
 }
 
 impl ArgInfo {
@@ -308,6 +310,12 @@ impl ArgInfo {
                 let reg = node.get_numbers("reg").unwrap();
                 quote! {
                     #(#reg),*
+                }
+            }
+            ArgInfo::ChildIdx => {
+                let index = node.child_index() as u32;
+                quote! {
+                    #index
                 }
             }
         }

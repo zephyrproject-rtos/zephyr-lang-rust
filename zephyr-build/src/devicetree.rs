@@ -217,6 +217,18 @@ impl Node {
             }
         })
     }
+
+    /// Return this node's index within its parent.
+    fn child_index(&self) -> usize {
+        let parent = self.parent.borrow();
+        let parent = parent.as_ref().expect("child node missing parent");
+
+        parent
+            .children
+            .iter()
+            .position(|child| core::ptr::eq(child.as_ref(), self))
+            .expect("child node missing from parent")
+    }
 }
 
 impl Value {
