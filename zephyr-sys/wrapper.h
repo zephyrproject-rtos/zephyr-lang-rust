@@ -98,6 +98,16 @@ static inline void zr_irq_unlock(int key) {
 }
 
 /*
+ * The I2C_MSG_* flags are defined with BIT(), which bindgen does not always
+ * resolve to plain integer constants.  Re-expose them as typed constants.
+ */
+const uint8_t ZR_I2C_MSG_WRITE = I2C_MSG_WRITE;
+const uint8_t ZR_I2C_MSG_READ = I2C_MSG_READ;
+const uint8_t ZR_I2C_MSG_STOP = I2C_MSG_STOP;
+const uint8_t ZR_I2C_MSG_RESTART = I2C_MSG_RESTART;
+const uint8_t ZR_I2C_MSG_ADDR_10_BITS = I2C_MSG_ADDR_10_BITS;
+
+/*
  * I2C convenience functions are static inline in Zephyr, so we need shim
  * wrappers for bindgen to pick them up.
  */
