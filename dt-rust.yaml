@@ -39,6 +39,7 @@
         - "zephyr,sim-flash"
         - "st,stm32-flash-controller"
         - "nxp,msf1"
+        - "espressif,esp32-flash-controller"
       level: 0
   actions:
     - !Instance

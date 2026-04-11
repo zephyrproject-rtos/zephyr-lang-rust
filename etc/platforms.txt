@@ -4,3 +4,4 @@
 -p qemu_riscv64
 -p m2gl025_miv
 -p frdm_mcxa156/mcxa156
+-p esp32c3_supermini/esp32c3
