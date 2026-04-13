@@ -18,13 +18,9 @@
 
 #![no_std]
 
-use core::ffi::c_int;
-
-use static_cell::StaticCell;
 use zephyr::{
-    device::i2c::{i2c_target_callbacks, i2c_target_config},
+    device::i2c::{I2cTargetCallbacks, I2cTargetData},
     printkln,
-    raw::sys_snode_t,
     sync::SpinMutex,
 };
 
@@ -34,13 +30,8 @@ const TARGET_ADDR: u16 = 0x42;
 /// Size of the register file.
 const REG_SIZE: usize = 16;
 
-/// Shared state accessed by the ISR callbacks and the main thread.
-///
-/// Protected by a [`SpinMutex`] so that accesses are properly synchronised
-/// and no aliased mutable references are created.  The spin-lock also acts
-/// as a memory barrier, ensuring updates made inside one callback are
-/// visible to subsequent callbacks or to the main thread.
-struct TargetState {
+/// Internal mutable state, protected by [`SpinMutex`].
+struct TargetInner {
     reg_file: [u8; REG_SIZE],
     /// Current register pointer (auto-incremented by reads and writes).
     reg_ptr: u8,
@@ -52,7 +43,7 @@ struct TargetState {
     write_pos: u8,
 }
 
-impl TargetState {
+impl TargetInner {
     const fn new() -> Self {
         Self {
             reg_file: [0; REG_SIZE],
@@ -63,67 +54,66 @@ impl TargetState {
     }
 }
 
-/// Shared target state, protected by a spin-lock.
+/// Shared state accessed by the ISR callbacks and the main thread.
 ///
-/// The `SpinMutex` ensures that the callbacks (running in ISR context) and
-/// the main thread never hold aliased mutable references, and that memory
-/// ordering is correct across lock/unlock boundaries.
-static STATE: SpinMutex<TargetState> = SpinMutex::new(TargetState::new());
-
-/// The static cell holding the callback table.
-static CALLBACKS: StaticCell<i2c_target_callbacks> = StaticCell::new();
-
-/// The static cell holding the target config.
-static CONFIG: StaticCell<i2c_target_config> = StaticCell::new();
-
-// ---------------------------------------------------------------------------
-// extern "C" callbacks — called from ISR context by the I2C driver.
-// ---------------------------------------------------------------------------
-
-unsafe extern "C" fn write_requested(_config: *mut i2c_target_config) -> c_int {
-    let mut s = STATE.lock().unwrap();
-    s.write_pos = 0;
-    0
+/// The [`SpinMutex`] ensures that accesses are properly synchronised and no
+/// aliased mutable references are created.  The spin-lock also acts as a
+/// memory barrier, ensuring updates made inside one callback are visible to
+/// subsequent callbacks or to the main thread.
+struct TargetState {
+    inner: SpinMutex<TargetInner>,
 }
 
-unsafe extern "C" fn write_received(_config: *mut i2c_target_config, val: u8) -> c_int {
-    let mut s = STATE.lock().unwrap();
-    if s.write_pos == 0 {
-        // First byte is the register address.
-        s.reg_ptr = val % REG_SIZE as u8;
-        s.reg_start = s.reg_ptr;
-    } else {
-        // Subsequent bytes are data.
-        let ptr = s.reg_ptr as usize;
-        s.reg_file[ptr] = val;
-        s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
+impl I2cTargetCallbacks for TargetState {
+    fn write_requested(&self) -> zephyr::Result<()> {
+        let mut s = self.inner.lock().unwrap();
+        s.write_pos = 0;
+        Ok(())
     }
-    s.write_pos += 1;
-    0
+
+    fn write_received(&self, val: u8) -> zephyr::Result<()> {
+        let mut s = self.inner.lock().unwrap();
+        if s.write_pos == 0 {
+            // First byte is the register address.
+            s.reg_ptr = val % REG_SIZE as u8;
+            s.reg_start = s.reg_ptr;
+        } else {
+            // Subsequent bytes are data.
+            let ptr = s.reg_ptr as usize;
+            s.reg_file[ptr] = val;
+            s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
+        }
+        s.write_pos += 1;
+        Ok(())
+    }
+
+    fn read_requested(&self) -> zephyr::Result<u8> {
+        let mut s = self.inner.lock().unwrap();
+        // On a write-read (RESTART), reset the pointer to the start of the
+        // write phase so the controller reads back the data it just wrote.
+        s.reg_ptr = s.reg_start;
+        let ptr = s.reg_ptr as usize;
+        let val = s.reg_file[ptr];
+        s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
+        Ok(val)
+    }
+
+    fn read_processed(&self) -> zephyr::Result<u8> {
+        let mut s = self.inner.lock().unwrap();
+        let ptr = s.reg_ptr as usize;
+        let val = s.reg_file[ptr];
+        s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
+        Ok(val)
+    }
 }
 
-unsafe extern "C" fn read_requested(_config: *mut i2c_target_config, val: *mut u8) -> c_int {
-    let mut s = STATE.lock().unwrap();
-    // On a write-read (RESTART), reset the pointer to the start of the write
-    // phase so the controller reads back the data it just wrote.
-    s.reg_ptr = s.reg_start;
-    let ptr = s.reg_ptr as usize;
-    unsafe { *val = s.reg_file[ptr] };
-    s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
-    0
-}
-
-unsafe extern "C" fn read_processed(_config: *mut i2c_target_config, val: *mut u8) -> c_int {
-    let mut s = STATE.lock().unwrap();
-    let ptr = s.reg_ptr as usize;
-    unsafe { *val = s.reg_file[ptr] };
-    s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
-    0
-}
-
-unsafe extern "C" fn stop(_config: *mut i2c_target_config) -> c_int {
-    0
-}
+/// The I2C target, combining config, callbacks, and shared state in one static.
+static TARGET: I2cTargetData<TargetState> = I2cTargetData::new(
+    TARGET_ADDR,
+    TargetState {
+        inner: SpinMutex::new(TargetInner::new()),
+    },
+);
 
 // ---------------------------------------------------------------------------
 // Entry point
@@ -133,32 +123,14 @@ unsafe extern "C" fn stop(_config: *mut i2c_target_config) -> c_int {
 extern "C" fn rust_main() {
     printkln!("I2C target test starting");
 
-    // Build the callback table.
-    let cbs = CALLBACKS.init(i2c_target_callbacks {
-        write_requested: Some(write_requested),
-        write_received: Some(write_received),
-        read_requested: Some(read_requested),
-        read_processed: Some(read_processed),
-        stop: Some(stop),
-        ..Default::default()
-    });
-
-    // Build the target config.
-    let config = CONFIG.init(i2c_target_config {
-        node: sys_snode_t {
-            next: core::ptr::null_mut(),
-        },
-        flags: 0,
-        address: TARGET_ADDR,
-        callbacks: cbs as *const _,
-    });
-
     // Get the I2C device and register as a target.
     let mut i2c = zephyr::devicetree::aliases::i2c_bus::get_instance()
         .expect("Failed to get I2C bus from devicetree alias");
     assert!(i2c.is_ready(), "I2C device is not ready");
 
-    let _target = unsafe { i2c.register_target(config) }.expect("Failed to register I2C target");
+    let _target = TARGET
+        .register(&mut i2c)
+        .expect("Failed to register I2C target");
 
     printkln!("i2c target registered at address 0x{:02x}", TARGET_ADDR);
 
