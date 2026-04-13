@@ -6,6 +6,7 @@
 # Gpio controllers match for every node that has a `gpio-controller` property.  This is one of the
 # few instances were we can actually just match on a property.
 - name: gpio-controller
+  cfg: CONFIG_GPIO
   rules:
     - !HasProp gpio-controller
   actions:
@@ -18,6 +19,7 @@
 # having this compatible property.  The nodes themselves are built out of the properties associated
 # with each gpio.
 - name: gpio-leds
+  cfg: CONFIG_GPIO
   rules:
     - !Compatible
       names: [gpio-leds]
@@ -30,6 +32,7 @@
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
+  cfg: CONFIG_FLASH
   rules:
     - !Compatible
       names:
@@ -50,6 +53,7 @@
 # of the controller itself.
 # TODO: Get the write and erase property from the DT if present.
 - name: flash-partition
+  cfg: CONFIG_FLASH
   rules:
     - !Compatible
       names:
