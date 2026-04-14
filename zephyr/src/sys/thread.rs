@@ -82,13 +82,26 @@ pub struct RealStaticThreadStack<const SIZE: usize> {
 unsafe impl<const SIZE: usize> Sync for RealStaticThreadStack<SIZE> {}
 
 /// The dynamic stack value, which wraps the underlying stack.
-///
-/// TODO: constructor instead of private.
 pub struct ThreadStack {
-    /// Private
-    pub base: *mut z_thread_stack_element,
-    /// Private
-    pub size: usize,
+    base: *mut z_thread_stack_element,
+    size: usize,
+}
+
+impl ThreadStack {
+    /// Construct a new `ThreadStack` from a raw base pointer and size.
+    pub unsafe fn new(base: *mut z_thread_stack_element, size: usize) -> Self {
+        Self { base, size }
+    }
+
+    /// Returns the base pointer of the stack.
+    pub fn base(&self) -> *mut z_thread_stack_element {
+        self.base
+    }
+
+    /// Returns the size of the stack.
+    pub fn size(&self) -> usize {
+        self.size
+    }
 }
 
 #[doc(hidden)]
@@ -122,10 +135,7 @@ impl Wrapped for StaticKernelObject<StaticThreadStack> {
         // This is a bit messy.  Whee.
         let stack = self.value.get();
         let stack = unsafe { &*stack };
-        ThreadStack {
-            base: stack.base,
-            size: stack.size,
-        }
+        unsafe { ThreadStack::new(stack.base, stack.size) }
     }
 }
 
@@ -244,8 +254,8 @@ impl Thread {
     ) {
         let tid = k_thread_create(
             self.raw,
-            self.stack.base,
-            self.stack.size,
+            self.stack.base(),
+            self.stack.size(),
             child,
             p1,
             p2,
@@ -270,8 +280,8 @@ impl Thread {
         unsafe {
             let tid = k_thread_create(
                 self.raw,
-                self.stack.base,
-                self.stack.size,
+                self.stack.base(),
+                self.stack.size(),
                 Some(closure::child),
                 child as *mut c_void,
                 null_mut(),
