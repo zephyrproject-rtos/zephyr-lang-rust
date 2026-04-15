@@ -217,6 +217,18 @@ impl Node {
             }
         })
     }
+
+    /// Return this node's index within its parent.
+    fn child_index(&self) -> usize {
+        let parent = self.parent.borrow();
+        let parent = parent.as_ref().expect("child node missing parent");
+
+        parent
+            .children
+            .iter()
+            .position(|child| core::ptr::eq(child.as_ref(), self))
+            .expect("child node missing from parent")
+    }
 }
 
 impl Value {
@@ -232,6 +244,81 @@ impl Value {
             }
             _ => (),
         }
+    }
+
+    // Output code to build this value when requested in code.
+    fn to_tokens(&self) -> proc_macro2::TokenStream {
+        let items = match self {
+            Self::Bytes(bytes) => {
+                quote::quote! {
+                    crate::devicetree::Value::Bytes(&[#(#bytes),*])
+                }
+            }
+            Self::String(text) => {
+                quote::quote! {
+                    crate::devicetree::Value::String(#text)
+                }
+            }
+            Self::Phandle(ph) => {
+                let name = &ph.name;
+                quote::quote! {
+                    crate::devicetree::Value::Phandle(#name)
+                }
+            }
+            Self::Words(words) => {
+                let mut twords = Vec::new();
+                let mut iter = words.iter();
+                while let Some(word) = iter.next() {
+                    match word {
+                        Word::Number(n) => {
+                            twords.push(quote::quote! { crate::devicetree::Word::Number(#n) });
+                        }
+                        Word::Phandle(ph) => {
+                            let mut consumed = false;
+                            if let Some(target) = ph.node.borrow().as_ref() {
+                                if target.has_prop("gpio-controller") {
+                                    if let Some(cells) = target.get_number("#gpio-cells") {
+                                        let cells = cells as usize;
+                                        let mut lookahead = iter.clone();
+                                        let mut args = Vec::new();
+                                        let mut valid = true;
+                                        for _ in 0..cells {
+                                            if let Some(Word::Number(n)) = lookahead.next() {
+                                                args.push(*n);
+                                            } else {
+                                                valid = false;
+                                                break;
+                                            }
+                                        }
+
+                                        if valid {
+                                            for _ in 0..cells {
+                                                iter.next();
+                                            }
+                                            let name = ph.name.as_str();
+                                            twords.push(quote::quote! {
+                                                crate::devicetree::Word::Gpio(#name, &[#(#args),*])
+                                            });
+                                            consumed = true;
+                                        }
+                                    }
+                                }
+                            }
+                            if !consumed {
+                                let name = ph.name.as_str();
+                                twords.push(
+                                    quote::quote! { crate::devicetree::Word::Phandle(#name) },
+                                );
+                            }
+                        }
+                    }
+                }
+                quote::quote! {
+                    crate::devicetree::Value::Words(&[#(#twords),*])
+                }
+            }
+        };
+        items
     }
 }
 

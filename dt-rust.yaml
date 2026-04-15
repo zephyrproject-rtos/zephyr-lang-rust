@@ -27,6 +27,32 @@
       raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
+# The pwm-leds node itself is a Zephyr LED controller device.
+- name: pwm-led-controller
+  rules:
+    - !Compatible
+      names: [pwm-leds]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led::LedController
+
+# The pwm-leds device is an LED controller. Each child node becomes a logical LED addressed through
+# the parent controller and the child's index.
+- name: pwm-leds
+  rules:
+    - !Compatible
+      names: [pwm-leds]
+      level: 1
+  actions:
+    - !Instance
+      raw: !Parent
+        level: 1
+        args:
+          - !ChildIdx
+      device: crate::device::led::Led
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
@@ -66,6 +92,12 @@
         args:
           - !Reg
       device: "crate::device::flash::FlashPartition"
+
+# To allow more general use, output all of the properties for every node as data.
+- name: raw_properties
+  rules: []
+  actions:
+    - !RawProperties
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels

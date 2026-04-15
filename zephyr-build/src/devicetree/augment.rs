@@ -17,7 +17,10 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use serde::{Deserialize, Serialize};
 
-use crate::devicetree::{output::dt_to_lower_id, Word};
+use crate::devicetree::{
+    output::{dt_to_lower_id, dt_to_upper_id},
+    Word,
+};
 
 use super::{DeviceTree, Node};
 
@@ -133,6 +136,10 @@ pub enum Action {
     },
     /// Generate all of the labels as its own node.
     Labels,
+    /// Output all of the properties in a low-level format. This will make the
+    /// properties available at run time, but they are written as functions so
+    /// will not be included unless directly referenced.
+    RawProperties,
 }
 
 impl Action {
@@ -143,6 +150,20 @@ impl Action {
                 device,
                 static_type,
             } => raw.generate(node, device, static_type.as_deref()),
+            Action::RawProperties => {
+                let props = node.properties.iter().map(|prop| {
+                    let name = format_ident!("RAW_{}", dt_to_upper_id(&prop.name));
+                    let value = prop.value.iter().map(|v| v.to_tokens());
+                    quote! {
+                        pub static #name: &'static [crate::devicetree::Value] =
+                            &[#(#value),*];
+                    }
+                });
+
+                quote! {
+                    #(#props)*
+                }
+            }
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
                     let name = dt_to_lower_id(k);
@@ -199,7 +220,7 @@ impl RawInfo {
                                 &crate::raw::#rawdev
                             }
                             #[allow(dead_code)]
-                            pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
+                            pub unsafe fn get_static_raw() -> &'static #static_type {
                                 &STATIC
                             }
 
@@ -299,6 +320,8 @@ impl RawInfo {
 pub enum ArgInfo {
     /// The arguments come from a 'reg' property.
     Reg,
+    /// The argument is the node's index within its parent.
+    ChildIdx,
 }
 
 impl ArgInfo {
@@ -309,6 +332,12 @@ impl ArgInfo {
                 let reg = node.get_numbers("reg").unwrap();
                 quote! {
                     #(#reg),*
+                }
+            }
+            ArgInfo::ChildIdx => {
+                let index = node.child_index() as u32;
+                quote! {
+                    #index
                 }
             }
         }
