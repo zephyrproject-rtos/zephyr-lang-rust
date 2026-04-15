@@ -33,6 +33,21 @@
   rules:
     - !Compatible
       names:
+        - "st,stm32-flash-controller"
+        - "st,stm32c5-flash-controller"
+        - "st,stm32f1-flash-controller"
+        - "st,stm32f2-flash-controller"
+        - "st,stm32f4-flash-controller"
+        - "st,stm32f7-flash-controller"
+        - "st,stm32g0-flash-controller"
+        - "st,stm32g4-flash-controller"
+        - "st,stm32h7-flash-controller"
+        - "st,stm32l4-flash-controller"
+        - "st,stm32l5-flash-controller"
+        - "st,stm32u3-flash-controller"
+        - "st,stm32wb0-flash-controller"
+        - "st,stm32wba-flash-controller"
+        - "st,stm32wb-flash-controller"
         - "nordic,nrf52-flash-controller"
         - "nordic,nrf51-flash-controller"
         - "raspberrypi,pico-flash-controller"
