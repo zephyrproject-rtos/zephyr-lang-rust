@@ -17,7 +17,10 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use serde::{Deserialize, Serialize};
 
-use crate::devicetree::{output::dt_to_lower_id, Word};
+use crate::devicetree::{
+    output::{dt_to_lower_id, dt_to_upper_id},
+    Word,
+};
 
 use super::{DeviceTree, Node};
 
@@ -133,6 +136,10 @@ pub enum Action {
     },
     /// Generate all of the labels as its own node.
     Labels,
+    /// Output all of the properties in a low-level format. Each property is
+    /// emitted as a static reference to a slice of `Value` items, making
+    /// them available at run time.
+    RawProperties,
 }
 
 impl Action {
@@ -143,6 +150,20 @@ impl Action {
                 device,
                 static_type,
             } => raw.generate(node, device, static_type.as_deref()),
+            Action::RawProperties => {
+                let props = node.properties.iter().map(|prop| {
+                    let name = format_ident!("RAW_{}", dt_to_upper_id(&prop.name));
+                    let value = prop.value.iter().map(|v| v.to_tokens());
+                    quote! {
+                        pub static #name: &'static [crate::devicetree::Value] =
+                            &[#(#value),*];
+                    }
+                });
+
+                quote! {
+                    #(#props)*
+                }
+            }
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
                     let name = dt_to_lower_id(k);
@@ -198,8 +219,14 @@ impl RawInfo {
                             pub unsafe fn get_instance_raw() -> *const crate::raw::device {
                                 &crate::raw::#rawdev
                             }
+                            /// Get the static data associated with this device node.
+                            ///
+                            /// # Safety
+                            ///
+                            /// The caller must ensure the returned reference is only
+                            /// used with the matching device from `get_instance_raw`.
                             #[allow(dead_code)]
-                            pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
+                            pub unsafe fn get_static_raw() -> &'static #static_type {
                                 &STATIC
                             }
 
@@ -247,9 +274,31 @@ impl RawInfo {
                 }
             }
             Self::Parent { level, args } => {
+                assert!(*level > 0);
+
+                // Walk up to the ancestor node and check its status.  If the
+                // ancestor is disabled it will not have a get_instance_raw()
+                // function, so we must not emit code that calls it.
+                let ancestor = {
+                    let mut cur = node.parent.borrow().as_ref().cloned();
+                    for _ in 1..*level {
+                        let next = cur
+                            .as_ref()
+                            .and_then(|n| n.parent.borrow().as_ref().cloned());
+                        cur = next;
+                    }
+                    cur
+                };
+
+                if let Some(ref anc) = ancestor {
+                    match anc.get_single_string("status") {
+                        Some("okay") | Some("ok") | None => {}
+                        _ => return quote! {},
+                    }
+                }
+
                 let get_args = args.iter().map(|arg| arg.args(node));
 
-                assert!(*level > 0);
                 let mut path = quote! {super};
                 for _ in 1..*level {
                     path = quote! { #path :: super };
