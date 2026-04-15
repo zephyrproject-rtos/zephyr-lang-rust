@@ -20,6 +20,7 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::transmute_int_to_bool)]
 #![allow(clippy::useless_transmute)]
+#![allow(unnecessary_transmutes)]
 #![allow(clippy::len_without_is_empty)]
 #![allow(unnecessary_transmutes)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
