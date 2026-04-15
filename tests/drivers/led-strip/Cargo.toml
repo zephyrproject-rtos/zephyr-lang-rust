@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Linaro LTD
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "Test the LED strip driver through the Rust LedStrip wrapper"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = "0.1.0"

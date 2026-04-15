@@ -127,6 +127,30 @@ pub mod devicetree {
     // usually use uppercase.
     #![allow(non_snake_case)]
 
+    /// An expanded property in the devicetree.
+    #[derive(Debug)]
+    pub enum Value {
+        /// A string value.
+        String(&'static str),
+        /// An arbitrary byte sequence.
+        Bytes(&'static [u8]),
+        /// A number value.
+        Words(&'static [Word]),
+        /// A phandle value.  For now, this is just the name, since we can't dynamically reference a module.
+        Phandle(&'static str),
+    }
+
+    // A single word within a devicetree property.
+    #[derive(Debug)]
+    pub enum Word {
+        // A 32 bit number.
+        Number(u32),
+        /// A phandle value.  For now, this is just the name, since we can't dynamically reference a module.
+        Phandle(&'static str),
+        /// A specific GPIO value.
+        Gpio(&'static str, &'static [u32]),
+    }
+
     include!(concat!(env!("OUT_DIR"), "/devicetree.rs"));
 }
 

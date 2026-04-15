@@ -27,6 +27,33 @@
       raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
+# WS2812 PIO driver: the strip device handle lives on the *child* of the PIO node (level 1).
+# The parent carries compatible = "worldsemi,ws2812-rpi_pico-pio" and manages PIO setup;
+# each child node is a distinct strip and is what DEVICE_DT_GET / aliases point to.
+- name: ws2812-rpi-pico-pio-led-strip
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-rpi_pico-pio"
+      level: 1
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
+# WS2812 SPI/GPIO drivers: the strip device handle lives directly on the compatible node (level 0).
+- name: ws2812-led-strip
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-spi"
+        - "worldsemi,ws2812-gpio"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
@@ -66,6 +93,12 @@
         args:
           - !Reg
       device: "crate::device::flash::FlashPartition"
+
+# To allow more general use, output all of the properties for every node as data.
+- name: raw_properties
+  rules: []
+  actions:
+    - !RawProperties
 
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels

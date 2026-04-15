@@ -12,6 +12,7 @@ use crate::sync::atomic::{AtomicBool, Ordering};
 
 pub mod flash;
 pub mod gpio;
+pub mod led_strip;
 
 // Allow dead code, because it isn't required for a given build to have any devices.
 /// Device uniqueness.
@@ -44,7 +45,7 @@ impl Unique {
 
 /// For devices that don't need any associated static data, This NoStatic type will take no space
 /// and generate no code, and has the const constructor needed for the type.
-pub(crate) struct NoStatic;
+pub struct NoStatic;
 
 impl NoStatic {
     pub(crate) const fn new() -> Self {

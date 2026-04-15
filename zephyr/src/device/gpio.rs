@@ -39,7 +39,7 @@ mod async_io {
 
     use super::GpioPin;
 
-    pub(crate) struct GpioStatic {
+    pub struct GpioStatic {
         /// The wakers for each of the gpios.
         wakers: [AtomicWaker; 32],
         /// Indicates when an interrupt has fired.  Used to definitively indicate the event has
@@ -225,7 +225,7 @@ mod async_io {
 
 #[cfg(not(feature = "async-drivers"))]
 mod async_io {
-    pub(crate) struct GpioStatic;
+    pub struct GpioStatic;
 
     impl GpioStatic {
         pub(crate) const fn new() -> Self {
@@ -281,6 +281,16 @@ pub struct GpioPin {
     pub(crate) data: &'static GpioStatic,
 }
 
+impl core::fmt::Debug for GpioPin {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("GpioPin")
+            .field("port", &self.pin.port)
+            .field("pin", &self.pin.pin)
+            .field("dt_flags", &self.pin.dt_flags)
+            .finish()
+    }
+}
+
 // SAFETY: GpioPin's can be shared with other threads.  Safety is maintained by the Token.
 unsafe impl Send for GpioPin {}
 
@@ -306,6 +316,25 @@ impl GpioPin {
             },
             data: device_static,
         })
+    }
+
+    /// An unsafe constructor intended for use outside of this crate.  Does not
+    /// guarantee any uniqueness (which isn't guaranteed or needed by the Gpio
+    /// device anyway).
+    pub unsafe fn raw_new(
+        device: *const raw::device,
+        device_static: &'static GpioStatic,
+        pin: u32,
+        dt_flags: u32,
+    ) -> GpioPin {
+        GpioPin {
+            pin: raw::gpio_dt_spec {
+                port: device,
+                pin: pin as raw::gpio_pin_t,
+                dt_flags: dt_flags as raw::gpio_dt_flags_t,
+            },
+            data: device_static,
+        }
     }
 
     /// Verify that the device is ready for use.  At a minimum, this means the device has been

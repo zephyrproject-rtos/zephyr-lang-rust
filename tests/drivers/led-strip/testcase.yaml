@@ -1,0 +1,11 @@
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - sparkfun_pro_micro_rp2040
+tests:
+  test.rust.drivers.led-strip:
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "All tests passed"
