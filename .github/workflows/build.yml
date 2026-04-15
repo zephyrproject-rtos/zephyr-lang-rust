@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-22.04, macos-15]
     runs-on: ${{ matrix.os }}
     env:
       WGET_ARGS: "-q"
@@ -45,6 +45,22 @@ jobs:
           manifest-file-name: ci-manifest.yml
           toolchains: arm-zephyr-eabi:riscv64-zephyr-elf
 
+      - name: Setup macOS LLVM Environment
+        if: runner.os == 'macOS'
+        run: |
+          # Set hardcoded paths for LLVM 18 installed via Homebrew on macOS 15 - fits with GitHub's macOS 15 image
+          echo "LIBCLANG_PATH=/opt/homebrew/Cellar/llvm@18/18.1.8/lib/libclang.dylib" >> $GITHUB_ENV
+          echo "CLANG_PATH=/opt/homebrew/Cellar/llvm@18/18.1.8//bin/clang" >> $GITHUB_ENV
+          # Fix cross-compilation issues with Bindgen by defining the correct macros for 64-bit integer literals
+          echo "BINDGEN_EXTRA_CLANG_ARGS=-D__INT64_C(c)=c##LL -D__UINT64_C(c)=c##ULL" >> $GITHUB_ENV
+
+      - name: Verify Environment
+        if: runner.os == 'macOS'
+        run: |
+          echo "The clang path is: $CLANG_PATH"
+          echo "The libclang path is: $LIBCLANG_PATH"
+          echo "The bindgen args are: $BINDGEN_EXTRA_CLANG_ARGS"
+
       - name: Install Rust Targets
         shell: bash
         run: |
@@ -59,6 +75,7 @@ jobs:
 
       # Note that Renode is only provided for x86_64 targets.  This matches the github runners.
       - name: Install Renode
+        if: runner.os == 'ubuntu'
         shell: bash
         run: |
           set -e
@@ -82,14 +99,18 @@ jobs:
             cd - > /dev/null
           done
 
+      - name: Check CPU and Disk
+        if: runner.os == 'ubuntu'
+        shell: bash
+        run: |
+          lscpu
+          df -h
+
       - name: Build firmware
         working-directory: apptest
         shell: bash
         run: |
           cargo --version
-
-          lscpu
-          df -h
 
           ../zephyr/scripts/twister -M all -T samples -T tests -v --inline-logs --integration -j 4 \
              --timeout-multiplier 2 \
