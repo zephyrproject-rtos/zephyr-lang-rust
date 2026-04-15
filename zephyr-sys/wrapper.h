@@ -42,6 +42,7 @@ extern int errno;
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
+#include <zephyr/drivers/i2c.h>
 #include <zephyr/irq.h>
 
 /*
@@ -80,6 +81,7 @@ ZR_GPIO(GPIO_INT_HIGH_1);
 ZR_GPIO(GPIO_INT_LEVEL_HIGH);
 ZR_GPIO(GPIO_INT_LEVEL_LOW);
 ZR_GPIO(GPIO_OUTPUT_ACTIVE);
+ZR_GPIO(GPIO_OUTPUT_INACTIVE);
 
 #undef ZR_GPIO
 
@@ -93,4 +95,47 @@ static inline int zr_irq_lock(void) {
 
 static inline void zr_irq_unlock(int key) {
 	irq_unlock(key);
+}
+
+/*
+ * The I2C_MSG_* flags are defined with BIT(), which bindgen does not always
+ * resolve to plain integer constants.  Re-expose them as typed constants.
+ */
+const uint8_t ZR_I2C_MSG_WRITE = I2C_MSG_WRITE;
+const uint8_t ZR_I2C_MSG_READ = I2C_MSG_READ;
+const uint8_t ZR_I2C_MSG_STOP = I2C_MSG_STOP;
+const uint8_t ZR_I2C_MSG_RESTART = I2C_MSG_RESTART;
+const uint8_t ZR_I2C_MSG_ADDR_10_BITS = I2C_MSG_ADDR_10_BITS;
+
+/*
+ * I2C convenience functions are static inline in Zephyr, so we need shim
+ * wrappers for bindgen to pick them up.
+ */
+static inline int zr_i2c_write(const struct device *dev,
+				const uint8_t *buf, uint32_t num_bytes,
+				uint16_t addr) {
+	return i2c_write(dev, buf, num_bytes, addr);
+}
+
+static inline int zr_i2c_read(const struct device *dev,
+			       uint8_t *buf, uint32_t num_bytes,
+			       uint16_t addr) {
+	return i2c_read(dev, buf, num_bytes, addr);
+}
+
+static inline int zr_i2c_write_read(const struct device *dev, uint16_t addr,
+				     const void *write_buf, size_t num_write,
+				     void *read_buf, size_t num_read) {
+	return i2c_write_read(dev, addr, write_buf, num_write,
+			      read_buf, num_read);
+}
+
+static inline int zr_i2c_target_register(const struct device *dev,
+					  struct i2c_target_config *cfg) {
+	return i2c_target_register(dev, cfg);
+}
+
+static inline int zr_i2c_target_unregister(const struct device *dev,
+					    struct i2c_target_config *cfg) {
+	return i2c_target_unregister(dev, cfg);
 }
