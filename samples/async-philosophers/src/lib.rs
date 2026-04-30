@@ -2,10 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #![no_std]
-// Cargo tries to detect configs that have typos in them.  Unfortunately, the Zephyr Kconfig system
-// uses a large number of Kconfigs and there is no easy way to know which ones might conceivably be
-// valid.  This prevents a warning about each cfg that is used.
-#![allow(unexpected_cfgs)]
 
 extern crate alloc;
 
