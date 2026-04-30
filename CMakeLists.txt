@@ -173,6 +173,7 @@ ${config_paths}
       WRAPPER_FILE="${WRAPPER_FILE}"
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
+      CC=${CMAKE_C_COMPILER}
       cargo build
       ${rust_build_type_arg}
 
@@ -217,6 +218,7 @@ ${config_paths}
       WRAPPER_FILE="${WRAPPER_FILE}"
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
+      CC=${CMAKE_C_COMPILER}
       cargo doc
       ${rust_build_type_arg}
 
