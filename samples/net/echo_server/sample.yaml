@@ -1,0 +1,15 @@
+# See doc/develop/test/twister.rst for what is here.
+sample:
+  name: Echo Server Sample
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m3
+    - qemu_riscv32
+    - qemu_riscv64
+tests:
+  sample.rust.net.echo_server:
+    tags:
+      - net
+    depends_on: netif
+    harness: net

@@ -52,4 +52,12 @@ void rust_panic_wrap(void)
 	k_panic();
 }
 
+/* `errno` is usually defined as a macro rather than a variable, which makes it difficult to
+ * access in Rust. So create a simple getter function in C.
+ */
+int get_errno(void)
+{
+	return errno;
+}
+
 #endif
