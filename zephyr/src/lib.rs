@@ -89,8 +89,10 @@ pub use error::{Error, Result};
 
 pub use logging::set_logger;
 
-/// Re-exported for local macro use.
-pub use paste::paste;
+/// Re-exported for local macro use. `pastey` is the maintained
+/// successor to `paste` (RUSTSEC-2024-0436); it is API-compatible, so
+/// the `$crate::paste!` callsites in `object.rs` etc. are unchanged.
+pub use pastey::paste;
 
 /// Re-export the proc macros.
 pub use zephyr_macros::thread;

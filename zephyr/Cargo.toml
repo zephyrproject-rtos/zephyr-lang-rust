@@ -17,8 +17,10 @@ rust-version = "1.85"
 zephyr-sys = { version = "0.1.0", path = "../zephyr-sys" }
 zephyr-macros = { version = "0.1.0", path = "../zephyr-macros" }
 
-# Although paste is brought in, it is a compile-time macro, and is not linked into the application.
-paste = "1.0"
+# `pastey` is the maintained successor to `paste` (which was archived
+# upstream — see RUSTSEC-2024-0436). It is a drop-in API replacement,
+# and is a compile-time macro, so it is not linked into the application.
+pastey = "0.2"
 
 # cfg-if is a compile-time macro as well, to make conditional compilation a bit easier to write.
 cfg-if = "1.0"
