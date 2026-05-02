@@ -5,5 +5,5 @@
 // zephyr-build must be a build dependency.
 
 fn main() {
-    zephyr_build::export_bool_kconfig();
+    zephyr_build::export_kconfig_bool_options();
 }

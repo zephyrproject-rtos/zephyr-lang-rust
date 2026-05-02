@@ -56,6 +56,9 @@ pub struct Augmentation {
     rules: Vec<Rule>,
     /// What to do when a given node matches.
     actions: Vec<Action>,
+    /// Optional kconfig option to gate the generated code with `#[cfg(...)]`.
+    #[serde(default)]
+    cfg: Option<String>,
 }
 
 impl Augment for Augmentation {
@@ -65,7 +68,14 @@ impl Augment for Augmentation {
 
     fn generate(&self, node: &Node, tree: &DeviceTree) -> TokenStream {
         let name = format_ident!("{}", dt_to_lower_id(&self.name));
-        let actions = self.actions.iter().map(|a| a.generate(&name, node, tree));
+        let cfg_attr = self.cfg.as_ref().map(|cfg_name| {
+            let cfg_id = format_ident!("{}", cfg_name);
+            quote! { #[cfg(#cfg_id)] }
+        });
+        let actions = self
+            .actions
+            .iter()
+            .map(|a| a.generate(&name, node, tree, &cfg_attr));
 
         quote! {
             #(#actions)*
@@ -136,13 +146,19 @@ pub enum Action {
 }
 
 impl Action {
-    fn generate(&self, _name: &Ident, node: &Node, tree: &DeviceTree) -> TokenStream {
+    fn generate(
+        &self,
+        _name: &Ident,
+        node: &Node,
+        tree: &DeviceTree,
+        cfg_attr: &Option<TokenStream>,
+    ) -> TokenStream {
         match self {
             Action::Instance {
                 raw,
                 device,
                 static_type,
-            } => raw.generate(node, device, static_type.as_deref()),
+            } => raw.generate(node, device, static_type.as_deref(), cfg_attr),
             Action::Labels => {
                 let nodes = tree.labels.iter().map(|(k, v)| {
                     let name = dt_to_lower_id(k);
@@ -184,7 +200,13 @@ pub enum RawInfo {
 }
 
 impl RawInfo {
-    fn generate(&self, node: &Node, device: &str, static_type: Option<&str>) -> TokenStream {
+    fn generate(
+        &self,
+        node: &Node,
+        device: &str,
+        static_type: Option<&str>,
+        cfg_attr: &Option<TokenStream>,
+    ) -> TokenStream {
         let device_id = str_to_path(device);
         let static_type = str_to_path(static_type.unwrap_or("crate::device::NoStatic"));
         match self {
@@ -194,17 +216,22 @@ impl RawInfo {
                 match node.get_single_string("status") {
                     Some("okay") | Some("ok") | None => {
                         quote! {
+                            #cfg_attr
                             /// Get the raw `const struct device *` of the device tree generated node.
                             pub unsafe fn get_instance_raw() -> *const crate::raw::device {
                                 &crate::raw::#rawdev
                             }
+                            #cfg_attr
                             #[allow(dead_code)]
                             pub(crate) unsafe fn get_static_raw() -> &'static #static_type {
                                 &STATIC
                             }
 
+                            #cfg_attr
                             static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                            #cfg_attr
                             static STATIC: #static_type = #static_type::new();
+                            #cfg_attr
                             pub fn get_instance() -> Option<#device_id> {
                                 unsafe {
                                     let device = get_instance_raw();
@@ -235,8 +262,11 @@ impl RawInfo {
                 let target_route = target.route_to_rust();
 
                 quote! {
+                    #cfg_attr
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #cfg_attr
                     static STATIC: #static_type = #static_type::new();
+                    #cfg_attr
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #target_route :: get_instance_raw();
@@ -256,8 +286,11 @@ impl RawInfo {
                 }
 
                 quote! {
+                    #cfg_attr
                     static UNIQUE: crate::device::Unique = crate::device::Unique::new();
+                    #cfg_attr
                     static STATIC: #static_type = #static_type::new();
+                    #cfg_attr
                     pub fn get_instance() -> Option<#device_id> {
                         unsafe {
                             let device = #path :: get_instance_raw();
