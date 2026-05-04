@@ -87,10 +87,14 @@ async fn led_blinker(mut led: Option<GpioPin>) -> ! {
 async fn button_listener(mut button: GpioPin) -> ! {
     let sender = IO_CHANNEL.sender();
     loop {
+        // SAFETY: There is no concurrent access of this GPIO pin, this task is the only one that
+        // waits on it.
         unsafe {
             button.wait_for_low().await;
         }
         sender.send(IoEvent::ButtonPress).await;
+        // SAFETY: There is no concurrent access of this GPIO pin, this task is the only one that
+        // waits on it.
         unsafe {
             button.wait_for_high().await;
         }
@@ -110,6 +114,8 @@ async fn led_timer() -> ! {
 
 #[no_mangle]
 extern "C" fn rust_main() {
+    // SAFETY: `rust_main` runs once during application startup before any rust tasks
+    // are spawned, so the global logger is initialized before concurrent use.
     unsafe {
         zephyr::set_logger().unwrap();
     }
