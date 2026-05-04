@@ -221,6 +221,16 @@ ${config_paths}
     COMMENT "Building Rust application"
   )
 
+  # Command to lint the Rust application.
+  add_cargo_target_with_zephyr_env(clippy
+    ALL
+    OUTPUT run_rust_clippy
+    CARGO_ARGS
+      clippy
+      --
+      -D warnings
+      -D clippy::undocumented_unsafe_blocks
+    COMMENT "Linting Rust application"
   )
 
   # Command to generate the rust docs.
