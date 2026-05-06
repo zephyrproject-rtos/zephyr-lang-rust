@@ -39,11 +39,14 @@ const LOW_PRIO: c_int = 5;
 
 #[no_mangle]
 extern "C" fn rust_main() {
+    // SAFETY: `rust_main` runs once during application startup before any rust tasks
+    // are spawned, so the global logger is initialized before concurrent use.
     unsafe {
         zephyr::set_logger().unwrap();
     }
 
     // Set our own priority.
+    // SAFETY: `rust_main` runs in a thread context.
     unsafe {
         raw::k_thread_priority_set(raw::k_current_get(), MAIN_PRIO);
     }
@@ -267,6 +270,7 @@ enum Answer {
 
 // TODO: Put this benchmarking stuff somewhere useful.
 fn now() -> u64 {
+    // SAFETY: FIXME: To be clarified
     unsafe { k_cycle_get_64() }
 }
 
