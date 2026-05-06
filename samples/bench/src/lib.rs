@@ -262,11 +262,11 @@ impl ThreadTests {
         let mut msg_count = (2 + results.len()) as isize;
 
         // Order is important here, start with the highest priority things.
-        self.high_command.send(command.clone()).unwrap();
+        self.high_command.send(command).unwrap();
         for cmd in &self.commands {
-            cmd.send(command.clone()).unwrap();
+            cmd.send(command).unwrap();
         }
-        self.low_command.send(command.clone()).unwrap();
+        self.low_command.send(command).unwrap();
 
         while let Ok(cmd) = self.results.receiver.recv() {
             match cmd {
@@ -386,6 +386,7 @@ impl ThreadTests {
             sem.give();
             sem.take(NoWait).unwrap();
             *total += 1;
+            // SAFETY: FIXME: To be clarified
             unsafe { k_yield() };
         }
     }
@@ -401,18 +402,13 @@ impl ThreadTests {
     /// Worker side of the ping pong sem, takes the 'sem' and gives to the back_sem.
     fn ping_pong_worker(
         &self,
-        id: usize,
+        _id: usize,
         sem: &Semaphore,
         back_sem: &Semaphore,
         count: usize,
         total: &mut usize,
     ) {
-        for i in 0..count {
-            if false {
-                if let Ok(_) = sem.take(NoWait) {
-                    panic!("Semaphore was already available: {} loop:{}", id, i);
-                }
-            }
+        for _ in 0..count {
             sem.take(Forever).unwrap();
             back_sem.give();
             *total += 1;
@@ -558,11 +554,7 @@ impl Command {
     /// Determine if this command intents for the "low" worker to be at the same priority as the
     /// main worker.
     pub fn is_same_priority(self) -> bool {
-        match self {
-            Self::SemWaitSame(_) => true,
-            Self::SemOnePingPong(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::SemWaitSame(_) | Self::SemOnePingPong(_))
     }
 }
 
@@ -759,6 +751,7 @@ fn sem_bench() {
 
 // For accurate timing, use the cycle counter.
 fn now() -> u64 {
+    // SAFETY: FIXME: To be clarified
     unsafe { k_cycle_get_64() }
 }
 
