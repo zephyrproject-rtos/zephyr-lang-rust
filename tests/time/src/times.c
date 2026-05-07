@@ -90,6 +90,11 @@ const struct time_entry *get_time_entry(uintptr_t index)
 	return &time_entries[index];
 }
 
+const size_t time_entry_count(void)
+{
+	return sizeof(time_entries) / sizeof(time_entries[0]);
+}
+
 /* The abs timeout is not constant, so provide this wrapper function.
  */
 const k_timeout_t ms_to_abs_timeout(int64_t ms)

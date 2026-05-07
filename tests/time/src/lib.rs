@@ -16,15 +16,29 @@ extern "C" fn rust_main() {
     printkln!("All tests passed");
 }
 
+fn get_entry(index: usize) -> Option<&'static TimeEntry> {
+    // SAFETY: Time count is a compile time size of the time entry array.
+    if index >= unsafe { time_entry_count() } {
+        None
+    } else {
+        // SAFETY: Retrieves a time entry from a statically defined array,
+        // the index is checked against the count and the pointer to the
+        // entry is considered valid.
+        let entry = unsafe { &*get_time_entry(index) };
+        if entry.name.is_null() {
+            None
+        } else {
+            Some(entry)
+        }
+    }
+}
+
 /// Verify that the conversions are correct.
 fn check_conversions() {
     let mut index = 0;
-    loop {
-        // The entry returns is always valid, so is a valid reference.
-        let entry = unsafe { &*get_time_entry(index) };
-        if entry.name.is_null() {
-            break;
-        }
+    while let Some(entry) = get_entry(index) {
+        // SAFETY: These are static compile time C-strings for every TimeEntry,
+        // the name ptr is verified to be non-null.
         let name = unsafe {
             CStr::from_ptr(entry.name)
                 .to_str()
@@ -54,6 +68,7 @@ fn check_conversions() {
                 let value = Duration::millis_at_least(entry.uvalue as Tick);
                 let value = base + value;
                 let value: Timeout = value.into();
+                // SAFETY: Simple conversion from ms to k_timeout_t.
                 let c_value = unsafe { ms_to_abs_timeout(entry.uvalue) };
                 if c_value.ticks != value.0.ticks {
                     printkln!("Mismatch C: {}, Rust: {}", c_value.ticks, value.0.ticks);
@@ -81,4 +96,5 @@ struct TimeEntry {
 extern "C" {
     fn get_time_entry(index: usize) -> *const TimeEntry;
     fn ms_to_abs_timeout(ms: i64) -> k_timeout_t;
+    fn time_entry_count() -> usize;
 }
