@@ -7,7 +7,7 @@ extern crate alloc;
 
 use embassy_time::{Duration, Ticker};
 use zephyr::{
-    device::gpio::{GpioPin, GpioToken},
+    device::gpio::GpioPin,
     embassy::Executor,
     raw::{GPIO_PULL_DOWN, ZR_GPIO_INPUT, ZR_GPIO_OUTPUT_ACTIVE},
 };
@@ -37,34 +37,31 @@ async fn main(spawner: Spawner) {
 
     let mut col0 = zephyr::devicetree::labels::col0::get_instance().unwrap();
     let mut row0 = zephyr::devicetree::labels::row0::get_instance().unwrap();
-    let mut gpio_token = unsafe { zephyr::device::gpio::GpioToken::get_instance().unwrap() };
 
-    unsafe {
-        col0.configure(&mut gpio_token, ZR_GPIO_OUTPUT_ACTIVE);
-        col0.set(&mut gpio_token, true);
-        row0.configure(&mut gpio_token, ZR_GPIO_INPUT | GPIO_PULL_DOWN);
-    }
+    col0.configure(ZR_GPIO_OUTPUT_ACTIVE);
+    col0.set(true);
+    row0.configure(ZR_GPIO_INPUT | GPIO_PULL_DOWN);
 
     loop {
-        unsafe { row0.wait_for_high(&mut gpio_token).await };
+        unsafe { row0.wait_for_high().await };
         // Simple debounce, Wait for 20 consecutive high samples.
-        debounce(&mut row0, &mut gpio_token, true).await;
+        debounce(&mut row0, true).await;
         info!("Pressed");
-        unsafe { row0.wait_for_low(&mut gpio_token).await };
-        debounce(&mut row0, &mut gpio_token, false).await;
+        unsafe { row0.wait_for_low().await };
+        debounce(&mut row0, false).await;
         info!("Released");
     }
 }
 
 /// Simple debounce.  Scan the gpio periodically, and return when we have 20 consecutive samples of
 /// the intended value.
-async fn debounce(pin: &mut GpioPin, gpio_token: &mut GpioToken, level: bool) {
+async fn debounce(pin: &mut GpioPin, level: bool) {
     let mut count = 0;
     let mut ticker = Ticker::every(Duration::from_millis(1));
     loop {
         ticker.next().await;
 
-        if unsafe { pin.get(gpio_token) } == level {
+        if pin.get() == level {
             count += 1;
 
             if count >= 20 {
