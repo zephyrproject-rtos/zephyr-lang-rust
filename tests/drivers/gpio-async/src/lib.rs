@@ -26,7 +26,7 @@ extern "C" fn rust_main() {
 
     let executor = EXECUTOR_MAIN.init(Executor::new());
     executor.run(|spawner| {
-        spawner.spawn(main(spawner)).unwrap();
+        spawner.spawn(main(spawner).unwrap());
     })
 }
 

@@ -64,7 +64,7 @@ extern "C" fn rust_main() {
 
     let executor = EXECUTOR_MAIN.init(Executor::new());
     executor.run(|spawner| {
-        spawner.spawn(main(spawner)).unwrap();
+        spawner.spawn(main(spawner).unwrap());
     })
 }
 
@@ -146,13 +146,13 @@ impl ThreadTests {
 
         // Fire off all of the workers.
         for id in 0..self.count {
-            spawner.spawn(worker(self, id, command)).unwrap();
+            spawner.spawn(worker(self, id, command).unwrap());
         }
 
         // And the "low" priority thread (which isn't lower at this time).
-        low_spawner.spawn(low_task(self, command)).unwrap();
+        low_spawner.spawn(low_task(self, command).unwrap());
         //let _ = low_spawner;
-        //spawner.spawn(low_task(self, command)).unwrap();
+        //spawner.spawn(low_task(self, command).unwrap());
 
         // Now wait for all of the responses.
         loop {

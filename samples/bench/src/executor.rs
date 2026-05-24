@@ -96,7 +96,7 @@ impl AsyncTests {
     /// test, and the results are then collected, waiting for everything to finish, and reported.
     pub fn run(&'static self, command: Command) {
         if !self.main_started.load(Ordering::Relaxed) {
-            self.spawners[1].spawn(main_run(self)).unwrap();
+            self.spawners[1].spawn(main_run(self).unwrap());
             self.main_started.store(true, Ordering::Relaxed);
         }
 
@@ -273,19 +273,19 @@ async fn main_run(this: &'static AsyncTests) {
         this.back_sem.set(0);
 
         if true {
-            this.spawners[2].spawn(high_worker(this, command)).unwrap();
+            this.spawners[2].spawn(high_worker(this, command).unwrap());
             if command.is_same_priority() {
-                this.spawners[1].spawn(low_worker(this, command)).unwrap();
+                this.spawners[1].spawn(low_worker(this, command).unwrap());
             } else {
-                this.spawners[0].spawn(low_worker(this, command)).unwrap();
+                this.spawners[0].spawn(low_worker(this, command).unwrap());
             }
         } else {
-            this.spawners[1].spawn(high_worker(this, command)).unwrap();
-            this.spawners[1].spawn(low_worker(this, command)).unwrap();
+            this.spawners[1].spawn(high_worker(this, command).unwrap());
+            this.spawners[1].spawn(low_worker(this, command).unwrap());
         }
 
         for id in 0..ntasks {
-            this.spawners[1].spawn(worker(this, command, id)).unwrap();
+            this.spawners[1].spawn(worker(this, command, id).unwrap());
         }
 
         let mut results: heapless::Vec<Option<usize>, NUM_THREADS> = heapless::Vec::new();
