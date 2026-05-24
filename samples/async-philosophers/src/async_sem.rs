@@ -48,7 +48,7 @@ pub async fn phil(spawner: Spawner, stats_sig: &'static ResultSignal) {
             [&FORKS[i], &FORKS[i + 1]]
         };
 
-        spawner.spawn(one_phil(forks, i, stats.clone())).unwrap();
+        spawner.spawn(one_phil(forks, i, stats.clone()).unwrap());
     }
 
     // Wait for them all to finish.

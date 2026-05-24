@@ -19,8 +19,8 @@ extern "C" fn rust_main() {
     let executor = EXECUTOR.init(Executor::new());
 
     executor.run(|spawner: Spawner| {
-        spawner.spawn(sleep_print("fast", 200)).unwrap();
-        spawner.spawn(sleep_print("slow", 700)).unwrap();
+        spawner.spawn(sleep_print("fast", 200).unwrap());
+        spawner.spawn(sleep_print("slow", 700).unwrap());
     })
 }
 
