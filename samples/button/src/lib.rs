@@ -123,18 +123,18 @@ extern "C" fn rust_main() {
     executor.run(|spawner| {
         match led0 {
             Ok(led) => {
-                spawner.spawn(led_timer()).unwrap();
-                spawner.spawn(led_blinker(Some(led))).unwrap();
+                spawner.spawn(led_timer().unwrap());
+                spawner.spawn(led_blinker(Some(led)).unwrap());
             }
             Err(e) => {
                 warn!("Failed to configure LED: {}", e);
-                spawner.spawn(led_blinker(None)).unwrap();
+                spawner.spawn(led_blinker(None).unwrap());
             }
         }
 
         match sw0 {
             Ok(button) => {
-                spawner.spawn(button_listener(button)).unwrap();
+                spawner.spawn(button_listener(button).unwrap());
             }
             Err(e) => warn!("Failed to configure button: {}", e),
         }

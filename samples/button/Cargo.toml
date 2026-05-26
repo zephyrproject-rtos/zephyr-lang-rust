@@ -16,9 +16,9 @@ crate-type = ["staticlib"]
 zephyr = { version = "0.1.0", features = ["time-driver", "executor-zephyr", "async-drivers"] }
 log = "0.4.22"
 static_cell = "2.1"
-embassy-executor = { version = "0.7.0", features = ["log", "task-arena-size-2048"] }
-embassy-sync = "0.6.2"
-embassy-time = { version = "0.4.0", features = ["tick-hz-32_768"] }
+embassy-executor = { version = "0.10.0", features = ["log"] }
+embassy-sync = "0.8.0"
+embassy-time = { version = "0.5.1", features = ["tick-hz-32_768"] }
 
 [build-dependencies]
 zephyr-build = "0.1.0"
