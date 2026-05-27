@@ -120,6 +120,12 @@ fn main() -> anyhow::Result<()> {
         // LED Strip
         .allowlist_item_if("led_rgb", || options.contains("CONFIG_LED_STRIP"))
         .allowlist_function_if("led_strip_.*", || options.contains("CONFIG_LED_STRIP"))
+        // I2C
+        .allowlist_function_if("i2c_transfer", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("i2c_msg", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("i2c_target_config", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("i2c_target_callbacks", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("I2C_MSG_.*", || options.contains("CONFIG_I2C"))
         // Generate
         .generate()
         .expect("Unable to generate bindings");
