@@ -74,7 +74,7 @@ extern "C" fn rust_main() {
 
     printkln!("Pre fork");
 
-    for (i, syncer) in (0..NUM_PHIL).zip(syncers.into_iter()) {
+    for (i, syncer) in (0..NUM_PHIL).zip(syncers) {
         phil_thread(i, syncer, stats).start();
     }
 
