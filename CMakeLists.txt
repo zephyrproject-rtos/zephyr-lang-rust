@@ -67,6 +67,66 @@ function(get_include_dirs target dirs)
   endif()
 endfunction()
 
+function(add_cargo_target_with_zephyr_env target)
+  set(one_value_args OUTPUT COMMENT)
+  set(multi_value_args BYPRODUCTS CARGO_ARGS)
+  cmake_parse_arguments(CARGO_TARGET "ALL" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+  if(NOT CARGO_TARGET_OUTPUT)
+    message(FATAL_ERROR "add_cargo_target_with_zephyr_env requires OUTPUT")
+  endif()
+
+  if(NOT CARGO_TARGET_CARGO_ARGS)
+    message(FATAL_ERROR "add_cargo_target_with_zephyr_env requires CARGO_ARGS")
+  endif()
+
+  if(CARGO_TARGET_ALL)
+    set(custom_target_all ALL)
+  else()
+    set(custom_target_all)
+  endif()
+
+  set(cargo_args ${CARGO_TARGET_CARGO_ARGS})
+  list(POP_FRONT cargo_args cargo_command)
+
+  add_custom_command(
+    OUTPUT ${CARGO_TARGET_OUTPUT}
+    BYPRODUCTS ${CARGO_TARGET_BYPRODUCTS}
+    USES_TERMINAL
+    COMMAND
+      ${CMAKE_COMMAND} -E
+      env BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
+      ZEPHYR_BASE=${ZEPHYR_BASE}
+      DOTCONFIG=${DOTCONFIG}
+      ZEPHYR_DTS=${ZEPHYR_DTS}
+      INCLUDE_DIRS="${include_dirs}"
+      INCLUDE_DEFINES="${include_defines}"
+      WRAPPER_FILE="${WRAPPER_FILE}"
+      DT_AUGMENTS="${DT_AUGMENTS}"
+      BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
+      cargo ${cargo_command}
+      ${rust_build_type_arg}
+
+      # Set a replacement so that packages can just use `zephyr-sys` as a package
+      # name to find it.
+      ${command_paths}
+      --target ${RUST_TARGET}
+      --target-dir ${CARGO_TARGET_DIR}
+      ${cargo_args}
+    COMMENT "${CARGO_TARGET_COMMENT}"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+  add_custom_target(${target} ${custom_target_all}
+    DEPENDS ${CARGO_TARGET_OUTPUT}
+        # The variables, defined at the top level, don't seem to be accessible here.
+        offsets_h
+        syscall_list_h_target
+        driver_validation_h_target
+        kobj_types_h_target
+  )
+endfunction()
+
 function(rust_cargo_application)
   # For now, hard-code the Zephyr crate directly here.  Once we have
   # more than one crate, these should be added by the modules
@@ -152,96 +212,32 @@ DT_AUGMENTS = \"${DT_AUGMENTS}\"
 ${config_paths}
 ")
 
-  # The block of environment variables below could theoretically be captured in a variable, but this
-  # seems "challenging" in CMake (to be polite), as many of these contain spaces, and the quoting
-  # rules in CMake are inconsistent, at best.
-  # TODO: Figure out how to factor these out.
-
   # The library is built by invoking Cargo.
-  add_custom_command(
+  add_cargo_target_with_zephyr_env(librustapp
+    ALL
     OUTPUT ${DUMMY_FILE}
     BYPRODUCTS ${RUST_LIBRARY} ${WRAPPER_FILE}
-    USES_TERMINAL
-    COMMAND
-      ${CMAKE_COMMAND} -E
-      env BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
-      ZEPHYR_BASE=${ZEPHYR_BASE}
-      DOTCONFIG=${DOTCONFIG}
-      ZEPHYR_DTS=${ZEPHYR_DTS}
-      INCLUDE_DIRS="${include_dirs}"
-      INCLUDE_DEFINES="${include_defines}"
-      WRAPPER_FILE="${WRAPPER_FILE}"
-      DT_AUGMENTS="${DT_AUGMENTS}"
-      BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
-      cargo build
-      ${rust_build_type_arg}
-
-      # Override the features according to the shield given. For a general case,
-      # this will need to come from a variable or argument.
-      # TODO: This needs to be passed in.
-      # --no-default-features
-      # --features ${SHIELD_FEATURE}
-
-      # Set a replacement so that packages can just use `zephyr-sys` as a package
-      # name to find it.
-      ${command_paths}
-      --target ${RUST_TARGET}
-      --target-dir ${CARGO_TARGET_DIR}
+    CARGO_ARGS build
     COMMENT "Building Rust application"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
-  # Be sure we don't try building this until all of the generated headers have been generated.
-  add_custom_target(librustapp ALL
-    DEPENDS ${DUMMY_FILE}
-        # The variables, defined at the top level, don't seem to be accessible here.
-        offsets_h
-        syscall_list_h_target
-        driver_validation_h_target
-        kobj_types_h_target
+  # Command to lint the Rust application.
+  add_cargo_target_with_zephyr_env(clippy
+    ALL
+    OUTPUT run_rust_clippy
+    CARGO_ARGS
+      clippy
+      --
+      -D warnings
+      -D clippy::undocumented_unsafe_blocks
+    COMMENT "Linting Rust application"
   )
 
-  # Command to generate the rust docs.  As mentioned above, the whole environment is duplicated, so
-  # it is important to keep this in sync with the above.
-  add_custom_command(
+  # Command to generate the rust docs.
+  add_cargo_target_with_zephyr_env(rustdoc
     OUTPUT generate_rust_docs
-    USES_TERMINAL
-    COMMAND
-      ${CMAKE_COMMAND} -E
-      env BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
-      ZEPHYR_BASE=${ZEPHYR_BASE}
-      DOTCONFIG=${DOTCONFIG}
-      ZEPHYR_DTS=${ZEPHYR_DTS}
-      INCLUDE_DIRS="${include_dirs}"
-      INCLUDE_DEFINES="${include_defines}"
-      WRAPPER_FILE="${WRAPPER_FILE}"
-      DT_AUGMENTS="${DT_AUGMENTS}"
-      BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
-      cargo doc
-      ${rust_build_type_arg}
-
-      # Override the features according to the shield given. For a general case,
-      # this will need to come from a variable or argument.
-      # TODO: This needs to be passed in.
-      # --no-default-features
-      # --features ${SHIELD_FEATURE}
-
-      # Set a replacement so that packages can just use `zephyr-sys` as a package
-      # name to find it.
-      ${command_paths}
-      --target ${RUST_TARGET}
-      --target-dir ${CARGO_TARGET_DIR}
+    CARGO_ARGS doc
     COMMENT "Building Rust documentation"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  )
-
-  add_custom_target(rustdoc
-    DEPENDS generate_rust_docs
-        # The variables, defined at the top level, don't seem to be accessible here.
-        offsets_h
-        syscall_list_h_target
-        driver_validation_h_target
-        kobj_types_h_target
   )
 
   # Linking with the <rt_library> (`$<TARGET_PROPERTY:linker,rt_library>`).

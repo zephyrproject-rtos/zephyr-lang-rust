@@ -236,17 +236,16 @@ async fn high_worker(this: &'static AsyncTests, command: Command) {
 /// which is in the same executor, or with the higher or lower priority worker.
 #[embassy_executor::task(pool_size = NUM_THREADS)]
 async fn worker(this: &'static AsyncTests, command: Command, id: usize) {
-    let total;
-    match command {
-        Command::Empty => total = 1,
-        Command::SimpleSem(count) => total = this.simple_sem(id, count).await,
-        Command::SimpleSemYield(count) => total = this.simple_sem_yield(id, count).await,
-        Command::SemWait(count) => total = this.sem_wait_taker(id, count).await,
-        Command::SemWaitSame(count) => total = this.sem_wait_taker(id, count).await,
-        Command::SemPingPong(count) => total = this.sem_ping_pong_taker(count).await,
-        Command::SemOnePingPong(count) => total = this.sem_ping_pong_taker(count).await,
+    let total = match command {
+        Command::Empty => 1,
+        Command::SimpleSem(count) => this.simple_sem(id, count).await,
+        Command::SimpleSemYield(count) => this.simple_sem_yield(id, count).await,
+        Command::SemWait(count) => this.sem_wait_taker(id, count).await,
+        Command::SemWaitSame(count) => this.sem_wait_taker(id, count).await,
+        Command::SemPingPong(count) => this.sem_ping_pong_taker(count).await,
+        Command::SemOnePingPong(count) => this.sem_ping_pong_taker(count).await,
         command => panic!("Not implemented: {:?}", command),
-    }
+    };
 
     this.results
         .send(TestResult::Worker { id, count: total })

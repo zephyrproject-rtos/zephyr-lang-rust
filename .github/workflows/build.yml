@@ -48,6 +48,7 @@ jobs:
       - name: Install Rust Targets
         shell: bash
         run: |
+          rustup component add clippy
           rustup target add riscv32i-unknown-none-elf
           rustup target add riscv64imac-unknown-none-elf
           rustup target add thumbv6m-none-eabi
@@ -81,6 +82,19 @@ jobs:
             cargo fmt --check
             cd - > /dev/null
           done
+
+      - name: Check clippy
+        working-directory: apptest
+        shell: bash
+        run: |
+          ../zephyr/scripts/twister -M all -T samples -T tests -E twister-testplan.json
+          while IFS=$'\t' read -r sample_path platform; do
+              build_dir="build_clippy/$platform/$sample_path"
+              printf 'Running clippy for %s on %s\n' "$sample_path" "$platform"
+              west build -b "$platform" -s "$sample_path" -d "$build_dir" -t clippy ${WEST_BUILD_EXTRA_ARGS:-}
+          done < <(
+              jq -r '.testsuites | unique_by(.path, .platform)[] | [.path, .platform] | @tsv' twister-testplan.json
+          )
 
       - name: Build firmware
         working-directory: apptest
