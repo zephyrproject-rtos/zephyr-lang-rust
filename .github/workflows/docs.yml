@@ -3,7 +3,8 @@ name: Generate and Preview Rust Docs
 on:
   pull_request:
     branches:
-      - main  # Only generate docs for PRs targeting main
+      - main
+      - davidb-*
   push:
     branches:
       - main
