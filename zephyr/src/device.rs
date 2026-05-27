@@ -14,6 +14,8 @@ use crate::sync::atomic::{AtomicBool, Ordering};
 pub mod flash;
 #[cfg(CONFIG_GPIO)]
 pub mod gpio;
+#[cfg(CONFIG_LED)]
+pub mod led;
 
 // Allow dead code, because it isn't required for a given build to have any devices.
 /// Device uniqueness.
