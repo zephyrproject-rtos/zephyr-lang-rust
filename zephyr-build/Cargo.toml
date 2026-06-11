@@ -5,6 +5,7 @@
 name = "zephyr-build"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 description = """
 Build-time support for Rust-based applications that run on Zephyr.
 Provides utilities for accessing Kconfig and devicetree information.
