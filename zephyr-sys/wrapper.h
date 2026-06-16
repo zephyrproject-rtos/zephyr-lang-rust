@@ -84,6 +84,7 @@ extern int errno;
 
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/drivers/sensor.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
@@ -129,6 +130,37 @@ ZR_GPIO(GPIO_OUTPUT_ACTIVE);
 
 #undef ZR_GPIO
 
+#define ZR_SENSOR_CHAN(name) \
+	const uint32_t ZR_ ## name = (uint32_t)(name)
+
+ZR_SENSOR_CHAN(SENSOR_CHAN_ACCEL_X);
+ZR_SENSOR_CHAN(SENSOR_CHAN_ACCEL_Y);
+ZR_SENSOR_CHAN(SENSOR_CHAN_ACCEL_Z);
+ZR_SENSOR_CHAN(SENSOR_CHAN_ACCEL_XYZ);
+ZR_SENSOR_CHAN(SENSOR_CHAN_GYRO_X);
+ZR_SENSOR_CHAN(SENSOR_CHAN_GYRO_Y);
+ZR_SENSOR_CHAN(SENSOR_CHAN_GYRO_Z);
+ZR_SENSOR_CHAN(SENSOR_CHAN_GYRO_XYZ);
+ZR_SENSOR_CHAN(SENSOR_CHAN_MAGN_X);
+ZR_SENSOR_CHAN(SENSOR_CHAN_MAGN_Y);
+ZR_SENSOR_CHAN(SENSOR_CHAN_MAGN_Z);
+ZR_SENSOR_CHAN(SENSOR_CHAN_MAGN_XYZ);
+ZR_SENSOR_CHAN(SENSOR_CHAN_DIE_TEMP);
+ZR_SENSOR_CHAN(SENSOR_CHAN_AMBIENT_TEMP);
+ZR_SENSOR_CHAN(SENSOR_CHAN_PRESS);
+ZR_SENSOR_CHAN(SENSOR_CHAN_PROX);
+ZR_SENSOR_CHAN(SENSOR_CHAN_HUMIDITY);
+ZR_SENSOR_CHAN(SENSOR_CHAN_AMBIENT_LIGHT);
+ZR_SENSOR_CHAN(SENSOR_CHAN_LIGHT);
+ZR_SENSOR_CHAN(SENSOR_CHAN_IR);
+ZR_SENSOR_CHAN(SENSOR_CHAN_RED);
+ZR_SENSOR_CHAN(SENSOR_CHAN_GREEN);
+ZR_SENSOR_CHAN(SENSOR_CHAN_BLUE);
+ZR_SENSOR_CHAN(SENSOR_CHAN_ALTITUDE);
+ZR_SENSOR_CHAN(SENSOR_CHAN_ALL);
+
+#undef ZR_SENSOR_CHAN
+
 /*
  * Zephyr's irq_lock() and irq_unlock() are macros not inline functions, so we need some inlines to
  * access them.
@@ -139,4 +171,12 @@ static inline int zr_irq_lock(void) {
 
 static inline void zr_irq_unlock(int key) {
 	irq_unlock(key);
+}
+
+/*
+ * Device tree macros like DEVICE_DT_GET_ONE() are not directly accessible from Rust,
+ * so we provide inline functions as wrappers.
+ */
+static inline const struct device *zr_device_dt_get_bosch_bmi270(void) {
+	return DEVICE_DT_GET_ONE(bosch_bmi270);
 }
