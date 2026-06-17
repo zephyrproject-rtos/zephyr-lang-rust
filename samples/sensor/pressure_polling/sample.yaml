@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: Pressure polling sample (Rust)
+common:
+  filter: CONFIG_RUST_SUPPORTED
+tests:
+  sample.rust.sensor.pressure_polling:
+    tags:
+      - sensor
+      - pressure
+    filter: dt_alias_exists("pressure-sensor")
+    build_only: true
