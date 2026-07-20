@@ -8,6 +8,7 @@ use core::ffi::{c_char, CStr};
 use zephyr::printkln;
 use zephyr::raw::k_timeout_t;
 use zephyr::time::{Duration, Instant, Tick, Timeout};
+use zephyr_panic as _;
 
 #[no_mangle]
 extern "C" fn rust_main() {

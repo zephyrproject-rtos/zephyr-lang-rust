@@ -9,6 +9,8 @@
 
 extern crate alloc;
 
+use zephyr_panic as _;
+
 #[allow(unused_imports)]
 use alloc::boxed::Box;
 use alloc::vec::Vec;

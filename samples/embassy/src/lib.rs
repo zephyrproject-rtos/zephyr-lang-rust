@@ -7,6 +7,8 @@ extern crate alloc;
 
 use core::ffi::c_int;
 
+use zephyr_panic as _;
+
 #[cfg(feature = "executor-thread")]
 use embassy_executor::Executor;
 

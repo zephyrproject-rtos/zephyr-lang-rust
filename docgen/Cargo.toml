@@ -14,3 +14,4 @@ crate-type = ["staticlib"]
 
 [dependencies]
 zephyr = { version = "0.1.0", features = ["executor-zephyr", "async-drivers"] }
+zephyr-panic = "0.1.0"

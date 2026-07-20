@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Open Device Partnership and Contributors
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "zephyr-panic"
+version = "0.1.0"
+edition = "2021"
+description = """
+Panic handler for Rust-based applications that run on Zephyr.
+"""
+
+[dependencies]
+zephyr = { version = "0.1.0", path = "../zephyr" }
+
+[build-dependencies]
+zephyr-build = { version = "0.1.0", path = "../zephyr-build" }
