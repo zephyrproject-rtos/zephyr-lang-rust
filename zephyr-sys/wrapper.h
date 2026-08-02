@@ -140,3 +140,15 @@ static inline int zr_irq_lock(void) {
 static inline void zr_irq_unlock(int key) {
 	irq_unlock(key);
 }
+
+/*
+ * Zephyr's time conversion helpers are macros.  Make the two operations used
+ * by the Rust runtime-frequency time API available to bindgen as functions.
+ */
+static inline uint64_t zr_ms_to_ticks_ceil64(uint64_t ms) {
+	return k_ms_to_ticks_ceil64(ms);
+}
+
+static inline uint64_t zr_sec_to_ticks_ceil64(uint64_t sec) {
+	return k_sec_to_ticks_ceil64(sec);
+}

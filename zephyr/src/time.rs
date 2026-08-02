@@ -26,12 +26,7 @@
 
 use zephyr_sys::{k_ticks_t, k_timeout_t, k_uptime_ticks};
 
-use core::fmt::Debug;
-
-// The system ticks, is mostly a constant, but there are some boards that use a dynamic tick
-// frequency, and thus need to read this at runtime.
-#[cfg(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)]
-compile_error!("Rust does not (yet) support dynamic frequency timer");
+use core::{fmt::Debug, ops::Add};
 
 // Given the above not defined, the system time base comes from a kconfig.
 /// The system time base.  The system clock has this many ticks per second.
@@ -45,19 +40,81 @@ pub type Tick = u64;
 #[cfg(not(CONFIG_TIMEOUT_64BIT))]
 pub type Tick = u32;
 
-/// Duration appropriate for Zephyr calls that expect `k_timeout_t`.  The result will be a time
+/// Duration appropriate for Zephyr calls that expect `k_timeout_t`. The result will be a time
 /// interval from "now" (when the call is made).
+///
+/// On targets with a compile-time clock frequency this is a `fugit::Duration`, so its unit
+/// conversions are evaluated at compile time. On runtime-frequency timer targets it is a
+/// tick-backed value whose unit conversions use Zephyr's time conversion helpers at runtime.
+#[cfg(not(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME))]
 pub type Duration = fugit::Duration<Tick, 1, SYS_FREQUENCY>;
+
+#[cfg(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// A tick-backed duration for a runtime-frequency timer target.
+pub struct Duration(Tick);
+
+#[cfg(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)]
+impl Duration {
+    /// Construct a duration directly from kernel ticks.
+    pub const fn from_ticks(ticks: Tick) -> Self {
+        Self(ticks)
+    }
+
+    /// Return this duration in kernel ticks.
+    pub const fn ticks(self) -> Tick {
+        self.0
+    }
+
+    /// Construct a duration that is at least `millis` milliseconds long.
+    pub fn millis_at_least(millis: Tick) -> Self {
+        let ticks = unsafe { zephyr_sys::zr_ms_to_ticks_ceil64(millis as u64) };
+        Self(checked_cast(ticks))
+    }
+
+    /// Construct a duration that is at least `secs` seconds long.
+    pub fn secs_at_least(secs: Tick) -> Self {
+        let ticks = unsafe { zephyr_sys::zr_sec_to_ticks_ceil64(secs as u64) };
+        Self(checked_cast(ticks))
+    }
+}
 
 /// An Instant appropriate for Zephyr calls that expect a `k_timeout_t`.  The result will be an
 /// absolute time in terms of system ticks.
-#[cfg(CONFIG_TIMEOUT_64BIT)]
+#[cfg(all(CONFIG_TIMEOUT_64BIT, not(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)))]
 pub type Instant = fugit::Instant<Tick, 1, SYS_FREQUENCY>;
+
+#[cfg(all(CONFIG_TIMEOUT_64BIT, CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME))]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// A tick-backed instant for a runtime-frequency timer target.
+pub struct Instant(Tick);
+
+#[cfg(all(CONFIG_TIMEOUT_64BIT, CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME))]
+impl Instant {
+    /// Construct an instant directly from kernel ticks.
+    pub const fn from_ticks(ticks: Tick) -> Self {
+        Self(ticks)
+    }
+
+    /// Return this instant in kernel ticks.
+    pub const fn ticks(self) -> Tick {
+        self.0
+    }
+}
+
+#[cfg(all(CONFIG_TIMEOUT_64BIT, CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME))]
+impl Add<Duration> for Instant {
+    type Output = Self;
+
+    fn add(self, duration: Duration) -> Self {
+        Self(self.0 + duration.0)
+    }
+}
 
 /// Retrieve the current scheduler time as an Instant.  This can be used to schedule timeouts at
 /// absolute points in time.
 pub fn now() -> Instant {
-    Instant::from_ticks(unsafe { k_uptime_ticks() as u64 })
+    Instant::from_ticks(unsafe { k_uptime_ticks() as Tick })
 }
 
 // The Zephyr `k_timeout_t` represents several different types of intervals, based on the range of
@@ -138,7 +195,7 @@ where
 {
     let timeout: Timeout = timeout.into();
     let rest = unsafe { crate::raw::k_sleep(timeout.0) };
-    Duration::millis(rest as Tick)
+    Duration::from_ticks(rest as Tick)
 }
 
 /// Convert from the Tick time type, which is unsigned, to the `k_ticks_t` type. When debug
