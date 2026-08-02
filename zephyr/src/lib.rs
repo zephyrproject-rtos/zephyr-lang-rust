@@ -69,6 +69,8 @@
 #![deny(missing_docs)]
 
 pub mod align;
+#[cfg(feature = "bt-hci")]
+pub mod bluetooth;
 pub mod device;
 pub mod embassy;
 pub mod error;

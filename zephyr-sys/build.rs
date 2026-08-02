@@ -103,6 +103,7 @@ fn main() -> anyhow::Result<()> {
         // Bluetooth
         .allowlist_item_if("CONFIG_BT_.*", || options.contains("CONFIG_BT"))
         .allowlist_function_if("bt_.*", || options.contains("CONFIG_BT"))
+        .allowlist_function_if("net_buf_.*", || options.contains("CONFIG_BT"))
         // GPIO
         .allowlist_item_if("CONFIG_GPIO_.*", || options.contains("CONFIG_GPIO"))
         .allowlist_item_if("GPIO_.*", || options.contains("CONFIG_GPIO"))

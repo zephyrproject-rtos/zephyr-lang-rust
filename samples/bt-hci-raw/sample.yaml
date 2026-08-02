@@ -1,0 +1,12 @@
+sample:
+  description: bt-hci transport over Zephyr HCI RAW, written in Rust
+  name: rust bt-hci raw
+common:
+  build_only: true
+  tags: rust bluetooth hci
+  filter: CONFIG_RUST_SUPPORTED and CONFIG_BT
+  platform_allow:
+    - nrf52840dk/nrf52840
+tests:
+  sample.rust.bt_hci_raw:
+    tags: bluetooth
