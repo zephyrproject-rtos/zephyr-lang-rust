@@ -85,7 +85,18 @@ extern int errno;
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
 
+/* HCI RAW disables the Zephyr host, so this host-only Kconfig value is not
+ * generated. GATT declarations still reference it while bindgen walks headers. */
+#ifndef CONFIG_BT_MAX_PAIRED
+#define CONFIG_BT_MAX_PAIRED 0
+#endif
 #include <zephyr/bluetooth/bluetooth.h>
+/* These declare the HCI buffer pools in terms of Kconfig values that only exist
+ * for an application that enables the HCI RAW channel. */
+#ifdef CONFIG_BT_HCI_RAW
+#include <zephyr/bluetooth/buf.h>
+#include <zephyr/bluetooth/hci_raw.h>
+#endif
 #include <zephyr/drivers/flash.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
@@ -139,4 +150,14 @@ static inline int zr_irq_lock(void) {
 
 static inline void zr_irq_unlock(int key) {
 	irq_unlock(key);
+}
+
+/* k_fifo_init() is a macro, so expose it to Rust through bindgen's static
+ * wrapper mechanism. This does not add a project C source file. */
+static inline void zr_hci_raw_fifo_init(struct k_fifo *fifo) {
+	k_fifo_init(fifo);
+}
+
+static inline void *zr_hci_raw_fifo_get(struct k_fifo *fifo, k_timeout_t timeout) {
+	return k_fifo_get(fifo, timeout);
 }

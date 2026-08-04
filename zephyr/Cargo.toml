@@ -25,6 +25,8 @@ cfg-if = "1.0"
 # The log create is used if the user desires logging, and calls `set_logger()`.
 log = "0.4.22"
 arrayvec = { version = "0.7.6", default-features = false }
+bt-hci = { version = "0.9", optional = true }
+embedded-io = { version = "0.7.1", optional = true }
 
 [dependencies.fugit]
 version = "0.3.7"
@@ -89,4 +91,10 @@ executor-zephyr = [
 # Enables async support in various drivers.
 async-drivers = [
   "dep:embassy-sync",
+]
+
+# Provide a blocking bt-hci transport over Zephyr's HCI RAW channel.
+bt-hci = [
+  "dep:bt-hci",
+  "dep:embedded-io",
 ]
