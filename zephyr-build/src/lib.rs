@@ -78,7 +78,11 @@ pub fn build_kconfig_mod() {
         let line = line.expect("reading line from dotconfig");
         if let Some(caps) = config_hex.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
-            writeln!(&mut f, "pub const {}: usize = {};", &caps[1], &caps[2]).unwrap();
+            // Hex values wider than 32 bits (e.g. ESP32-S3 GPIO masks) don't
+            // fit usize on 32-bit targets; widen the type to match the value.
+            let value = u64::from_str_radix(&caps[2][2..], 16).unwrap_or(u64::MAX);
+            let ty = if value > u32::MAX as u64 { "u64" } else { "usize" };
+            writeln!(&mut f, "pub const {}: {} = {};", &caps[1], ty, &caps[2]).unwrap();
         } else if let Some(caps) = config_int.captures(&line) {
             writeln!(&mut f, "#[allow(dead_code)]").unwrap();
             writeln!(&mut f, "pub const {}: isize = {};", &caps[1], &caps[2]).unwrap();
