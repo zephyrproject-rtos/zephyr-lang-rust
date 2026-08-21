@@ -83,6 +83,7 @@ extern int errno;
 #include <zephyr/kernel/thread_stack.h>
 
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/led.h>
 #include <zephyr/drivers/uart.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
