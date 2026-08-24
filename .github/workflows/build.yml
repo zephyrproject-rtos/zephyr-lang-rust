@@ -44,7 +44,7 @@ jobs:
         with:
           app-path: apptest
           manifest-file-name: ci-manifest.yml
-          toolchains: arm-zephyr-eabi:riscv64-zephyr-elf
+          toolchains: arm-zephyr-eabi:riscv64-zephyr-elf:aarch64-zephyr-elf
 
       - name: Install Rust Targets
         shell: bash
