@@ -19,23 +19,22 @@ static_cell = "2.1"
 heapless = "0.8"
 
 [dependencies.embassy-executor]
-version = "0.7.0"
+version = "0.10.0"
 # path = "../../embassy/embassy-executor"
 features = [
   "log",
-  "task-arena-size-2048",
 ]
 
 [dependencies.embassy-futures]
-version = "0.1.1"
+version = "0.1.2"
 # path = "../../embassy/embassy-futures"
 
 [dependencies.embassy-sync]
-version = "0.6.2"
+version = "0.8.0"
 # path = "../../embassy/embassy-sync"
 
 [dependencies.embassy-time]
-version = "0.4.0"
+version = "0.5.1"
 # path = "../../embassy/embassy-time"
 # This is board specific.
 features = ["tick-hz-10_000"]
@@ -48,7 +47,7 @@ version = "1.2"
 default = ["executor-zephyr"]
 
 executor-thread = [
-  "embassy-executor/arch-cortex-m",
+  "embassy-executor/platform-cortex-m",
   "embassy-executor/executor-thread",
 ]
 

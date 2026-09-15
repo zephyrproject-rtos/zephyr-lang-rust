@@ -15,7 +15,7 @@ crate-type = ["staticlib"]
 [dependencies]
 zephyr = { version = "0.1.0", features = ["executor-zephyr", "async-drivers"] }
 static_cell = "2.1"
-embassy-executor = { version = "0.7.0", features = ["task-arena-size-2048"] }
+embassy-executor = "0.10.0"
 
 [build-dependencies]
 zephyr-build = "0.1.0"

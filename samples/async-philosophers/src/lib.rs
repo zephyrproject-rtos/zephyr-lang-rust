@@ -31,7 +31,7 @@ extern "C" fn rust_main() {
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
-        spawner.spawn(main(spawner)).unwrap();
+        spawner.spawn(main(spawner).unwrap());
     })
 }
 
@@ -44,9 +44,7 @@ static RESULT_SIGNAL: ResultSignal = Signal::new();
 async fn main(spawner: Spawner) -> () {
     // First run the async semaphore based one.
     printkln!("Running 'async-sem' test");
-    spawner
-        .spawn(async_sem::phil(spawner, &RESULT_SIGNAL))
-        .unwrap();
+    spawner.spawn(async_sem::phil(spawner, &RESULT_SIGNAL).unwrap());
 
     let stats = RESULT_SIGNAL.wait().await;
     printkln!("Done with 'async-sem' test");
