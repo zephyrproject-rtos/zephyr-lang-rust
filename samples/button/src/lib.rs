@@ -11,9 +11,7 @@
 use log::{debug, info, warn};
 
 use zephyr::device::gpio::GpioPin;
-use zephyr::devicetree;
 use zephyr::embassy::Executor;
-use zephyr::raw::{ZR_GPIO_INPUT, ZR_GPIO_OUTPUT_ACTIVE};
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
@@ -149,12 +147,12 @@ extern "C" fn rust_main() {
 
 #[cfg(dt = "aliases::sw0")]
 fn configure_button() -> Result<GpioPin, &'static str> {
-    let mut sw0 = devicetree::aliases::sw0::get_instance().unwrap();
+    let mut sw0 = zephyr::devicetree::aliases::sw0::get_instance().unwrap();
 
     if !sw0.is_ready() {
         Err("Button is not ready")
     } else {
-        sw0.configure(ZR_GPIO_INPUT);
+        sw0.configure(zephyr::raw::ZR_GPIO_INPUT);
         Ok(sw0)
     }
 }
@@ -166,12 +164,12 @@ fn configure_button() -> Result<GpioPin, &'static str> {
 
 #[cfg(dt = "aliases::led0")]
 fn configure_led() -> Result<GpioPin, &'static str> {
-    let mut led0 = devicetree::aliases::led0::get_instance().unwrap();
+    let mut led0 = zephyr::devicetree::aliases::led0::get_instance().unwrap();
 
     if !led0.is_ready() {
         Err("LED is not ready")
     } else {
-        led0.configure(ZR_GPIO_OUTPUT_ACTIVE);
+        led0.configure(zephyr::raw::ZR_GPIO_OUTPUT_ACTIVE);
         Ok(led0)
     }
 }

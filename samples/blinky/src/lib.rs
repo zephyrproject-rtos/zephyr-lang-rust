@@ -9,9 +9,12 @@
 #![allow(unexpected_cfgs)]
 
 use log::warn;
+use zephyr::time::{sleep, Forever};
 
 #[no_mangle]
 extern "C" fn rust_main() {
+    // SAFETY: `rust_main` runs once during application startup before any rust tasks
+    // are spawned, so the global logger is initialized before concurrent use.
     unsafe {
         zephyr::set_logger().unwrap();
     }
@@ -24,7 +27,7 @@ extern "C" fn rust_main() {
 #[cfg(dt = "aliases::led0")]
 fn do_blink() {
     use zephyr::raw::ZR_GPIO_OUTPUT_ACTIVE;
-    use zephyr::time::{sleep, Duration};
+    use zephyr::time::Duration;
 
     warn!("Inside of blinky");
 
@@ -32,7 +35,7 @@ fn do_blink() {
 
     if !led0.is_ready() {
         warn!("LED is not ready");
-        loop {}
+        sleep(Forever);
     }
 
     led0.configure(ZR_GPIO_OUTPUT_ACTIVE);
@@ -46,5 +49,5 @@ fn do_blink() {
 #[cfg(not(dt = "aliases::led0"))]
 fn do_blink() {
     warn!("No leds configured");
-    loop {}
+    sleep(Forever);
 }

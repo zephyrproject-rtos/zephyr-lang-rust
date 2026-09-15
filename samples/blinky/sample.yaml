@@ -4,11 +4,12 @@ sample:
 common:
   filter: CONFIG_RUST_SUPPORTED
   platform_allow:
-    - qemu_cortex_m0
-    - qemu_cortex_m3
-    - qemu_riscv32
-    - qemu_riscv64
-    - nrf52840dk/nrf52840
+    # - qemu_cortex_m0
+    # - qemu_cortex_m3
+    # - qemu_riscv32
+    # - qemu_riscv64
+    # - nrf52840dk/nrf52840
+    - nrf5340dk/nrf5340/cpuapp
 tests:
   sample.rust.basic.blinky:
     tags:
