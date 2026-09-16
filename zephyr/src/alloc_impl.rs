@@ -51,14 +51,12 @@ extern crate alloc;
 
 use core::alloc::{GlobalAlloc, Layout};
 
-use alloc::alloc::handle_alloc_error;
-
 /// Define size_t, as it isn't defined within the FFI.
 #[allow(non_camel_case_types)]
 type c_size_t = usize;
 
 extern "C" {
-    fn malloc(size: c_size_t) -> *mut u8;
+    fn aligned_alloc(alignment: c_size_t, size: c_size_t) -> *mut u8;
     fn free(ptr: *mut u8);
 }
 
@@ -70,16 +68,10 @@ pub struct ZephyrAllocator;
 
 unsafe impl GlobalAlloc for ZephyrAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let size = layout.size();
         let align = layout.align();
+        let size = layout.pad_to_align().size();
 
-        // The C allocation library assumes an alignment of 8.  For now, just panic if this cannot
-        // be satistifed.
-        if align > 8 {
-            handle_alloc_error(layout);
-        }
-
-        malloc(size)
+        aligned_alloc(align, size)
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
