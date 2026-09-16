@@ -1,0 +1,12 @@
+sample:
+  description: Fuel Gauge Sample
+  name: Fuel Gauge Sample
+common:
+  tags: rust
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - 'mimxrt685_evk/mimxrt685s/cm33'
+    - 'native_sim/native/64'
+tests:
+  sample.rust.fuelgauge:
+    tags: fuel_gauge

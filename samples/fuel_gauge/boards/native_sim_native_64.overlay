@@ -1,0 +1,9 @@
+&i2c0 {
+    status = "okay";
+
+    fuel_gauge: sbs_gauge@b {
+        compatible = "sbs,sbs-gauge-new-api";
+        reg = <0x0b>;
+        status = "okay";
+    };
+};

@@ -12,6 +12,8 @@ use crate::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(CONFIG_FLASH)]
 pub mod flash;
+#[cfg(CONFIG_FUEL_GAUGE)]
+pub mod fuel_gauge;
 #[cfg(CONFIG_GPIO)]
 pub mod gpio;
 

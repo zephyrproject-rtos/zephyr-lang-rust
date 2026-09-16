@@ -1,0 +1,22 @@
+[package]
+# This must be rustapp for now. This ensure the Zephyr build knows how to link the generated lib.
+name = "rustapp"
+version = "0.1.0"
+edition = "2024"
+description = "Sample for fuel gauge driver."
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+embassy-executor = { version = "0.7.0", features = ["task-arena-size-4096"] }
+embassy-time = { version = "0.5", features = ["tick-hz-10_000"] }
+static_cell = "2.1"
+zephyr = { version = "0.1.0", features = ["time-driver", "executor-zephyr"] }
+log = { version = "0.4.22" } # features = ["max_level_error", "release_max_level_error"]
+
+[lints.clippy]
+perf = { level = "forbid" }
+correctness = { level = "forbid" }
+style = { level = "deny" }

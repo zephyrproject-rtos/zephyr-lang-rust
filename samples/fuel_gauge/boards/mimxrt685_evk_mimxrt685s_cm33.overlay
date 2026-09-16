@@ -1,0 +1,6 @@
+&flexcomm2 {
+	fuel_gauge: sbs-gauge@b {
+		compatible = "sbs,sbs-gauge-new-api";
+		reg = <0x0b>;
+	};
+};
