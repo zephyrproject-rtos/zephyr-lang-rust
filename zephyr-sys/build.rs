@@ -113,6 +113,8 @@ fn main() -> anyhow::Result<()> {
         // UART
         .allowlist_item_if("CONFIG_UART_.*", || options.contains("CONFIG_SERIAL"))
         .allowlist_function_if("uart_.*", || options.contains("CONFIG_SERIAL"))
+        // IRQ offload
+        .allowlist_function_if("irq_offload", || options.contains("CONFIG_IRQ_OFFLOAD"))
         // Generate
         .generate()
         .expect("Unable to generate bindings");
