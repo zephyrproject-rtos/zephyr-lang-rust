@@ -14,3 +14,4 @@ crate-type = ["staticlib"]
 
 [dependencies]
 zephyr = "0.1.0"
+zephyr-panic = "0.1.0"

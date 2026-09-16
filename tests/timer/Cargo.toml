@@ -16,3 +16,4 @@ crate-type = ["staticlib"]
 rand = { version = "0.8", default-features = false }
 rand_pcg = { version = "0.3.1", default-features = false }
 zephyr = "0.1.0"
+zephyr-panic = "0.1.0"

@@ -12,6 +12,7 @@ use zephyr::{
     sys::uptime_get,
     time::{Duration, Tick},
 };
+use zephyr_panic as _;
 
 #[no_mangle]
 extern "C" fn rust_main() {
