@@ -86,6 +86,19 @@
           - !Reg
       device: "crate::device::flash::FlashPartition"
 
+# Matcher for `FuelGauge` from fuel_gauge.rs.
+- name: fuel-gauge
+  cfg: CONFIG_FUEL_GAUGE
+  rules:
+    - !Compatible
+      names:
+        - "sbs,sbs-gauge-new-api"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::fuel_gauge::FuelGauge
+
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
   rules:
