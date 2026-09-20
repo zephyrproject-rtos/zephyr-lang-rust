@@ -11,6 +11,8 @@
 use log::warn;
 use zephyr::time::{sleep, Forever};
 
+use zephyr_panic as _;
+
 #[no_mangle]
 extern "C" fn rust_main() {
     // SAFETY: `rust_main` runs once during application startup before any rust tasks

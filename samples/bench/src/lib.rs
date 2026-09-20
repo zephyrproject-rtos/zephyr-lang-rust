@@ -33,6 +33,7 @@ use zephyr::{
     time::Forever,
     work::WorkQueue,
 };
+use zephyr_panic as _;
 
 mod executor;
 

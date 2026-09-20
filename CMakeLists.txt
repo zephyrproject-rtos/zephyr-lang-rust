@@ -133,7 +133,7 @@ function(rust_cargo_application)
   # For now, hard-code the Zephyr crate directly here.  Once we have
   # more than one crate, these should be added by the modules
   # themselves.
-  set(LIB_RUST_CRATES zephyr zephyr-build zephyr-sys)
+  set(LIB_RUST_CRATES zephyr zephyr-build zephyr-sys zephyr-panic)
 
   get_include_dirs(zephyr_interface include_dirs)
 

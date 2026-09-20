@@ -143,26 +143,6 @@ compile_error!("CONFIG_RUST must be set to build Rust in Zephyr");
 #[cfg(CONFIG_PRINTK)]
 pub mod printk;
 
-use core::panic::PanicInfo;
-
-/// Override rust's panic.  This simplistic initial version just hangs in a loop.
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    #[cfg(CONFIG_PRINTK)]
-    {
-        printkln!("panic: {}", info);
-    }
-    let _ = info;
-
-    // Call into the wrapper for the system panic function.
-    unsafe {
-        extern "C" {
-            fn rust_panic_wrap() -> !;
-        }
-        rust_panic_wrap();
-    }
-}
-
 /// Re-export of zephyr-sys as `zephyr::raw`.
 pub mod raw {
     pub use zephyr_sys::*;

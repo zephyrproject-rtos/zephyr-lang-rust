@@ -11,6 +11,7 @@ use zephyr::{
     embassy::Executor,
     raw::{GPIO_PULL_DOWN, ZR_GPIO_INPUT, ZR_GPIO_OUTPUT_ACTIVE},
 };
+use zephyr_panic as _;
 
 use embassy_executor::Spawner;
 use log::info;

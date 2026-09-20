@@ -12,6 +12,7 @@ use log::{debug, info, warn};
 
 use zephyr::device::gpio::GpioPin;
 use zephyr::embassy::Executor;
+use zephyr_panic as _;
 
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;

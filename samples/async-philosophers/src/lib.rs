@@ -14,6 +14,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, s
 use embassy_time::Duration;
 use static_cell::StaticCell;
 use zephyr::{embassy::Executor, printkln, sync::Arc, sys::uptime_get};
+use zephyr_panic as _;
 
 mod async_sem;
 

@@ -16,6 +16,7 @@ use zephyr::{
     time::{Duration, NoWait, Tick},
     timer::{Callback, CallbackTimer, SimpleTimer, StoppedTimer},
 };
+use zephyr_panic as _;
 
 // Test the timers interface.  There are a couple of things this tries to test:
 // 1. Do timers dynamically allocated and dropped work.
