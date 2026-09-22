@@ -49,6 +49,17 @@ function(_rust_map_target)
     else()
       message(FATAL_ERROR "Rust: Unsupported riscv ISA")
     endif()
+  elseif(CONFIG_ARM64)
+    # Zephyr does not build AArch64 with -mgeneral-regs-only, and
+    # CPU_CORTEX_A implies both FPU and FPU_SHARING, so the hard-float
+    # target is the ABI match for a normal build.  Boards that turn FPU
+    # off need the softfloat target instead, or Rust would emit SIMD/FP
+    # register uses that the context switch does not preserve.
+    if(CONFIG_FPU)
+      set(RUST_TARGET "aarch64-unknown-none" PARENT_SCOPE)
+    else()
+      set(RUST_TARGET "aarch64-unknown-none-softfloat" PARENT_SCOPE)
+    endif()
   elseif(CONFIG_ARCH_POSIX AND CONFIG_64BIT AND (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "x86_64"))
     set(RUST_TARGET "x86_64-unknown-none" PARENT_SCOPE)
   elseif(CONFIG_ARCH_POSIX AND CONFIG_64BIT AND (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "aarch64"))
