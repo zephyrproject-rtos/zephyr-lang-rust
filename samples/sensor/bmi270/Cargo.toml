@@ -1,0 +1,19 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "BMI270 6-axis IMU sensor sample"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = "0.1.0"
+log = "0.4.22"
+
+[build-dependencies]
+zephyr-build = "0.1.0"

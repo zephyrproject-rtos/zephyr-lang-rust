@@ -1,0 +1,20 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: BMI270 Rust Sample
+  description: BMI270 6-axis IMU sensor sample in Rust
+
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - cy8ckit_062s2_ai
+
+tests:
+  sample.rust.sensor.bmi270:
+    tags:
+    - sensor
+    - bmi270
+    filter: dt_enabled_alias_with_parent_compat("accel0", "bosch,bmi270")
+    depends_on: sensor
+    harness: bmi270
