@@ -48,7 +48,7 @@ pub fn export_kconfig_bool_options() {
 
     // Ensure the build script is rerun when the dotconfig changes.
     println!("cargo:rerun-if-env-changed=DOTCONFIG");
-    println!("cargo-rerun-if-changed={}", dotconfig);
+    println!("cargo:rerun-if-changed={}", dotconfig);
 
     extract_kconfig_bool_options(&dotconfig)
         .expect("failed to extract flags from .config")
