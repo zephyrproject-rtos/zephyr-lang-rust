@@ -1,0 +1,11 @@
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - tiny2040
+tests:
+  test.rust.drivers.i2c-target:
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "i2c target registered"
