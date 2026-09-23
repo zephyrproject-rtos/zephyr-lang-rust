@@ -62,7 +62,7 @@ impl I2c {
     /// between the write and read phases).
     pub fn write_read(&mut self, addr: u16, write_buf: &[u8], read_buf: &mut [u8]) -> Result<()> {
         to_result_void(unsafe {
-            raw::zr_i2c_write_read(
+            raw::i2c_write_read(
                 self.device,
                 addr,
                 write_buf.as_ptr().cast(),
@@ -75,15 +75,13 @@ impl I2c {
 
     /// Write bytes to an I2C device.
     pub fn write(&mut self, addr: u16, buf: &[u8]) -> Result<()> {
-        to_result_void(unsafe {
-            raw::zr_i2c_write(self.device, buf.as_ptr(), buf.len() as u32, addr)
-        })
+        to_result_void(unsafe { raw::i2c_write(self.device, buf.as_ptr(), buf.len() as u32, addr) })
     }
 
     /// Read bytes from an I2C device.
     pub fn read(&mut self, addr: u16, buf: &mut [u8]) -> Result<()> {
         to_result_void(unsafe {
-            raw::zr_i2c_read(self.device, buf.as_mut_ptr(), buf.len() as u32, addr)
+            raw::i2c_read(self.device, buf.as_mut_ptr(), buf.len() as u32, addr)
         })
     }
 
@@ -158,7 +156,7 @@ impl I2c {
         config: &'static mut i2c_target_config,
     ) -> Result<I2cTarget> {
         let config_ptr = config as *mut _;
-        to_result_void(raw::zr_i2c_target_register(self.device, config_ptr))?;
+        to_result_void(raw::i2c_target_register(self.device, config_ptr))?;
         Ok(I2cTarget {
             device: self.device,
             config: config_ptr,
@@ -331,7 +329,7 @@ impl<T: I2cTargetCallbacks> I2cTargetData<T> {
             config.callbacks = self.cbs.get() as *const _;
         }
 
-        to_result_void(unsafe { raw::zr_i2c_target_register(i2c.device, self.config.get()) })?;
+        to_result_void(unsafe { raw::i2c_target_register(i2c.device, self.config.get()) })?;
 
         Ok(I2cTarget {
             device: i2c.device,
@@ -425,6 +423,6 @@ unsafe impl Send for I2cTarget {}
 impl I2cTarget {
     /// Unregister this I2C target from the bus.
     pub fn unregister(self) -> Result<()> {
-        to_result_void(unsafe { raw::zr_i2c_target_unregister(self.device, self.config) })
+        to_result_void(unsafe { raw::i2c_target_unregister(self.device, self.config) })
     }
 }
