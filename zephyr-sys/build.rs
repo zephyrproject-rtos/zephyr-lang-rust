@@ -107,6 +107,10 @@ fn main() -> anyhow::Result<()> {
         .allowlist_item_if("CONFIG_GPIO_.*", || options.contains("CONFIG_GPIO"))
         .allowlist_item_if("GPIO_.*", || options.contains("CONFIG_GPIO"))
         .allowlist_function_if("gpio_.*", || options.contains("CONFIG_GPIO"))
+        // LED
+        .allowlist_item_if("CONFIG_LED_.*", || options.contains("CONFIG_LED"))
+        .allowlist_item_if("LED_.*", || options.contains("CONFIG_LED"))
+        .allowlist_function_if("led_.*", || options.contains("CONFIG_LED"))
         // Flash
         .allowlist_item_if("FLASH_.*", || options.contains("CONFIG_FLASH"))
         .allowlist_function_if("flash_.*", || options.contains("CONFIG_FLASH"))
