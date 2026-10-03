@@ -5,7 +5,12 @@ use core::ffi::c_int;
 
 use super::controller::I2c;
 use super::{i2c_target_callbacks, i2c_target_config};
-use crate::{error::to_result_void, raw, Result};
+use crate::{
+    error::{to_result_void, Error},
+    raw,
+    sync::atomic::{AtomicBool, Ordering},
+    Result,
+};
 
 // ---------------------------------------------------------------------------
 // Safe I2C target abstraction
@@ -102,13 +107,17 @@ pub struct I2cTargetData<T: I2cTargetCallbacks> {
     // `I2cTargetData` address, enabling a zero-offset container_of cast.
     config: UnsafeCell<i2c_target_config>,
     cbs: UnsafeCell<i2c_target_callbacks>,
+    /// Set while this target is registered with a bus.
+    registered: AtomicBool,
     data: T,
 }
 
-// SAFETY: T: Send + Sync.  The config and cbs cells are only written during
-// the single-threaded `register()` call; afterwards they are effectively
-// read-only (the driver reads `callbacks`, and the `node` field is managed by
-// Zephyr's internal linked list under its own lock).
+// SAFETY: T: Send + Sync.  The config and cbs cells are only written by
+// `register()`, after it has claimed `registered`, so there is at most one
+// writer and the target is not registered with any bus while it writes.  Once
+// registered they are effectively read-only (the driver reads `callbacks`, and
+// the `node` field is managed by Zephyr's internal linked list under its own
+// lock).
 unsafe impl<T: I2cTargetCallbacks> Send for I2cTargetData<T> {}
 unsafe impl<T: I2cTargetCallbacks> Sync for I2cTargetData<T> {}
 
@@ -135,6 +144,7 @@ impl<T: I2cTargetCallbacks> I2cTargetData<T> {
             // zero.  Using `zeroed()` avoids enumerating fields that vary with
             // Kconfig (e.g. CONFIG_I2C_TARGET_BUFFER_MODE).
             cbs: UnsafeCell::new(unsafe { core::mem::zeroed() }),
+            registered: AtomicBool::new(false),
             data,
         }
     }
@@ -153,13 +163,20 @@ impl<T: I2cTargetCallbacks> I2cTargetData<T> {
     /// callback table, and calls `i2c_target_register`.
     ///
     /// Returns an [`I2cTarget`] handle whose [`unregister`](I2cTarget::unregister)
-    /// method reverses the registration.
+    /// method reverses the registration.  A target can only be registered on
+    /// one bus at a time; registering it again before unregistering returns an
+    /// `EBUSY` error.
     ///
     /// The `&'static self` requirement ensures the backing storage outlives the
     /// registration.
     pub fn register(&'static self, i2c: &mut I2c) -> Result<I2cTarget> {
-        // SAFETY: We are the sole writer — `register` is called once during
-        // single-threaded init, before any callbacks can fire.
+        if self.registered.swap(true, Ordering::AcqRel) {
+            return Err(Error(raw::EBUSY));
+        }
+
+        // SAFETY: Claiming `registered` above makes us the sole writer, and
+        // the target is not registered with any bus, so no callbacks can be
+        // reading these fields.
         unsafe {
             let cbs = &mut *self.cbs.get();
             cbs.write_requested = Some(Self::write_requested_trampoline);
@@ -172,11 +189,17 @@ impl<T: I2cTargetCallbacks> I2cTargetData<T> {
             config.callbacks = self.cbs.get() as *const _;
         }
 
-        to_result_void(unsafe { raw::i2c_target_register(i2c.device, self.config.get()) })?;
+        if let Err(e) =
+            to_result_void(unsafe { raw::i2c_target_register(i2c.device, self.config.get()) })
+        {
+            self.registered.store(false, Ordering::Release);
+            return Err(e);
+        }
 
         Ok(I2cTarget {
             device: i2c.device,
             config: self.config.get(),
+            registered: Some(&self.registered),
         })
     }
 
@@ -258,6 +281,10 @@ impl<T: I2cTargetCallbacks> I2cTargetData<T> {
 pub struct I2cTarget {
     pub(super) device: *const raw::device,
     pub(super) config: *mut i2c_target_config,
+    /// The registration flag of the owning [`I2cTargetData`], cleared on
+    /// unregister.  `None` for targets registered through the raw
+    /// [`I2c::register_target`].
+    pub(super) registered: Option<&'static AtomicBool>,
 }
 
 // SAFETY: Same justification as `I2c` — the raw device pointer is to a static Zephyr struct.
@@ -266,6 +293,10 @@ unsafe impl Send for I2cTarget {}
 impl I2cTarget {
     /// Unregister this I2C target from the bus.
     pub fn unregister(self) -> Result<()> {
-        to_result_void(unsafe { raw::i2c_target_unregister(self.device, self.config) })
+        to_result_void(unsafe { raw::i2c_target_unregister(self.device, self.config) })?;
+        if let Some(registered) = self.registered {
+            registered.store(false, Ordering::Release);
+        }
+        Ok(())
     }
 }

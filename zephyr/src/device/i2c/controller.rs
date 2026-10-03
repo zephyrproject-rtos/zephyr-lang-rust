@@ -155,6 +155,7 @@ impl I2c {
         Ok(I2cTarget {
             device: self.device,
             config: config_ptr,
+            registered: None,
         })
     }
 }
