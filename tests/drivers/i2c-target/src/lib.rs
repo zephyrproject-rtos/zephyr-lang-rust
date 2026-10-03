@@ -3,18 +3,17 @@
 
 //! I2C target test.
 //!
-//! Implements the same 16-byte register-file protocol as the Zephyr
-//! `samples/drivers/i2c/controller_target` sample's target side, so it can be
-//! tested against the C controller sample (or the Rust controller test).
+//! Implements a 16-byte register file, so it can be tested against the Rust
+//! I2C controller test.
 //!
 //! Protocol:
 //! - Write transaction: first byte is the register address, subsequent bytes
-//!   are stored starting at that address (pointer auto-increments, wraps at 16).
-//! - Read transaction: returns bytes starting at the last register address set
-//!   by a preceding write (pointer auto-increments, wraps at 16).
-//! - Write-read (RESTART): the register pointer is reset to the start address
-//!   from the write phase before serving the read, so the controller reads back
-//!   what it just wrote.
+//!   are stored starting at that address.
+//! - Read transaction: returns bytes starting at the current register pointer.
+//! - The register pointer auto-increments on every byte written or read, wraps
+//!   at 16, and carries over between transactions.  A target cannot tell a
+//!   RESTART from a new START, so a write-read behaves exactly like a write of
+//!   the register address followed by a separate read.
 
 #![no_std]
 
@@ -36,9 +35,6 @@ struct TargetInner {
     reg_file: [u8; REG_SIZE],
     /// Current register pointer (auto-incremented by reads and writes).
     reg_ptr: u8,
-    /// Register address captured at the start of the write phase; restored
-    /// before the read phase of a write-read (RESTART) transaction.
-    reg_start: u8,
     /// Position within the current write transaction (0 = register address
     /// byte, 1+ = data bytes).
     write_pos: u8,
@@ -49,7 +45,6 @@ impl TargetInner {
         Self {
             reg_file: [0; REG_SIZE],
             reg_ptr: 0,
-            reg_start: 0,
             write_pos: 0,
         }
     }
@@ -77,22 +72,18 @@ impl I2cTargetCallbacks for TargetState {
         if s.write_pos == 0 {
             // First byte is the register address.
             s.reg_ptr = val % REG_SIZE as u8;
-            s.reg_start = s.reg_ptr;
         } else {
             // Subsequent bytes are data.
             let ptr = s.reg_ptr as usize;
             s.reg_file[ptr] = val;
             s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
         }
-        s.write_pos += 1;
+        s.write_pos = s.write_pos.saturating_add(1);
         Ok(())
     }
 
     fn read_requested(&self) -> zephyr::Result<u8> {
         let mut s = self.inner.lock().unwrap();
-        // On a write-read (RESTART), reset the pointer to the start of the
-        // write phase so the controller reads back the data it just wrote.
-        s.reg_ptr = s.reg_start;
         let ptr = s.reg_ptr as usize;
         let val = s.reg_file[ptr];
         s.reg_ptr = (ptr as u8 + 1) % REG_SIZE as u8;
