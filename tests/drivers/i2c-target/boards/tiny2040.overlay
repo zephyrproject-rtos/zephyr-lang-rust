@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2026 Linaro, LTD
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Configure I2C1 on the tiny2040 for the target test.
+ * Pin assignment matches the Zephyr i2c/controller_target sample.
+ */
+
+/ {
+	aliases {
+		i2c-bus = &i2c1;
+	};
+};
+
+&pinctrl {
+	i2c1_default: i2c1_default {
+		group1 {
+			pinmux = <I2C1_SDA_P10>, <I2C1_SCL_P11>;
+			input-enable;
+		};
+	};
+};

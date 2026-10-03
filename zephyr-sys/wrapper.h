@@ -89,6 +89,7 @@ extern int errno;
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
+#include <zephyr/drivers/i2c.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
 
@@ -143,3 +144,13 @@ static inline int zr_irq_lock(void) {
 static inline void zr_irq_unlock(int key) {
 	irq_unlock(key);
 }
+
+/*
+ * The I2C_MSG_* flags are defined with BIT(), which bindgen does not always
+ * resolve to plain integer constants.  Re-expose them as typed constants.
+ */
+const uint8_t ZR_I2C_MSG_WRITE = I2C_MSG_WRITE;
+const uint8_t ZR_I2C_MSG_READ = I2C_MSG_READ;
+const uint8_t ZR_I2C_MSG_STOP = I2C_MSG_STOP;
+const uint8_t ZR_I2C_MSG_RESTART = I2C_MSG_RESTART;
+const uint8_t ZR_I2C_MSG_ADDR_10_BITS = I2C_MSG_ADDR_10_BITS;
