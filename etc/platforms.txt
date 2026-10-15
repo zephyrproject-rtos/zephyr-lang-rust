@@ -6,3 +6,4 @@
 -p frdm_mcxa156/mcxa156
 -p esp32c3_supermini/esp32c3
 -p nrf5340dk/nrf5340/cpuapp
+-p stm32h573i_dk
