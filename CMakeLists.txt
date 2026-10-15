@@ -49,6 +49,10 @@ function(_rust_map_target)
     else()
       message(FATAL_ERROR "Rust: Unsupported riscv ISA")
     endif()
+  elseif(CONFIG_ARM64)
+    # Zephyr builds all AArch64 C code for the hard-float LP64 ABI, with
+    # or without CONFIG_FPU, so the softfloat target would not match it.
+    set(RUST_TARGET "aarch64-unknown-none" PARENT_SCOPE)
   elseif(CONFIG_ARCH_POSIX AND CONFIG_64BIT AND (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "x86_64"))
     set(RUST_TARGET "x86_64-unknown-none" PARENT_SCOPE)
   elseif(CONFIG_ARCH_POSIX AND CONFIG_64BIT AND (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "aarch64"))
