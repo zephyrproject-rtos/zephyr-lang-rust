@@ -76,8 +76,8 @@ impl<T> fmt::Debug for Mutex<T> {
 pub struct MutexGuard<'a, T: ?Sized + 'a> {
     lock: &'a Mutex<T>,
     // until <https://github.com/rust-lang/rust/issues/68318> is implemented, we have to mark unsend
-    // explicitly.  This can be done by holding Phantom data with an unsafe cell in it.
-    _nosend: PhantomData<UnsafeCell<()>>,
+    // explicitly.  This can be done by holding Phantom data with a pointer in it.
+    _nosend: PhantomData<*const ()>,
 }
 
 // Make sure the guard doesn't get sent.
