@@ -62,12 +62,14 @@ cfg_if::cfg_if! {
 // TODO: Allow the default level to be set through Kconfig.
 cfg_if::cfg_if! {
     if #[cfg(target_has_atomic = "ptr")] {
+        #[allow(dead_code)]
         unsafe fn set_logger_internal(logger: &'static dyn Log) -> Result<(), SetLoggerError> {
             log::set_logger(logger)?;
             log::set_max_level(LevelFilter::Info);
             Ok(())
         }
     } else {
+        #[allow(dead_code)]
         unsafe fn set_logger_internal(logger: &'static dyn Log) -> Result<(), SetLoggerError> {
             log::set_logger_racy(logger)?;
             log::set_max_level_racy(LevelFilter::Info);
