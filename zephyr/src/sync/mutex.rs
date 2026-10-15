@@ -5,14 +5,13 @@
 //! `Condvar`, and the associated types.
 
 use core::{
-    cell::UnsafeCell,
+    cell::{Cell, UnsafeCell},
     convert::Infallible,
     fmt,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
-use crate::sync::atomic::{AtomicBool, Ordering};
 use crate::sys::sync as sys;
 use crate::time::{Forever, NoWait};
 
@@ -47,7 +46,9 @@ pub enum TryLockError {
 pub struct Mutex<T: ?Sized> {
     inner: sys::Mutex,
     // poison: ...
-    locked: AtomicBool,
+    /// Set while a [`MutexGuard`] exists, to detect recursive locking.  This is only ever accessed
+    /// while `inner` is held, so the mutex itself serializes access, just as it does for `data`.
+    locked: Cell<bool>,
     data: UnsafeCell<T>,
 }
 
@@ -95,7 +96,7 @@ impl<T> Mutex<T> {
     pub const fn new_from(t: T, raw_mutex: sys::Mutex) -> Mutex<T> {
         Mutex {
             inner: raw_mutex,
-            locked: AtomicBool::new(false),
+            locked: Cell::new(false),
             data: UnsafeCell::new(t),
         }
     }
@@ -121,7 +122,7 @@ impl<T: ?Sized> Mutex<T> {
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
         // With `Forever`, should never return an error.
         self.inner.lock(Forever).unwrap();
-        if self.locked.swap(true, Ordering::Acquire) {
+        if self.locked.replace(true) {
             self.inner.unlock().unwrap();
             panic!("cannot recursively lock Mutex");
         }
@@ -138,7 +139,7 @@ impl<T: ?Sized> Mutex<T> {
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
         match self.inner.lock(NoWait) {
             Ok(()) => {
-                if self.locked.swap(true, Ordering::Acquire) {
+                if self.locked.replace(true) {
                     self.inner.unlock().unwrap();
                     Err(TryLockError::WouldBlock)
                 } else {
@@ -179,7 +180,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        self.lock.locked.store(false, Ordering::Release);
+        self.lock.locked.set(false);
         if let Err(e) = self.lock.inner.unlock() {
             panic!("Problem unlocking MutexGuard in drop: {:?}", e);
         }
@@ -227,9 +228,9 @@ impl Condvar {
     /// have a boolean predicate associated with them, and the predicate must always be checked
     /// each time this function returns to protect against spurious wakeups.
     pub fn wait<'a, T>(&self, guard: MutexGuard<'a, T>) -> LockResult<MutexGuard<'a, T>> {
-        guard.lock.locked.store(false, Ordering::Release);
+        guard.lock.locked.set(false);
         self.inner.wait(&guard.lock.inner);
-        guard.lock.locked.store(true, Ordering::Release);
+        guard.lock.locked.set(true);
         Ok(guard)
     }
 
