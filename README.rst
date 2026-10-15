@@ -136,6 +136,19 @@ For example:
    #[cfg(not(CONFIG_SCHED_DUMB))]
    other_declaration;
 
+Devicetree path settings
+------------------------
+
+Devicetree node paths can also be exported as ``cfg`` values:
+
+.. code-block:: rust
+
+   fn main() {
+       zephyr_build::dt_cfgs();
+   }
+
+This makes paths such as ``dt = "aliases::led0"`` available to ``#[cfg(...)]``.
+
 Other Kconfig settings
 ----------------------
 
