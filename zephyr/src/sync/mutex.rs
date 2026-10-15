@@ -12,6 +12,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
+use crate::sync::atomic::{AtomicBool, Ordering};
 use crate::sys::sync as sys;
 use crate::time::{Forever, NoWait};
 
@@ -46,6 +47,7 @@ pub enum TryLockError {
 pub struct Mutex<T: ?Sized> {
     inner: sys::Mutex,
     // poison: ...
+    locked: AtomicBool,
     data: UnsafeCell<T>,
 }
 
@@ -93,6 +95,7 @@ impl<T> Mutex<T> {
     pub const fn new_from(t: T, raw_mutex: sys::Mutex) -> Mutex<T> {
         Mutex {
             inner: raw_mutex,
+            locked: AtomicBool::new(false),
             data: UnsafeCell::new(t),
         }
     }
@@ -111,12 +114,17 @@ impl<T: ?Sized> Mutex<T> {
     /// allow scoped unlock of the lock. When the guard goes out of scope, the mutex will be
     /// unlocked.
     ///
-    /// In `std`, an attempt to lock a mutex by a thread that already holds the mutex is
-    /// unspecified.  Zephyr explicitly supports this behavior, by simply incrementing a lock
-    /// count.
+    /// Attempting to lock a mutex that is already held by the current thread is not permitted and
+    /// will panic. Because [`MutexGuard`] provides mutable access to the protected data via
+    /// [`DerefMut`], allowing reentrancy would produce multiple mutable references to the same
+    /// data, which is undefined behavior in Rust.
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
         // With `Forever`, should never return an error.
         self.inner.lock(Forever).unwrap();
+        if self.locked.swap(true, Ordering::Acquire) {
+            self.inner.unlock().unwrap();
+            panic!("cannot recursively lock Mutex");
+        }
         unsafe { Ok(MutexGuard::new(self)) }
     }
 
@@ -125,10 +133,18 @@ impl<T: ?Sized> Mutex<T> {
     /// If the lock could not be acquired at this time, then [`Err`] is returned. Otherwise, an RAII
     /// guard is returned. The lock will be unlocked when the guard is dropped.
     ///
-    /// This function does not block.
+    /// This function does not block. Attempting to lock a mutex that is already held by the current
+    /// thread will return `Err(TryLockError::WouldBlock)`.
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
         match self.inner.lock(NoWait) {
-            Ok(()) => unsafe { Ok(MutexGuard::new(self)) },
+            Ok(()) => {
+                if self.locked.swap(true, Ordering::Acquire) {
+                    self.inner.unlock().unwrap();
+                    Err(TryLockError::WouldBlock)
+                } else {
+                    unsafe { Ok(MutexGuard::new(self)) }
+                }
+            }
             // TODO: It might be better to distinguish these errors, and only return the WouldBlock
             // if that is the corresponding error. But, the lock shouldn't fail in Zephyr.
             Err(_) => Err(TryLockError::WouldBlock),
@@ -163,6 +179,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
+        self.lock.locked.store(false, Ordering::Release);
         if let Err(e) = self.lock.inner.unlock() {
             panic!("Problem unlocking MutexGuard in drop: {:?}", e);
         }
@@ -210,7 +227,9 @@ impl Condvar {
     /// have a boolean predicate associated with them, and the predicate must always be checked
     /// each time this function returns to protect against spurious wakeups.
     pub fn wait<'a, T>(&self, guard: MutexGuard<'a, T>) -> LockResult<MutexGuard<'a, T>> {
+        guard.lock.locked.store(false, Ordering::Release);
         self.inner.wait(&guard.lock.inner);
+        guard.lock.locked.store(true, Ordering::Release);
         Ok(guard)
     }
 
