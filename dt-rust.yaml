@@ -42,6 +42,96 @@
       raw: !Phandle gpios
       device: crate::device::gpio::GpioPin
 
+# The pwm-leds node itself is a Zephyr LED controller device.
+- name: pwm-led-controller
+  cfg: CONFIG_LED_PWM
+  rules:
+    - !Compatible
+      names: [pwm-leds]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led::LedController
+
+# The pwm-leds device is an LED controller. Each child node becomes a logical LED addressed through
+# the parent controller and the child's index.
+- name: pwm-leds
+  cfg: CONFIG_LED_PWM
+  rules:
+    - !Compatible
+      names: [pwm-leds]
+      level: 1
+  actions:
+    - !Instance
+      raw: !Parent
+        level: 1
+        args:
+          - !ChildIdx
+      device: crate::device::led::Led
+
+# LED strip devices (e.g. WS2812 addressable RGB strips) are identified by their compatible string.
+# Each compatible is gated on its own driver, since a node only becomes a device when that driver is
+# enabled.
+
+# WS2812 PIO driver: the strip device handle lives on the *child* of the PIO node (level 1).
+# The parent carries compatible = "worldsemi,ws2812-rpi_pico-pio" and manages PIO setup;
+# each child node is a distinct strip and is what DEVICE_DT_GET / aliases point to.
+- name: ws2812-rpi-pico-pio-led-strip
+  cfg: CONFIG_WS2812_STRIP_RPI_PICO_PIO
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-rpi_pico-pio"
+      level: 1
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
+# WS2812 SPI/GPIO drivers: the strip device handle lives directly on the compatible node (level 0).
+- name: ws2812-spi-led-strip
+  cfg: CONFIG_WS2812_STRIP_SPI
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-spi"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
+- name: ws2812-gpio-led-strip
+  cfg: CONFIG_WS2812_STRIP_GPIO
+  rules:
+    - !Compatible
+      names:
+        - "worldsemi,ws2812-gpio"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::led_strip::LedStrip
+
+# I2C controllers.  Match the compatible strings for common I2C peripherals so that each gets a
+# `get_instance()` returning an `I2c` wrapper.
+- name: i2c-controller
+  cfg: CONFIG_I2C
+  rules:
+    - !Compatible
+      names:
+        - "raspberrypi,pico-i2c"
+        - "snps,designware-i2c"
+        - "nordic,nrf-twi"
+        - "nordic,nrf-twim"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::i2c::I2c
+
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller

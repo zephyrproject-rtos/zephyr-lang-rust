@@ -14,6 +14,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
+use bindgen::callbacks::{DeriveInfo, ParseCallbacks};
 use bindgen::Builder;
 
 fn main() -> anyhow::Result<()> {
@@ -77,7 +78,8 @@ fn main() -> anyhow::Result<()> {
     let bindings = bindings
         // Deprecated
         .blocklist_function("sys_clock_timeout_end_calc")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()));
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .parse_callbacks(Box::new(CopyTypes));
 
     let dotconfig = env::var("DOTCONFIG").expect("missing DOTCONFIG path");
     let options = zephyr_build::extract_kconfig_bool_options(&dotconfig)
@@ -107,12 +109,25 @@ fn main() -> anyhow::Result<()> {
         .allowlist_item_if("CONFIG_GPIO_.*", || options.contains("CONFIG_GPIO"))
         .allowlist_item_if("GPIO_.*", || options.contains("CONFIG_GPIO"))
         .allowlist_function_if("gpio_.*", || options.contains("CONFIG_GPIO"))
+        // LED
+        .allowlist_item_if("CONFIG_LED_.*", || options.contains("CONFIG_LED"))
+        .allowlist_item_if("LED_.*", || options.contains("CONFIG_LED"))
+        .allowlist_function_if("led_.*", || options.contains("CONFIG_LED"))
         // Flash
         .allowlist_item_if("FLASH_.*", || options.contains("CONFIG_FLASH"))
         .allowlist_function_if("flash_.*", || options.contains("CONFIG_FLASH"))
         // UART
         .allowlist_item_if("CONFIG_UART_.*", || options.contains("CONFIG_SERIAL"))
         .allowlist_function_if("uart_.*", || options.contains("CONFIG_SERIAL"))
+        // LED Strip
+        .allowlist_item_if("led_rgb", || options.contains("CONFIG_LED_STRIP"))
+        .allowlist_function_if("led_strip_.*", || options.contains("CONFIG_LED_STRIP"))
+        // I2C
+        .allowlist_function_if("i2c_.*", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("i2c_msg", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("i2c_target_config", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("i2c_target_callbacks", || options.contains("CONFIG_I2C"))
+        .allowlist_item_if("I2C_MSG_.*", || options.contains("CONFIG_I2C"))
         // Generate
         .generate()
         .expect("Unable to generate bindings");
@@ -122,6 +137,22 @@ fn main() -> anyhow::Result<()> {
         .expect("Couldn't write bindings!");
 
     Ok(())
+}
+
+/// Derive `Copy` and `Clone` for selected plain-data types.
+///
+/// `Copy` is not derived by default, since most Zephyr structures should not be duplicated. Types
+/// listed here are simple values that Rust code is expected to copy freely.
+#[derive(Debug)]
+struct CopyTypes;
+
+impl ParseCallbacks for CopyTypes {
+    fn add_derives(&self, info: &DeriveInfo<'_>) -> Vec<String> {
+        match info.name {
+            "led_rgb" => vec!["Copy".into(), "Clone".into()],
+            _ => vec![],
+        }
+    }
 }
 
 trait BuilderExt {
