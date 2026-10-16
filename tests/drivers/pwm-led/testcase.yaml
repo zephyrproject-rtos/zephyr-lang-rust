@@ -1,4 +1,5 @@
 common:
+  tags: rust
   filter: CONFIG_RUST_SUPPORTED
   # The hifive1 has three PWM-driven LEDs (pwm-led0/1/2) in its upstream
   # devicetree, and is simulated by Renode, so this test runs in CI.  The
