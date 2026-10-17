@@ -1,0 +1,20 @@
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m0
+    - qemu_cortex_m3
+    - qemu_riscv32
+    - qemu_riscv64
+    - nrf52840dk/nrf52840
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "All tests passed"
+tests:
+  test.rust.errno: {}
+  # CONFIG_DEBUG selects the cargo dev profile, which enables overflow checks, so any arithmetic
+  # overflow in zephyr::error panics and fails the test instead of silently wrapping.
+  test.rust.errno.overflow_checks:
+    extra_configs:
+      - CONFIG_DEBUG=y
