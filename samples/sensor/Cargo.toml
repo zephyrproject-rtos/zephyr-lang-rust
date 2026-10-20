@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Open Device Partnership and Contributors
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "Demonstrates the Rust sensor wrapper"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = { version = "0.1.0", features = ["time-driver", "executor-zephyr", "async-drivers"] }
+zephyr-panic = "0.1.0"
+embassy-executor = "0.10.0"
+static_cell = "2.1"
+
+[dependencies.embassy-time]
+version = "0.5.1"
+features = ["tick-hz-10_000"]
+
+[profile.dev]
+opt-level = 1

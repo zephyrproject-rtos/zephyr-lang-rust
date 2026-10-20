@@ -1,0 +1,17 @@
+sample:
+  description: Demonstrate the Rust sensor wrapper
+  name: Async sensor
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - nucleo_f411re
+  tags:
+    - rust
+    - sensor
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - 'Temperature: -?[0-9]+\.[0-9]{3} C'
+tests:
+  sample.rust.sensor: {}
