@@ -131,6 +131,21 @@
       raw: !Myself
       device: crate::device::i2c::I2c
 
+# Sensors don't have a particular property to identify them, so we need a list of compatible values.
+# Revisit: Sensors DO potentially have a "class" attribute, but would need to make some changes
+# to expose that attribute here for us to match on.
+- name: sensor
+  cfg: CONFIG_SENSOR
+  rules:
+    - !Compatible
+      names:
+        - "ti,tmp11x"
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::sensor::Sensor
+      static_type: crate::device::sensor::SensorStatic
 
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
