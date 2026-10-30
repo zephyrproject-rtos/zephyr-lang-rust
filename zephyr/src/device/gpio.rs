@@ -22,6 +22,7 @@ mod async_io {
 
     use core::{
         cell::UnsafeCell,
+        ffi::c_int,
         future::Future,
         mem,
         sync::atomic::Ordering,
@@ -30,9 +31,9 @@ mod async_io {
 
     use embassy_sync::waitqueue::AtomicWaker;
     use zephyr_sys::{
-        device, gpio_add_callback, gpio_callback, gpio_init_callback, gpio_pin_interrupt_configure,
-        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, ZR_GPIO_INT_DISABLE,
-        ZR_GPIO_INT_LEVEL_HIGH, ZR_GPIO_INT_LEVEL_LOW,
+        device, gpio_add_callback, gpio_callback, gpio_init_callback, gpio_pin_get_raw,
+        gpio_pin_interrupt_configure, gpio_pin_interrupt_configure_dt, gpio_port_pins_t,
+        ZR_GPIO_INT_DISABLE, ZR_GPIO_INT_LEVEL_HIGH, ZR_GPIO_INT_LEVEL_LOW,
     };
 
     use crate::sync::atomic::{AtomicBool, AtomicU32};
@@ -224,11 +225,25 @@ mod async_io {
 
             this.pin.data.fast_install(this.pin.pin.port);
 
-            // Early detection of the event.  Also clears.
-            // This should be non-racy as long as only one task at a time waits on the gpio.
-            if this.pin.data.has_fired(this.pin.pin.pin) {
-                this.armed = false;
-                return Poll::Ready(());
+            if this.armed {
+                // Early detection of the event.  Also clears.
+                // This should be non-racy as long as only one task at a time waits on the gpio.
+                if this.pin.data.has_fired(this.pin.pin.pin) {
+                    this.armed = false;
+                    return Poll::Ready(());
+                }
+            } else {
+                // First poll.  A fired bit at this point isn't ours: it can be left behind by an
+                // earlier wait whose interrupt was already latched when it was dropped.  Discard
+                // it, and check the pin itself.  If it is already at the level, there is nothing
+                // to arm.
+                //
+                // The level interrupts are on the physical level, so read the raw value.
+                this.pin.data.has_fired(this.pin.pin.pin);
+                let value = unsafe { gpio_pin_get_raw(this.pin.pin.port, this.pin.pin.pin) };
+                if value == this.level as c_int {
+                    return Poll::Ready(());
+                }
             }
 
             this.pin.data.register(this.pin.pin.pin, cx.waker());
