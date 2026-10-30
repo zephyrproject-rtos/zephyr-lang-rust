@@ -22,6 +22,7 @@ mod async_io {
 
     use core::{
         cell::UnsafeCell,
+        ffi::c_int,
         future::Future,
         mem,
         sync::atomic::Ordering,
@@ -30,9 +31,9 @@ mod async_io {
 
     use embassy_sync::waitqueue::AtomicWaker;
     use zephyr_sys::{
-        device, gpio_add_callback, gpio_callback, gpio_init_callback, gpio_pin_interrupt_configure,
-        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, ZR_GPIO_INT_LEVEL_HIGH,
-        ZR_GPIO_INT_LEVEL_LOW, ZR_GPIO_INT_MODE_DISABLE_ONLY,
+        device, gpio_add_callback, gpio_callback, gpio_init_callback, gpio_pin_get_raw,
+        gpio_pin_interrupt_configure, gpio_pin_interrupt_configure_dt, gpio_port_pins_t,
+        ZR_GPIO_INT_DISABLE, ZR_GPIO_INT_LEVEL_HIGH, ZR_GPIO_INT_LEVEL_LOW,
     };
 
     use crate::sync::atomic::{AtomicBool, AtomicU32};
@@ -92,20 +93,39 @@ mod async_io {
         pub(super) fn register(&self, pin: u8, waker: &Waker) {
             self.wakers[pin as usize].register(waker);
 
-            // SAFETY: Inherently unsafe, due to how the Zephyr API is defined.
-            // The API appears to assume coherent memory, which although untrue, probably is "close
-            // enough" on the supported targets.
-            // The main issue is to ensure that any race is resolved in the direction of getting the
-            // callback more than needed, rather than missing.  In the context here, ensure the
-            // waker is registered (which does use an atomic), before enabling the pin in the
-            // callback structure.
-            //
-            // If it seems that wakes are getting missed, it might be the case that this needs some
-            // kind of memory barrier.
-            let cb = self.callback.get();
+            // Register the waker before enabling the pin in the callback structure, so that a
+            // callback for this pin always finds it.
+            // SAFETY: See `pin_mask`.
+            unsafe { Self::pin_mask(self.callback.get()) }.fetch_or(1 << pin, Ordering::AcqRel);
+        }
+
+        /// Access the callback's `pin_mask` atomically.
+        ///
+        /// The mask is updated both from thread context (`register` and `disarm`) and from the
+        /// callback in the ISR, so all of the Rust updates are atomic read-modify-writes.  The
+        /// driver itself only reads the mask, when deciding which callbacks to call.
+        ///
+        /// # Safety
+        ///
+        /// `cb` must point to the `callback` of a `GpioStatic`.
+        unsafe fn pin_mask<'a>(cb: *mut gpio_callback) -> &'a AtomicU32 {
+            // SAFETY: `pin_mask` is a `u32`, and so suitably aligned, and lives as long as the
+            // `GpioStatic`.  All accesses from Rust go through this atomic.
+            unsafe { AtomicU32::from_ptr(&raw mut (*cb).pin_mask) }
+        }
+
+        /// Disarm a pin whose wait is being abandoned.
+        ///
+        /// Disables the pin's interrupt, removes it from the callback, and discards any fired
+        /// indication, so that nothing from the abandoned wait is left behind.
+        pub(super) fn disarm(&self, port: *const device, pin: u8) {
+            // SAFETY: Disabling the interrupt of a pin we own.  See `pin_mask`.
             unsafe {
-                (*cb).pin_mask |= 1 << pin;
+                gpio_pin_interrupt_configure(port, pin, ZR_GPIO_INT_DISABLE);
+                Self::pin_mask(self.callback.get()).fetch_and(!(1 << pin), Ordering::AcqRel);
             }
+
+            self.has_fired(pin);
         }
 
         extern "C" fn callback_handler(
@@ -125,17 +145,21 @@ mod async_io {
 
                 pins &= !(1 << pin);
 
-                // SAFETY: Handling this correctly is a bit tricky, especially with the
-                // un-coordinated 'pin-mask' value.
+                // SAFETY: `cb` is the callback of `data`, as installed by `install`.
                 //
                 // For level-triggered interrupts, not disabling this will result in an interrupt
                 // storm.
+                //
+                // This is a full disable, rather than a disable-only, as each wait configures the
+                // trigger from scratch.  Disable-only needs the experimental
+                // CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT, and drivers that don't implement it can
+                // misread the mode (nrfx arms a rising-edge trigger instead).
                 unsafe {
                     // Disable the actual interrupt from the controller.
-                    gpio_pin_interrupt_configure(port, pin as u8, ZR_GPIO_INT_MODE_DISABLE_ONLY);
+                    gpio_pin_interrupt_configure(port, pin as u8, ZR_GPIO_INT_DISABLE);
 
                     // Remove the callback bit.  Unclear if this is actually useful.
-                    (*cb).pin_mask &= !(1 << pin);
+                    Self::pin_mask(cb).fetch_and(!(1 << pin), Ordering::AcqRel);
 
                     // Indicate that we have fired.
                     // AcqRel is sufficient for ordering across a single atomic.
@@ -178,11 +202,17 @@ mod async_io {
     pub struct GpioWait<'a> {
         pin: &'a mut GpioPin,
         level: u8,
+        /// The interrupt has been armed, and this wait has not yet returned `Ready`.
+        armed: bool,
     }
 
     impl<'a> GpioWait<'a> {
         fn new(pin: &'a mut GpioPin, level: u8) -> Self {
-            Self { pin, level }
+            Self {
+                pin,
+                level,
+                armed: false,
+            }
         }
     }
 
@@ -193,33 +223,64 @@ mod async_io {
             self: core::pin::Pin<&mut Self>,
             cx: &mut core::task::Context<'_>,
         ) -> core::task::Poll<Self::Output> {
-            self.pin.data.fast_install(self.pin.pin.port);
+            let this = self.get_mut();
 
-            // Early detection of the event.  Also clears.
-            // This should be non-racy as long as only one task at a time waits on the gpio.
-            if self.pin.data.has_fired(self.pin.pin.pin) {
-                return Poll::Ready(());
+            this.pin.data.fast_install(this.pin.pin.port);
+
+            if this.armed {
+                // Early detection of the event.  Also clears.
+                // This should be non-racy as long as only one task at a time waits on the gpio.
+                if this.pin.data.has_fired(this.pin.pin.pin) {
+                    this.armed = false;
+                    return Poll::Ready(());
+                }
+            } else {
+                // First poll.  A fired bit at this point isn't ours: it can be left behind by an
+                // earlier wait whose interrupt was already latched when it was dropped.  Discard
+                // it, and check the pin itself.  If it is already at the level, there is nothing
+                // to arm.
+                //
+                // The level interrupts are on the physical level, so read the raw value.
+                this.pin.data.has_fired(this.pin.pin.pin);
+                let value = unsafe { gpio_pin_get_raw(this.pin.pin.port, this.pin.pin.pin) };
+                if value == this.level as c_int {
+                    return Poll::Ready(());
+                }
             }
 
-            self.pin.data.register(self.pin.pin.pin, cx.waker());
+            this.pin.data.register(this.pin.pin.pin, cx.waker());
 
-            let mode = match self.level {
+            let mode = match this.level {
                 0 => ZR_GPIO_INT_LEVEL_LOW,
                 1 => ZR_GPIO_INT_LEVEL_HIGH,
                 _ => unreachable!(),
             };
 
             unsafe {
-                gpio_pin_interrupt_configure_dt(&self.pin.pin, mode);
+                gpio_pin_interrupt_configure_dt(&this.pin.pin, mode);
+                this.armed = true;
 
                 // Before sleeping, check if it fired, to avoid having to pend if it already
                 // happened.
-                if self.pin.data.has_fired(self.pin.pin.pin) {
+                if this.pin.data.has_fired(this.pin.pin.pin) {
+                    this.armed = false;
                     return Poll::Ready(());
                 }
             }
 
             Poll::Pending
+        }
+    }
+
+    impl<'a> Drop for GpioWait<'a> {
+        fn drop(&mut self) {
+            // A wait that is dropped while pending (such as the losers of a `select`) would
+            // otherwise leave its interrupt armed, and a fired bit that a later wait would take as
+            // its own event.  Once the wait has returned `Ready`, the callback has already
+            // disarmed the pin.
+            if self.armed {
+                self.pin.data.disarm(self.pin.pin.port, self.pin.pin.pin);
+            }
         }
     }
 }
