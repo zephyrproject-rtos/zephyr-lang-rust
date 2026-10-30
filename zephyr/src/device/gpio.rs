@@ -31,8 +31,8 @@ mod async_io {
     use embassy_sync::waitqueue::AtomicWaker;
     use zephyr_sys::{
         device, gpio_add_callback, gpio_callback, gpio_init_callback, gpio_pin_interrupt_configure,
-        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, ZR_GPIO_INT_LEVEL_HIGH,
-        ZR_GPIO_INT_LEVEL_LOW, ZR_GPIO_INT_MODE_DISABLE_ONLY,
+        gpio_pin_interrupt_configure_dt, gpio_port_pins_t, ZR_GPIO_INT_DISABLE,
+        ZR_GPIO_INT_LEVEL_HIGH, ZR_GPIO_INT_LEVEL_LOW,
     };
 
     use crate::sync::atomic::{AtomicBool, AtomicU32};
@@ -130,9 +130,14 @@ mod async_io {
                 //
                 // For level-triggered interrupts, not disabling this will result in an interrupt
                 // storm.
+                //
+                // This is a full disable, rather than a disable-only, as each wait configures the
+                // trigger from scratch.  Disable-only needs the experimental
+                // CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT, and drivers that don't implement it can
+                // misread the mode (nrfx arms a rising-edge trigger instead).
                 unsafe {
                     // Disable the actual interrupt from the controller.
-                    gpio_pin_interrupt_configure(port, pin as u8, ZR_GPIO_INT_MODE_DISABLE_ONLY);
+                    gpio_pin_interrupt_configure(port, pin as u8, ZR_GPIO_INT_DISABLE);
 
                     // Remove the callback bit.  Unclear if this is actually useful.
                     (*cb).pin_mask &= !(1 << pin);
