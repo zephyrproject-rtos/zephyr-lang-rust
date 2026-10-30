@@ -93,20 +93,25 @@ mod async_io {
         pub(super) fn register(&self, pin: u8, waker: &Waker) {
             self.wakers[pin as usize].register(waker);
 
-            // SAFETY: Inherently unsafe, due to how the Zephyr API is defined.
-            // The API appears to assume coherent memory, which although untrue, probably is "close
-            // enough" on the supported targets.
-            // The main issue is to ensure that any race is resolved in the direction of getting the
-            // callback more than needed, rather than missing.  In the context here, ensure the
-            // waker is registered (which does use an atomic), before enabling the pin in the
-            // callback structure.
-            //
-            // If it seems that wakes are getting missed, it might be the case that this needs some
-            // kind of memory barrier.
-            let cb = self.callback.get();
-            unsafe {
-                (*cb).pin_mask |= 1 << pin;
-            }
+            // Register the waker before enabling the pin in the callback structure, so that a
+            // callback for this pin always finds it.
+            // SAFETY: See `pin_mask`.
+            unsafe { Self::pin_mask(self.callback.get()) }.fetch_or(1 << pin, Ordering::AcqRel);
+        }
+
+        /// Access the callback's `pin_mask` atomically.
+        ///
+        /// The mask is updated both from thread context (`register` and `disarm`) and from the
+        /// callback in the ISR, so all of the Rust updates are atomic read-modify-writes.  The
+        /// driver itself only reads the mask, when deciding which callbacks to call.
+        ///
+        /// # Safety
+        ///
+        /// `cb` must point to the `callback` of a `GpioStatic`.
+        unsafe fn pin_mask<'a>(cb: *mut gpio_callback) -> &'a AtomicU32 {
+            // SAFETY: `pin_mask` is a `u32`, and so suitably aligned, and lives as long as the
+            // `GpioStatic`.  All accesses from Rust go through this atomic.
+            unsafe { AtomicU32::from_ptr(&raw mut (*cb).pin_mask) }
         }
 
         /// Disarm a pin whose wait is being abandoned.
@@ -114,12 +119,10 @@ mod async_io {
         /// Disables the pin's interrupt, removes it from the callback, and discards any fired
         /// indication, so that nothing from the abandoned wait is left behind.
         pub(super) fn disarm(&self, port: *const device, pin: u8) {
-            // SAFETY: Same as `register`, regarding the update of `pin_mask`.
+            // SAFETY: Disabling the interrupt of a pin we own.  See `pin_mask`.
             unsafe {
                 gpio_pin_interrupt_configure(port, pin, ZR_GPIO_INT_DISABLE);
-
-                let cb = self.callback.get();
-                (*cb).pin_mask &= !(1 << pin);
+                Self::pin_mask(self.callback.get()).fetch_and(!(1 << pin), Ordering::AcqRel);
             }
 
             self.has_fired(pin);
@@ -142,8 +145,7 @@ mod async_io {
 
                 pins &= !(1 << pin);
 
-                // SAFETY: Handling this correctly is a bit tricky, especially with the
-                // un-coordinated 'pin-mask' value.
+                // SAFETY: `cb` is the callback of `data`, as installed by `install`.
                 //
                 // For level-triggered interrupts, not disabling this will result in an interrupt
                 // storm.
@@ -157,7 +159,7 @@ mod async_io {
                     gpio_pin_interrupt_configure(port, pin as u8, ZR_GPIO_INT_DISABLE);
 
                     // Remove the callback bit.  Unclear if this is actually useful.
-                    (*cb).pin_mask &= !(1 << pin);
+                    Self::pin_mask(cb).fetch_and(!(1 << pin), Ordering::AcqRel);
 
                     // Indicate that we have fired.
                     // AcqRel is sufficient for ordering across a single atomic.
