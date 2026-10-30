@@ -108,6 +108,22 @@ mod async_io {
             }
         }
 
+        /// Disarm a pin whose wait is being abandoned.
+        ///
+        /// Disables the pin's interrupt, removes it from the callback, and discards any fired
+        /// indication, so that nothing from the abandoned wait is left behind.
+        pub(super) fn disarm(&self, port: *const device, pin: u8) {
+            // SAFETY: Same as `register`, regarding the update of `pin_mask`.
+            unsafe {
+                gpio_pin_interrupt_configure(port, pin, ZR_GPIO_INT_DISABLE);
+
+                let cb = self.callback.get();
+                (*cb).pin_mask &= !(1 << pin);
+            }
+
+            self.has_fired(pin);
+        }
+
         extern "C" fn callback_handler(
             port: *const device,
             cb: *mut gpio_callback,
@@ -183,11 +199,17 @@ mod async_io {
     pub struct GpioWait<'a> {
         pin: &'a mut GpioPin,
         level: u8,
+        /// The interrupt has been armed, and this wait has not yet returned `Ready`.
+        armed: bool,
     }
 
     impl<'a> GpioWait<'a> {
         fn new(pin: &'a mut GpioPin, level: u8) -> Self {
-            Self { pin, level }
+            Self {
+                pin,
+                level,
+                armed: false,
+            }
         }
     }
 
@@ -198,33 +220,50 @@ mod async_io {
             self: core::pin::Pin<&mut Self>,
             cx: &mut core::task::Context<'_>,
         ) -> core::task::Poll<Self::Output> {
-            self.pin.data.fast_install(self.pin.pin.port);
+            let this = self.get_mut();
+
+            this.pin.data.fast_install(this.pin.pin.port);
 
             // Early detection of the event.  Also clears.
             // This should be non-racy as long as only one task at a time waits on the gpio.
-            if self.pin.data.has_fired(self.pin.pin.pin) {
+            if this.pin.data.has_fired(this.pin.pin.pin) {
+                this.armed = false;
                 return Poll::Ready(());
             }
 
-            self.pin.data.register(self.pin.pin.pin, cx.waker());
+            this.pin.data.register(this.pin.pin.pin, cx.waker());
 
-            let mode = match self.level {
+            let mode = match this.level {
                 0 => ZR_GPIO_INT_LEVEL_LOW,
                 1 => ZR_GPIO_INT_LEVEL_HIGH,
                 _ => unreachable!(),
             };
 
             unsafe {
-                gpio_pin_interrupt_configure_dt(&self.pin.pin, mode);
+                gpio_pin_interrupt_configure_dt(&this.pin.pin, mode);
+                this.armed = true;
 
                 // Before sleeping, check if it fired, to avoid having to pend if it already
                 // happened.
-                if self.pin.data.has_fired(self.pin.pin.pin) {
+                if this.pin.data.has_fired(this.pin.pin.pin) {
+                    this.armed = false;
                     return Poll::Ready(());
                 }
             }
 
             Poll::Pending
+        }
+    }
+
+    impl<'a> Drop for GpioWait<'a> {
+        fn drop(&mut self) {
+            // A wait that is dropped while pending (such as the losers of a `select`) would
+            // otherwise leave its interrupt armed, and a fired bit that a later wait would take as
+            // its own event.  Once the wait has returned `Ready`, the callback has already
+            // disarmed the pin.
+            if self.armed {
+                self.pin.data.disarm(self.pin.pin.port, self.pin.pin.pin);
+            }
         }
     }
 }
