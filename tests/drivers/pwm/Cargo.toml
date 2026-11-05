@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "Test PWM output through the Rust controller wrapper"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = "0.1.0"
+zephyr-panic = "0.1.0"
