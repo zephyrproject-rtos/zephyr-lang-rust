@@ -89,6 +89,9 @@ impl Augment for Augmentation {
 /// A matching rule.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Rule {
+    /// Matches if the nested rule does not match.
+    /// The named field gives the nested rule its own YAML node and tag.
+    Not { rule: Box<Rule> },
     /// A set of "or" matches.
     Or(Vec<Rule>),
     /// A set of "and" matches.  Not needed at the top level, as the top level vec is an implicit
@@ -107,6 +110,7 @@ pub enum Rule {
 impl Rule {
     fn is_compatible(&self, node: &Node) -> bool {
         match self {
+            Rule::Not { rule } => !rule.is_compatible(node),
             Rule::Or(rules) => rules.iter().any(|n| n.is_compatible(node)),
             Rule::And(rules) => rules.iter().all(|n| n.is_compatible(node)),
             Rule::HasProp(name) => node.has_prop(name),
