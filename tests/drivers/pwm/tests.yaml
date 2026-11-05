@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - hifive1
+tests:
+  test.rust.drivers.pwm:
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "All tests passed"

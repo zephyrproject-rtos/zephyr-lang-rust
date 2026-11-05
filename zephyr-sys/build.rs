@@ -128,6 +128,12 @@ fn main() -> anyhow::Result<()> {
         .allowlist_item_if("i2c_target_config", || options.contains("CONFIG_I2C"))
         .allowlist_item_if("i2c_target_callbacks", || options.contains("CONFIG_I2C"))
         .allowlist_item_if("I2C_MSG_.*", || options.contains("CONFIG_I2C"))
+        // PWM output
+        .allowlist_function_if("pwm_set_cycles", || options.contains("CONFIG_PWM"))
+        .allowlist_function_if("pwm_set", || options.contains("CONFIG_PWM"))
+        .allowlist_function_if("pwm_get_cycles_per_sec", || options.contains("CONFIG_PWM"))
+        .allowlist_item_if("pwm_flags_t", || options.contains("CONFIG_PWM"))
+        .allowlist_item_if("PWM_POLARITY_.*", || options.contains("CONFIG_PWM"))
         // Generate
         .generate()
         .expect("Unable to generate bindings");
