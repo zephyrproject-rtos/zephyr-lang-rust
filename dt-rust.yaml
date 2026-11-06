@@ -132,6 +132,29 @@
       device: crate::device::i2c::I2c
 
 
+# RTC devices are matched by compatible and gated on the corresponding driver.
+- name: rtc-emul
+  cfg: CONFIG_RTC_EMUL
+  rules:
+    - !Compatible
+      names: ["zephyr,rtc-emul"]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::rtc::Rtc
+
+- name: rtc-ite-it8xxx2
+  cfg: CONFIG_RTC_ITE_IT8XXX2
+  rules:
+    - !Compatible
+      names: ["ite,it8xxx2-rtc"]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::rtc::Rtc
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller

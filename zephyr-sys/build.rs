@@ -128,6 +128,10 @@ fn main() -> anyhow::Result<()> {
         .allowlist_item_if("i2c_target_config", || options.contains("CONFIG_I2C"))
         .allowlist_item_if("i2c_target_callbacks", || options.contains("CONFIG_I2C"))
         .allowlist_item_if("I2C_MSG_.*", || options.contains("CONFIG_I2C"))
+        // RTC time access
+        .allowlist_function_if("rtc_get_time", || options.contains("CONFIG_RTC"))
+        .allowlist_function_if("rtc_set_time", || options.contains("CONFIG_RTC"))
+        .allowlist_item_if("rtc_time", || options.contains("CONFIG_RTC"))
         // Generate
         .generate()
         .expect("Unable to generate bindings");
