@@ -85,6 +85,9 @@ extern int errno;
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/led.h>
 #include <zephyr/drivers/led_strip.h>
+#ifdef CONFIG_RTC
+#include <zephyr/drivers/rtc.h>
+#endif
 #include <zephyr/drivers/uart.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
