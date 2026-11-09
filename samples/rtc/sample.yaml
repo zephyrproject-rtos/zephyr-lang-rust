@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: Rust RTC sample
+  description: Set and read an RTC from Rust
+common:
+  tags:
+    - rust
+    - rtc
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m3
+  integration_platforms:
+    - qemu_cortex_m3
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "RTC sample successful"
+  timeout: 15
+tests:
+  sample.rust.rtc: {}

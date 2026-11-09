@@ -1,0 +1,12 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/ {
+	aliases {
+		rtc = &rtc_emul;
+	};
+
+	rtc_emul: rtc {
+		compatible = "zephyr,rtc-emul";
+		status = "okay";
+	};
+};
