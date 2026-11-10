@@ -128,6 +128,9 @@ fn main() -> anyhow::Result<()> {
         .allowlist_item_if("i2c_target_config", || options.contains("CONFIG_I2C"))
         .allowlist_item_if("i2c_target_callbacks", || options.contains("CONFIG_I2C"))
         .allowlist_item_if("I2C_MSG_.*", || options.contains("CONFIG_I2C"))
+        // Sensor
+        .allowlist_item_if("SENSOR_.*", || options.contains("CONFIG_SENSOR"))
+        .allowlist_function_if("sensor_.*", || options.contains("CONFIG_SENSOR"))
         // Generate
         .generate()
         .expect("Unable to generate bindings");
@@ -149,7 +152,7 @@ struct CopyTypes;
 impl ParseCallbacks for CopyTypes {
     fn add_derives(&self, info: &DeriveInfo<'_>) -> Vec<String> {
         match info.name {
-            "led_rgb" => vec!["Copy".into(), "Clone".into()],
+            "led_rgb" | "sensor_value" => vec!["Copy".into(), "Clone".into()],
             _ => vec![],
         }
     }

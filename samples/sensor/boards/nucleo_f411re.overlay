@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2026 Open Device Partnership and Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/sensor/tmp11x.h>
+
+/ {
+	aliases {
+		sensor0 = &tmp117;
+	};
+};
+
+&arduino_i2c {
+	tmp117: tmp117@48 {
+		compatible = "ti,tmp11x";
+		reg = <0x48>;
+		odr = <TMP11X_DT_ODR_125_MS>;
+		oversampling = <TMP11X_DT_OVERSAMPLING_1>;
+		status = "okay";
+	};
+};
