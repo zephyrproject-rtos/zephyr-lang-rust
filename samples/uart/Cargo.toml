@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "Blocking Rust UART loopback with the Zephyr UART emulator"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = "0.1.0"
+zephyr-panic = "0.1.0"
+embedded-io = { version = "0.7", default-features = false }
