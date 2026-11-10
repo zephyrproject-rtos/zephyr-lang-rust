@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  description: Explicit interrupt and event-backed Rust UART loopback
+  name: Rust async UART loopback
+common:
+  tags:
+    - rust
+    - uart
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m3
+    - native_sim/native/64
+  integration_platforms:
+    - qemu_cortex_m3
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Async UART loopback: all tests passed"
+tests:
+  sample.rust.uart.async.interrupt:
+    extra_args: EXTRA_CONF_FILE=irq.conf
+  sample.rust.uart.async.event:
+    extra_args: EXTRA_CONF_FILE=event.conf
+  sample.rust.uart.async.both: {}

@@ -24,6 +24,21 @@ pub struct Error(pub u32);
 
 impl core::error::Error for Error {}
 
+impl embedded_io::Error for Error {
+    fn kind(&self) -> embedded_io::ErrorKind {
+        use crate::raw;
+        use embedded_io::ErrorKind;
+
+        match self.0 {
+            raw::EINVAL => ErrorKind::InvalidInput,
+            raw::ENOTSUP | raw::ENOSYS => ErrorKind::Unsupported,
+            raw::ETIMEDOUT => ErrorKind::TimedOut,
+            raw::EINTR => ErrorKind::Interrupted,
+            _ => ErrorKind::Other,
+        }
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "zephyr error errno:{}", self.0)

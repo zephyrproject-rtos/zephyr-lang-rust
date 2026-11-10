@@ -132,6 +132,29 @@
       device: crate::device::i2c::I2c
 
 
+# UART controllers are matched by compatible and gated on the corresponding driver.
+- name: uart-emul
+  cfg: CONFIG_UART_EMUL
+  rules:
+    - !Compatible
+      names: ["zephyr,uart-emul"]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::uart::Uart
+
+- name: uart-mcux-flexcomm
+  cfg: CONFIG_UART_MCUX_FLEXCOMM
+  rules:
+    - !Compatible
+      names: ["nxp,lpc-usart"]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::uart::Uart
+
 # Flash controllers don't have any particular property to identify them, so we need a list of
 # compatible values that should match.
 - name: flash-controller
