@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "rustapp"
+version = "0.1.0"
+edition = "2021"
+description = "Explicit interrupt and event-backed Rust UART loopback"
+license = "Apache-2.0 or MIT"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+zephyr = { version = "0.1.0", features = ["async-drivers", "executor-zephyr"] }
+zephyr-panic = "0.1.0"
+embedded-io-async = { version = "0.7", default-features = false }
+embassy-executor = "0.10"
+embassy-futures = "0.1.2"
+static_cell = "2.1"
+
+[build-dependencies]
+zephyr-build = "0.1.0"

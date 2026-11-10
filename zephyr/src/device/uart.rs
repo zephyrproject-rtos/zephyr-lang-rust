@@ -15,6 +15,20 @@ use crate::{
     Result,
 };
 
+#[cfg(all(
+    feature = "async-drivers",
+    any(CONFIG_UART_INTERRUPT_DRIVEN, CONFIG_UART_ASYNC_API)
+))]
+mod buffered;
+#[cfg(all(feature = "async-drivers", CONFIG_UART_INTERRUPT_DRIVEN))]
+mod interrupt;
+#[cfg(all(feature = "async-drivers", CONFIG_UART_INTERRUPT_DRIVEN))]
+pub use interrupt::{InterruptRx, InterruptStorage, InterruptTx, InterruptUart};
+#[cfg(all(feature = "async-drivers", CONFIG_UART_ASYNC_API))]
+mod asynchronous;
+#[cfg(all(feature = "async-drivers", CONFIG_UART_ASYNC_API))]
+pub use asynchronous::{AsyncRx, AsyncStorage, AsyncTx, AsyncUart};
+
 /// A Zephyr UART device, obtained through devicetree `get_instance()`.
 ///
 /// The handle uses the existing device configuration; acquisition does not

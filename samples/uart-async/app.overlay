@@ -1,0 +1,26 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/ {
+	aliases {
+		app-irq-uart = &uart_irq_loopback;
+		app-async-uart = &uart_event_loopback;
+	};
+
+	uart_irq_loopback: uart-irq-loopback {
+		compatible = "zephyr,uart-emul";
+		current-speed = <115200>;
+		loopback;
+		tx-fifo-size = <256>;
+		rx-fifo-size = <256>;
+		status = "okay";
+	};
+
+	uart_event_loopback: uart-event-loopback {
+		compatible = "zephyr,uart-emul";
+		current-speed = <115200>;
+		loopback;
+		tx-fifo-size = <256>;
+		rx-fifo-size = <256>;
+		status = "okay";
+	};
+};
