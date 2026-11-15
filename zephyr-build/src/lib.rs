@@ -89,14 +89,12 @@ pub fn build_kconfig_mod() {
     }
 }
 
-/// Parse the finalized DTS file, generating the Rust devicetree file.
+/// Load the portable export of Zephyr's parsed devicetree.
 fn import_dt() -> DeviceTree {
-    let zephyr_dts = env::var("ZEPHYR_DTS").expect("ZEPHYR_DTS must be set");
-    let gen_include =
-        env::var("BINARY_DIR_INCLUDE_GENERATED").expect("BINARY_DIR_INCLUDE_GENERATED must be set");
-
-    let generated = format!("{}/devicetree_generated.h", gen_include);
-    DeviceTree::new(&zephyr_dts, generated)
+    println!("cargo:rerun-if-env-changed=ZEPHYR_EDT_JSON");
+    let path = env::var("ZEPHYR_EDT_JSON").expect("ZEPHYR_EDT_JSON must be set");
+    println!("cargo:rerun-if-changed={path}");
+    DeviceTree::from_edt(Path::new(&path)).expect("loading Zephyr EDT export")
 }
 
 pub fn build_dts() {
