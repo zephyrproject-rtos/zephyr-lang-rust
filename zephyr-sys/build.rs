@@ -17,7 +17,21 @@ use std::path::{Path, PathBuf};
 use bindgen::callbacks::{DeriveInfo, ParseCallbacks};
 use bindgen::Builder;
 
+mod bindgen_config;
+
 fn main() -> anyhow::Result<()> {
+    for name in [
+        "RUST_BINDGEN_CONFIG",
+        "INCLUDE_DIRS",
+        "INCLUDE_DEFINES",
+        "ZEPHYR_BASE",
+        "WRAPPER_FILE",
+        "DOTCONFIG",
+    ] {
+        println!("cargo:rerun-if-env-changed={name}");
+    }
+    println!("cargo:rerun-if-changed=wrapper.h");
+
     // Determine which version of Clang we linked with.
     let version = bindgen::clang_version();
     println!("Clang version: {:?}", version);
@@ -58,7 +72,8 @@ fn main() -> anyhow::Result<()> {
         .clang_arg(format!("-I{}/lib/libc/minimal/include", zephyr_base))
         .clang_arg(&target_arg)
         .header(
-            Path::new("wrapper.h")
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("wrapper.h")
                 .canonicalize()
                 .unwrap()
                 .to_str()
@@ -68,6 +83,8 @@ fn main() -> anyhow::Result<()> {
 
     let bindings = define_args(bindings, "-I", "INCLUDE_DIRS");
     let bindings = define_args(bindings, "-D", "INCLUDE_DEFINES");
+
+    let bindings = bindgen_config::extend(bindings, env::var_os("RUST_BINDGEN_CONFIG").as_deref())?;
 
     let bindings = bindings
         .wrap_static_fns(true)
@@ -82,6 +99,7 @@ fn main() -> anyhow::Result<()> {
         .parse_callbacks(Box::new(CopyTypes));
 
     let dotconfig = env::var("DOTCONFIG").expect("missing DOTCONFIG path");
+    println!("cargo:rerun-if-changed={dotconfig}");
     let options = zephyr_build::extract_kconfig_bool_options(&dotconfig)
         .expect("failed to extract kconfig boolean options");
 

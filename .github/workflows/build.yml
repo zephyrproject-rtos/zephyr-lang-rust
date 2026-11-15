@@ -84,6 +84,13 @@ jobs:
             cd - > /dev/null
           done
 
+      - name: Test bindgen configuration and incremental builds
+        working-directory: apptest
+        run: |
+          cargo test --manifest-path zephyr-build/Cargo.toml
+          python3 tests/bindgen-host/run.py
+          python3 tests/bindgen-host/cmake.py
+
       - name: Check clippy
         working-directory: apptest
         shell: bash

@@ -23,6 +23,7 @@ use regex::Regex;
 
 use devicetree::{Augment, DeviceTree};
 
+pub mod bindgen;
 mod devicetree;
 
 /// Extract boolean Kconfig entries.  This must happen in any crate that wishes to access the

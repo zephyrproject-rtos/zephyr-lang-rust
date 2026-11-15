@@ -1,0 +1,18 @@
+sample:
+  description: Extend zephyr-sys with application-owned headers and allowlists
+  name: Custom Rust bindings
+common:
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Custom bindings passed"
+  tags: rust
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m0
+    - qemu_cortex_m3
+    - qemu_riscv32
+    - qemu_riscv64
+tests:
+  sample.rust.custom_bindings: {}

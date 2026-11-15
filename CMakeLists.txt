@@ -104,6 +104,7 @@ function(add_cargo_target_with_zephyr_env target)
       INCLUDE_DIRS="${include_dirs}"
       INCLUDE_DEFINES="${include_defines}"
       WRAPPER_FILE="${WRAPPER_FILE}"
+      "RUST_BINDGEN_CONFIG=${RUST_BINDGEN_CONFIG}"
       DT_AUGMENTS="${DT_AUGMENTS}"
       BINARY_DIR_INCLUDE_GENERATED="${BINARY_DIR_INCLUDE_GENERATED}"
       cargo ${cargo_command}
@@ -130,6 +131,18 @@ function(add_cargo_target_with_zephyr_env target)
 endfunction()
 
 function(rust_cargo_application)
+  cmake_parse_arguments(RUST_APP "" "BINDGEN_CONFIG" "" ${ARGN})
+  if(RUST_APP_UNPARSED_ARGUMENTS OR RUST_APP_KEYWORDS_MISSING_VALUES)
+    message(FATAL_ERROR "rust_cargo_application: expected BINDGEN_CONFIG <path>")
+  endif()
+  set(RUST_BINDGEN_CONFIG "")
+  if(RUST_APP_BINDGEN_CONFIG)
+    get_filename_component(RUST_BINDGEN_CONFIG "${RUST_APP_BINDGEN_CONFIG}" ABSOLUTE
+      BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    if(NOT EXISTS "${RUST_BINDGEN_CONFIG}" OR IS_DIRECTORY "${RUST_BINDGEN_CONFIG}")
+      message(FATAL_ERROR "Bindgen configuration does not exist: ${RUST_BINDGEN_CONFIG}")
+    endif()
+  endif()
   # For now, hard-code the Zephyr crate directly here.  Once we have
   # more than one crate, these should be added by the modules
   # themselves.
@@ -207,6 +220,7 @@ ZEPHYR_DTS = \"${ZEPHYR_DTS}\"
 INCLUDE_DIRS = \"${include_dirs}\"
 INCLUDE_DEFINES = \"${include_defines}\"
 WRAPPER_FILE = \"${WRAPPER_FILE}\"
+RUST_BINDGEN_CONFIG = \"${RUST_BINDGEN_CONFIG}\"
 BINARY_DIR_INCLUDE_GENERATED = \"${BINARY_DIR_INCLUDE_GENERATED}\"
 DT_AUGMENTS = \"${DT_AUGMENTS}\"
 
