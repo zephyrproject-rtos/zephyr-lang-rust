@@ -35,3 +35,6 @@ pub mod semaphore;
 
 pub use mutex::{Condvar, Mutex, StaticCondvar, StaticMutex};
 pub use semaphore::Semaphore;
+
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+pub use semaphore::SemaphoreRef;

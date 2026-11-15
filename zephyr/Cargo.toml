@@ -86,6 +86,9 @@ executor-zephyr = [
   "dep:embassy-executor",
 ]
 
+# Await native Zephyr semaphores using the Zephyr executor's poll loop.
+async-semaphores = ["executor-zephyr"]
+
 # Enables async support in various drivers.
 async-drivers = [
   "dep:embassy-sync",

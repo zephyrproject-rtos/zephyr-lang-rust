@@ -1,0 +1,16 @@
+common:
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m0
+    - qemu_cortex_m3
+    - qemu_riscv32
+    - qemu_riscv64
+  tags: rust
+  timeout: 30
+tests:
+  test.rust.async_semaphore:
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "Async semaphore tests passed"

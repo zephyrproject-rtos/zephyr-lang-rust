@@ -32,6 +32,39 @@ unsafe impl Sync for Semaphore {}
 unsafe impl Send for Semaphore {}
 
 impl Semaphore {
+    /// Return the initialized native semaphore for C interoperability.
+    ///
+    /// The static borrow prevents moving or dropping the kernel object while
+    /// native code holds its pointer. Callers must preserve Zephyr's semaphore
+    /// invariants: in particular, do not reinitialize it or mutate its fields.
+    pub fn as_raw(&'static self) -> *mut k_sem {
+        // SAFETY: The static borrow keeps the initialized object stationary
+        // and alive for every subsequent use of the returned pointer.
+        unsafe { self.0.get() }
+    }
+
+    /// Take a semaphore without blocking the async executor thread.
+    ///
+    /// Requires the `async-semaphores` feature, `CONFIG_POLL=y`, and
+    /// `CONFIG_RUST_ALLOC=y`. Poll this future on [`crate::embassy::Executor`]
+    /// in a supervisor thread. Native C and interrupt producers can give the
+    /// semaphore normally. Availability is advisory: competing takers can win,
+    /// so this operation retries until it acquires a token. No FIFO ordering is
+    /// promised among async waiters.
+    ///
+    /// Dropping the pending future unregisters the wait without consuming a
+    /// token. A timeout can be composed with an async timer. Resetting the
+    /// semaphore leaves async waits pending until a subsequent give.
+    /// The static lifetime keeps the kernel object alive even if a future is
+    /// forgotten while the executor has a poll in progress.
+    #[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+    pub async fn take_async(&'static self) {
+        // SAFETY: as_raw returns an initialized, permanently borrowed object.
+        unsafe { SemaphoreRef::from_raw(self.as_raw()) }
+            .take_async()
+            .await
+    }
+
     /// Create a new semaphore.
     ///
     /// Create a new dynamically allocated Semaphore.  This semaphore can only be used from system
@@ -120,5 +153,55 @@ impl ObjectInit<k_sem> for ZephyrObject<k_sem> {
 impl fmt::Debug for Semaphore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "sys::Semaphore")
+    }
+}
+
+/// A shared handle to a native semaphore with a static lifetime.
+///
+/// Use this to await semaphores owned by C drivers without taking ownership or
+/// reinitializing them. Constructing a handle requires validating the native
+/// object's initialization and lifetime once; subsequent operations are safe.
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+#[derive(Clone, Copy)]
+pub struct SemaphoreRef(*mut k_sem);
+
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+// SAFETY: Construction requires an initialized, static native semaphore.
+// Zephyr serializes access to it, including from other threads and interrupts.
+unsafe impl Send for SemaphoreRef {}
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+// SAFETY: Same native semaphore synchronization as Send above.
+unsafe impl Sync for SemaphoreRef {}
+
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+impl SemaphoreRef {
+    /// Borrow an initialized native semaphore for async use.
+    ///
+    /// # Safety
+    ///
+    /// `semaphore` must point to an initialized, properly aligned `k_sem` that
+    /// remains alive and at the same address for the rest of the program.
+    /// It must never be reinitialized or mutated outside Zephyr's semaphore
+    /// API. The calling thread and executor must have permission to access it.
+    pub unsafe fn from_raw(semaphore: *mut k_sem) -> Self {
+        assert!(!semaphore.is_null());
+        Self(semaphore)
+    }
+
+    /// Take a native semaphore asynchronously.
+    ///
+    /// Has the same executor, cancellation, and reset semantics as
+    /// [`Semaphore::take_async`]. The handle never owns or destroys the object.
+    pub async fn take_async(self) {
+        crate::embassy::semaphore::take(self).await
+    }
+
+    pub(crate) fn as_raw(self) -> *mut k_sem {
+        self.0
+    }
+
+    pub(crate) fn try_take(self) -> bool {
+        // SAFETY: from_raw guarantees the object remains initialized and live.
+        unsafe { k_sem_take(self.0, crate::sys::K_NO_WAIT) == 0 }
     }
 }
