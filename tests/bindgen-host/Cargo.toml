@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "bindgen-host-test"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+anyhow = "1.0"
+bindgen = { version = "0.72.1", features = ["experimental"] }
+zephyr-build = { path = "../../zephyr-build" }

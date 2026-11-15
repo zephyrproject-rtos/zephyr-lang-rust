@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+headers:
+  - include/api.h
+  - include/constants.h
+functions:
+  - app_add
+  - app_scaled
+# Types and variables are separate categories; none replace Zephyr's defaults.
+types:
+  - app_value
+variables:
+  - APP_ANSWER
