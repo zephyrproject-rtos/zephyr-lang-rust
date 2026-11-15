@@ -100,7 +100,7 @@ function(add_cargo_target_with_zephyr_env target)
       env BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
       ZEPHYR_BASE=${ZEPHYR_BASE}
       DOTCONFIG=${DOTCONFIG}
-      ZEPHYR_DTS=${ZEPHYR_DTS}
+      "ZEPHYR_EDT_JSON=${ZEPHYR_EDT_JSON}"
       INCLUDE_DIRS="${include_dirs}"
       INCLUDE_DEFINES="${include_defines}"
       WRAPPER_FILE="${WRAPPER_FILE}"
@@ -130,6 +130,19 @@ function(add_cargo_target_with_zephyr_env target)
 endfunction()
 
 function(rust_cargo_application)
+  set(ZEPHYR_EDT_JSON "${CMAKE_CURRENT_BINARY_DIR}/rust/edt.json")
+  execute_process(
+    COMMAND ${PYTHON_EXECUTABLE} "$CACHE{RUST_MODULE_DIR}/etc/edt-export.py"
+      --zephyr-base "${ZEPHYR_BASE}" --edt-pickle "${EDT_PICKLE}"
+      --output "${ZEPHYR_EDT_JSON}"
+    RESULT_VARIABLE edt_export_result
+  )
+  if(NOT edt_export_result EQUAL 0)
+    message(FATAL_ERROR "Failed to export Zephyr EDT for Rust")
+  endif()
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${EDT_PICKLE}" "$CACHE{RUST_MODULE_DIR}/etc/edt-export.py")
+
   # For now, hard-code the Zephyr crate directly here.  Once we have
   # more than one crate, these should be added by the modules
   # themselves.
@@ -203,7 +216,7 @@ target-dir = \"${CARGO_TARGET_DIR}\"
 [env]
 BUILD_DIR = \"${CMAKE_CURRENT_BINARY_DIR}\"
 DOTCONFIG = \"${DOTCONFIG}\"
-ZEPHYR_DTS = \"${ZEPHYR_DTS}\"
+ZEPHYR_EDT_JSON = \"${ZEPHYR_EDT_JSON}\"
 INCLUDE_DIRS = \"${include_dirs}\"
 INCLUDE_DEFINES = \"${include_defines}\"
 WRAPPER_FILE = \"${WRAPPER_FILE}\"

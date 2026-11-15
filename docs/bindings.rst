@@ -50,3 +50,21 @@ The generation of the bindings is controlled by the ``build.rs`` program.  This 
 the symbols that are needed for successful bindings, but there may be things missing.  Additional
 bindings can be included by adding their patterns to the list of patterns in ``build.rs``, and
 possibly adding additional ``#include`` directives to :file:`lib/rust/zephyr-sys/wrapper.h`.
+
+Devicetree build data
+====================
+
+``rust_cargo_application()`` exports Zephyr's build-generated ``edt.pickle``
+into ``rust/edt.json`` during CMake configuration. Cargo receives its absolute
+path through ``ZEPHYR_EDT_JSON`` (also included in the generated sample Cargo
+configuration). Both Rust devicetree generation and devicetree cfg generation
+read this file. Changes to the pickle or exporter trigger CMake configuration;
+changes to the exported file trigger the Rust build scripts.
+
+The version 1 interchange contains a root node with ordered children, labels,
+raw properties, and dependency ordinals from edtlib. References use absolute
+node paths, including references to unlabeled nodes. The Python adapter retains
+raw dtlib properties so properties without bindings remain available. Rust no
+longer parses ``zephyr.dts`` or extracts ordinals from the generated C header.
+The existing ``dt-rust.yaml`` augmentation rules continue to describe Rust
+wrapper types; these rules are not extensions to Zephyr's binding schema.
