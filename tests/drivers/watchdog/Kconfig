@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+
+source "Kconfig.zephyr"
+
+config TEST_WDT_MULTISTAGE
+	bool "Test single-stage configurations with multistage layout"
+	depends on WATCHDOG
+	select HAS_WDT_MULTISTAGE
+	select WDT_MULTISTAGE

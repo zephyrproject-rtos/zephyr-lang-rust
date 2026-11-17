@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+
+- name: test-watchdog
+  cfg: CONFIG_WATCHDOG
+  rules:
+    - !Compatible
+      names: ["zephyr,watchdog-test"]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::watchdog::Watchdog
+      static_type: crate::device::watchdog::WatchdogStatic

@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/ {
+	aliases {
+		watchdog0 = &test_wdt;
+	};
+
+	test_wdt: test-watchdog {
+		compatible = "zephyr,watchdog-test";
+	};
+
+	test_wdt_other: test-watchdog-other {
+		compatible = "zephyr,watchdog-test";
+	};
+
+	test_wdt_unready: test-watchdog-unready {
+		compatible = "zephyr,watchdog-test";
+	};
+};

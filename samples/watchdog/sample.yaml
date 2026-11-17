@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: Rust watchdog
+  description: Feed an owned watchdog channel from a worker thread, then wait for reset
+common:
+  tags:
+    - rust
+    - watchdog
+  filter: CONFIG_RUST_SUPPORTED and dt_alias_exists("watchdog0")
+  harness: console
+  harness_config:
+    type: multi_line
+    ordered: true
+    regex:
+      - "Watchdog sample application from Rust"
+      - "Feeding watchdog from worker..."
+      - "Watchdog fed 5 times"
+      - "Waiting for reset..."
+      - "Watchdog sample application from Rust"
+tests:
+  sample.rust.watchdog:
+    platform_allow:
+      - mps2/an385
+      - frdm_mcxa156/mcxa156
+    integration_platforms:
+      - mps2/an385
+      - frdm_mcxa156/mcxa156

@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/ {
+	/* Rust GPIO wrappers need two cells; MPS2 GPIO uses one. */
+	/delete-node/ leds;
+	/delete-node/ gpio_keys;
+
+	aliases {
+		/delete-property/ led0;
+		/delete-property/ led1;
+		/delete-property/ sw0;
+		/delete-property/ sw1;
+	};
+};
