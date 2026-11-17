@@ -32,6 +32,65 @@ unsafe impl Sync for Semaphore {}
 unsafe impl Send for Semaphore {}
 
 impl Semaphore {
+    /// Return the initialized native semaphore for C interoperability.
+    ///
+    /// The static borrow prevents moving or dropping the kernel object while
+    /// native code holds its pointer. Callers must preserve Zephyr's semaphore
+    /// invariants: in particular, do not reinitialize it or mutate its fields.
+    pub fn as_raw(&'static self) -> *mut k_sem {
+        // SAFETY: The static borrow keeps the initialized object stationary
+        // and alive for every subsequent use of the returned pointer.
+        unsafe { self.0.get() }
+    }
+
+    /// Take a semaphore without blocking the async executor thread.
+    ///
+    /// Enable the `async-semaphores` Cargo feature and set `CONFIG_POLL=y`
+    /// and `CONFIG_RUST_ALLOC=y`. Poll and drop this future in thread context
+    /// on the [Zephyr Embassy executor](crate::embassy::Executor) running in a
+    /// supervisor thread. Each pending wait allocates bookkeeping, and the
+    /// executor allocates a poll snapshot when there are registered waits.
+    ///
+    /// ```
+    /// use zephyr::sys::sync::Semaphore;
+    ///
+    /// static READY: Semaphore = Semaphore::new(0, 1);
+    ///
+    /// async fn consumer() {
+    ///     READY.take_async().await;
+    /// }
+    /// ```
+    ///
+    /// Rust producers can call [`Semaphore::give`]. C code and interrupt
+    /// handlers can give the native semaphore using `k_sem_give()` and the
+    /// pointer from [`Semaphore::as_raw`]. For a C-owned static semaphore, use
+    /// [`SemaphoreRef::from_raw`] to create a handle.
+    ///
+    /// The executor uses Zephyr's `k_poll()` to detect availability. A
+    /// notification does not reserve a token. Async waiters retry with a
+    /// nonblocking take, and competing synchronous or async takers can acquire
+    /// the token first. Async waiters have no FIFO ordering guarantee.
+    ///
+    /// Dropping a pending future unregisters the wait without consuming a
+    /// token. To set a timeout, race the wait against an async timer using
+    /// `embassy_futures::select::select`. Resetting the semaphore leaves async
+    /// waits pending until a subsequent give. The static borrow keeps the
+    /// native object alive while the executor holds a poll snapshot, even if a
+    /// future is dropped or forgotten.
+    ///
+    /// # Cancellation across executors
+    ///
+    /// When multiple executors wait on the same semaphore, Zephyr can notify
+    /// just one executor per give. If that executor cancels its wait before
+    /// taking the token, another executor can remain asleep even though the
+    /// token is available. A subsequent give can wake another executor. Keep
+    /// cancellable waits on a given semaphore on the same executor when those
+    /// waits must make progress without another give.
+    #[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+    pub async fn take_async(&'static self) {
+        SemaphoreRef(self.as_raw()).take_async().await
+    }
+
     /// Create a new semaphore.
     ///
     /// Create a new dynamically allocated Semaphore.  This semaphore can only be used from system
@@ -120,5 +179,55 @@ impl ObjectInit<k_sem> for ZephyrObject<k_sem> {
 impl fmt::Debug for Semaphore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "sys::Semaphore")
+    }
+}
+
+/// A shared handle to a native semaphore with a static lifetime.
+///
+/// Use this to await semaphores owned by C drivers without taking ownership or
+/// reinitializing them. Constructing a handle requires validating the native
+/// object's initialization and lifetime once; subsequent operations are safe.
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+#[derive(Clone, Copy)]
+pub struct SemaphoreRef(*mut k_sem);
+
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+// SAFETY: Construction requires an initialized, static native semaphore.
+// Zephyr serializes access to it, including from other threads and interrupts.
+unsafe impl Send for SemaphoreRef {}
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+// SAFETY: Same native semaphore synchronization as Send above.
+unsafe impl Sync for SemaphoreRef {}
+
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+impl SemaphoreRef {
+    /// Borrow an initialized native semaphore for async use.
+    ///
+    /// # Safety
+    ///
+    /// `semaphore` must point to an initialized, properly aligned `k_sem` that
+    /// remains alive and at the same address for the rest of the program.
+    /// It must never be reinitialized or mutated outside Zephyr's semaphore
+    /// API. The calling thread and executor must have permission to access it.
+    pub unsafe fn from_raw(semaphore: *mut k_sem) -> Self {
+        assert!(!semaphore.is_null());
+        Self(semaphore)
+    }
+
+    /// Take a native semaphore asynchronously.
+    ///
+    /// Has the same executor, cancellation, and reset semantics as
+    /// [`Semaphore::take_async`]. The handle never owns or destroys the object.
+    pub async fn take_async(self) {
+        crate::embassy::semaphore::take(self).await
+    }
+
+    pub(crate) fn as_raw(self) -> *mut k_sem {
+        self.0
+    }
+
+    pub(crate) fn try_take(self) -> bool {
+        // SAFETY: from_raw guarantees the object remains initialized and live.
+        unsafe { k_sem_take(self.0, crate::sys::K_NO_WAIT) == 0 }
     }
 }

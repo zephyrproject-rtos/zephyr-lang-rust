@@ -51,6 +51,11 @@
 //! - **`executor-zephyr`**: This implements an executor that uses a Zephyr semaphore to suspend the
 //!   executor thread when there is no work to perform. This feature is incompatible with either
 //!   `embassy-thread` or `embassy-interrupt` in the `embassy-executor` crate.
+//! - **`async-semaphores`**: Adds [`Semaphore::take_async`] and
+//!   [`SemaphoreRef`](crate::sys::sync::SemaphoreRef) for native semaphore waits.
+//!   Requires `CONFIG_POLL=y` and `CONFIG_RUST_ALLOC=y`, and uses `k_poll()` on
+//!   the Zephyr executor thread. Pending waits can be cancelled by dropping
+//!   their futures. Run this executor in supervisor mode.
 //! - **`embassy-time-driver`**: This feature causes the `zephyr` crate to provide a time driver to
 //!   Embassy.  This driver uses a single `k_timer` in Zephyr to wake async operations that are
 //!   dependent on time.  This enables the `embassy-time` crate's functionality to be used freely
@@ -80,3 +85,11 @@ mod time_driver;
 pub use executor::Executor;
 #[cfg(feature = "executor-zephyr")]
 mod executor;
+
+#[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
+pub(crate) mod semaphore;
+
+#[cfg(all(feature = "async-semaphores", not(CONFIG_POLL)))]
+compile_error!("async-semaphores requires CONFIG_POLL=y");
+#[cfg(all(feature = "async-semaphores", not(CONFIG_RUST_ALLOC)))]
+compile_error!("async-semaphores requires CONFIG_RUST_ALLOC=y");
