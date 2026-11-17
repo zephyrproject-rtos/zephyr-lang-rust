@@ -3,7 +3,6 @@
 use core::marker::PhantomData;
 
 use crate::sys::sync::Semaphore;
-#[cfg(not(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC)))]
 use crate::time::Forever;
 use embassy_executor::{raw, Spawner};
 
@@ -79,7 +78,7 @@ fn wait_for_events(wake: &Semaphore, registry: &super::semaphore::Registry) {
 
     let entries = registry.snapshot();
     if entries.is_empty() {
-        let _ = wake.take(crate::time::Forever);
+        let _ = wake.take(Forever);
         return;
     }
     // Allocate the complete event array before initializing it. Zephyr may

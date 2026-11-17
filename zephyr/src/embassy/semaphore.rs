@@ -67,19 +67,19 @@ impl Registration {
             semaphore,
             waker: waker.clone(),
         });
-        let old = {
+        // Keep this a block tail expression so the mutex guard drops first.
+        {
             let mut entries = self.context.registry.0.lock().unwrap();
-            if let Some(index) = entries
-                .iter()
-                .position(|e| Arc::ptr_eq(&e.token, &self.token))
+            if let Some(previous) = entries
+                .iter_mut()
+                .find(|e| Arc::ptr_eq(&e.token, &self.token))
             {
-                Some(core::mem::replace(&mut entries[index], entry))
+                Some(core::mem::replace(previous, entry))
             } else {
                 entries.push(entry);
                 None
             }
         };
-        drop(old);
         self.context.wake.give();
     }
 }

@@ -45,24 +45,50 @@ impl Semaphore {
 
     /// Take a semaphore without blocking the async executor thread.
     ///
-    /// Requires the `async-semaphores` feature, `CONFIG_POLL=y`, and
-    /// `CONFIG_RUST_ALLOC=y`. Poll this future on [`crate::embassy::Executor`]
-    /// in a supervisor thread. Native C and interrupt producers can give the
-    /// semaphore normally. Availability is advisory: competing takers can win,
-    /// so this operation retries until it acquires a token. No FIFO ordering is
-    /// promised among async waiters.
+    /// Enable the `async-semaphores` Cargo feature and set `CONFIG_POLL=y`
+    /// and `CONFIG_RUST_ALLOC=y`. Poll and drop this future in thread context
+    /// on the [Zephyr Embassy executor](crate::embassy::Executor) running in a
+    /// supervisor thread. Each pending wait allocates bookkeeping, and the
+    /// executor allocates a poll snapshot when there are registered waits.
     ///
-    /// Dropping the pending future unregisters the wait without consuming a
-    /// token. A timeout can be composed with an async timer. Resetting the
-    /// semaphore leaves async waits pending until a subsequent give.
-    /// The static lifetime keeps the kernel object alive even if a future is
-    /// forgotten while the executor has a poll in progress.
+    /// ```
+    /// use zephyr::sys::sync::Semaphore;
+    ///
+    /// static READY: Semaphore = Semaphore::new(0, 1);
+    ///
+    /// async fn consumer() {
+    ///     READY.take_async().await;
+    /// }
+    /// ```
+    ///
+    /// Rust producers can call [`Semaphore::give`]. C code and interrupt
+    /// handlers can give the native semaphore using `k_sem_give()` and the
+    /// pointer from [`Semaphore::as_raw`]. For a C-owned static semaphore, use
+    /// [`SemaphoreRef::from_raw`] to create a handle.
+    ///
+    /// The executor uses Zephyr's `k_poll()` to detect availability. A
+    /// notification does not reserve a token. Async waiters retry with a
+    /// nonblocking take, and competing synchronous or async takers can acquire
+    /// the token first. Async waiters have no FIFO ordering guarantee.
+    ///
+    /// Dropping a pending future unregisters the wait without consuming a
+    /// token. To set a timeout, race the wait against an async timer using
+    /// `embassy_futures::select::select`. Resetting the semaphore leaves async
+    /// waits pending until a subsequent give. The static borrow keeps the
+    /// native object alive while the executor holds a poll snapshot, even if a
+    /// future is dropped or forgotten.
+    ///
+    /// # Cancellation across executors
+    ///
+    /// When multiple executors wait on the same semaphore, Zephyr can notify
+    /// just one executor per give. If that executor cancels its wait before
+    /// taking the token, another executor can remain asleep even though the
+    /// token is available. A subsequent give can wake another executor. Keep
+    /// cancellable waits on a given semaphore on the same executor when those
+    /// waits must make progress without another give.
     #[cfg(all(feature = "async-semaphores", CONFIG_POLL, CONFIG_RUST_ALLOC))]
     pub async fn take_async(&'static self) {
-        // SAFETY: as_raw returns an initialized, permanently borrowed object.
-        unsafe { SemaphoreRef::from_raw(self.as_raw()) }
-            .take_async()
-            .await
+        SemaphoreRef(self.as_raw()).take_async().await
     }
 
     /// Create a new semaphore.

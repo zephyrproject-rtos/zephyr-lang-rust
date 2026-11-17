@@ -10,7 +10,7 @@ use embassy_futures::{
     join::join,
     select::{select, Either},
 };
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 use static_cell::StaticCell;
 use zephyr::{
     embassy::Executor,
@@ -160,7 +160,7 @@ async fn test() {
             }
         },
         async {
-            Timer::after(Duration::from_millis(5)).await;
+            Timer::after_millis(5).await;
             HEARTBEAT.give();
         },
     )
