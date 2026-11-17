@@ -91,6 +91,9 @@ extern int errno;
 #include <zephyr/drivers/flash.h>
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/logging/log.h>
+#ifdef CONFIG_WATCHDOG
+#include <zephyr/drivers/watchdog.h>
+#endif
 #include <zephyr/irq.h>
 
 /*
@@ -106,6 +109,11 @@ const uintptr_t ZR_STACK_RESERVED = K_KERNEL_STACK_RESERVED;
 const uint32_t ZR_POLL_TYPE_SEM_AVAILABLE = K_POLL_TYPE_SEM_AVAILABLE;
 const uint32_t ZR_POLL_TYPE_SIGNAL = K_POLL_TYPE_SIGNAL;
 const uint32_t ZR_POLL_TYPE_DATA_AVAILABLE = K_POLL_TYPE_DATA_AVAILABLE;
+
+#ifdef CONFIG_WATCHDOG
+const uint8_t ZR_WDT_OPT_PAUSE_IN_SLEEP = WDT_OPT_PAUSE_IN_SLEEP;
+const uint8_t ZR_WDT_OPT_PAUSE_HALTED_BY_DBG = WDT_OPT_PAUSE_HALTED_BY_DBG;
+#endif
 
 #ifdef CONFIG_GPIO_ENABLE_DISABLE_INTERRUPT
 const uint32_t ZR_GPIO_INT_MODE_DISABLE_ONLY = GPIO_INT_MODE_DISABLE_ONLY;

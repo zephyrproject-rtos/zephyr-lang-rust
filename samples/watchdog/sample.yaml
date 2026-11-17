@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: Rust watchdog
+  description: Configure and periodically feed a watchdog from Rust
+common:
+  tags:
+    - rust
+    - watchdog
+  filter: CONFIG_RUST_SUPPORTED and dt_alias_exists("watchdog0")
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Watchdog fed 5 times"
+tests:
+  sample.rust.watchdog:
+    platform_allow:
+      - mps2/an385
+      - frdm_mcxa156/mcxa156
+    integration_platforms:
+      - mps2/an385
+      - frdm_mcxa156/mcxa156

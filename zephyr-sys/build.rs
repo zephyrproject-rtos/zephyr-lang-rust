@@ -116,6 +116,9 @@ fn main() -> anyhow::Result<()> {
         // Flash
         .allowlist_item_if("FLASH_.*", || options.contains("CONFIG_FLASH"))
         .allowlist_function_if("flash_.*", || options.contains("CONFIG_FLASH"))
+        // Watchdog
+        .allowlist_item_if("WDT_.*", || options.contains("CONFIG_WATCHDOG"))
+        .allowlist_function_if("wdt_.*", || options.contains("CONFIG_WATCHDOG"))
         // UART
         .allowlist_item_if("CONFIG_UART_.*", || options.contains("CONFIG_SERIAL"))
         .allowlist_function_if("uart_.*", || options.contains("CONFIG_SERIAL"))

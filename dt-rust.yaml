@@ -182,6 +182,28 @@
   actions:
     - !RawProperties
 
+- name: watchdog-cmsdk-apb
+  cfg: CONFIG_WDOG_CMSDK_APB
+  rules:
+    - !Compatible
+      names: ["arm,cmsdk-watchdog"]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::watchdog::Watchdog
+
+- name: watchdog-mcux-wwdt
+  cfg: CONFIG_WDT_MCUX_WWDT
+  rules:
+    - !Compatible
+      names: ["nxp,lpc-wwdt"]
+      level: 0
+  actions:
+    - !Instance
+      raw: !Myself
+      device: crate::device::watchdog::Watchdog
+
 # Generate a pseudo node that matches all of the labels across the tree with their nodes.
 - name: labels
   rules:

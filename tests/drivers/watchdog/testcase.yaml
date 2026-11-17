@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+
+common:
+  tags:
+    - rust
+    - watchdog
+  filter: CONFIG_RUST_SUPPORTED
+  platform_allow:
+    - qemu_cortex_m3
+    - native_sim/native/64
+  integration_platforms:
+    - qemu_cortex_m3
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Watchdog tests passed"
+tests:
+  test.rust.watchdog: {}
+  test.rust.watchdog.multistage:
+    extra_configs:
+      - CONFIG_TEST_WDT_MULTISTAGE=y
+  test.rust.watchdog.disabled:
+    extra_configs:
+      - CONFIG_WATCHDOG=n
