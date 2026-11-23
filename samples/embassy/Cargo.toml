@@ -17,7 +17,7 @@ zephyr = { version = "0.1.0", features = ["time-driver"] }
 zephyr-panic = "0.1.0"
 log = "0.4.22"
 static_cell = "2.1"
-heapless = "0.8"
+heapless = "0.9.4"
 
 [dependencies.embassy-executor]
 version = "0.10.0"
