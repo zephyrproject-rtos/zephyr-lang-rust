@@ -259,7 +259,7 @@ async fn worker(this: &'static AsyncTests, command: Command, id: usize) {
 async fn main_run(this: &'static AsyncTests) {
     loop {
         let command = MAIN_CMD.receive().await;
-        let msg = format!("async {:?}", command);
+        let msg = format!("async {command:?}");
 
         let mut timer = BenchTimer::new(&msg, 1);
 

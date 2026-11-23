@@ -16,7 +16,7 @@ crate-type = ["staticlib"]
 zephyr = { version = "0.1.0", features = ["time-driver", "executor-zephyr"] }
 zephyr-panic = "0.1.0"
 critical-section = "1.1.2"
-heapless = "0.8"
+heapless = "0.9.4"
 static_cell = "2.1"
 
 embassy-executor = { version = "0.10.0", features = ["log"] }

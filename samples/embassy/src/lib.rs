@@ -139,7 +139,7 @@ impl ThreadTests {
     }
 
     async fn run(&'static self, spawner: Spawner, low_spawner: SendSpawner, command: Command) {
-        let desc = format!("{:?}", command);
+        let desc = format!("{command:?}");
         let timer = BenchTimer::new(&desc, self.count * command.get_count());
 
         let mut answers: heapless::Vec<Option<usize>, NUM_THREADS> = heapless::Vec::new();

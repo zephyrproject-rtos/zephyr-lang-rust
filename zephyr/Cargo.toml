@@ -10,7 +10,8 @@ Functionality for Rust-based applications that run on Zephyr.
 """
 
 # 1.85 is needed to support working with or without edition 2024.
-rust-version = "1.85"
+# 1.88 is needed for heapless 0.9.4.
+rust-version = "1.88"
 
 [dependencies]
 zephyr-sys = { version = "0.1.0", path = "../zephyr-sys" }
